@@ -1,3 +1,6 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:io' show Platform;
+
 /// Application-wide constants for Fakultas Kopi Photobooth.
 /// All magic numbers and configuration values live here.
 abstract final class AppConstants {
@@ -8,7 +11,14 @@ abstract final class AppConstants {
   static const String tagline = 'Capture Your Moment';
 
   // ── API Configuration ─────────────────────────────────────────────────────
-  static const String apiBaseUrlDev = 'http://10.0.2.2:8000/api'; // 10.0.2.2 = localhost dari Android emulator
+  /// Dev base URL:
+  /// - Android Emulator → 10.0.2.2 (alias localhost di dalam emulator)
+  /// - Device fisik / Web → IP lokal PC di jaringan WiFi
+  static String get apiBaseUrlDev {
+    if (!kIsWeb && Platform.isAndroid) return 'http://10.0.2.2:8000/api';
+    return 'http://192.168.1.12:8000/api';
+  }
+
   static const String apiBaseUrlProd = 'https://api.fakultaskopi.com/api';
   static const String galleryBaseUrl = 'https://gallery.fakultaskopi.com';
   static const Duration apiConnectTimeout = Duration(seconds: 15);

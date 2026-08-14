@@ -42,6 +42,9 @@ abstract final class ApiEndpoints {
   static const String stickers = '/admin/stickers';
   static const String layouts = '/admin/layouts';
 
+  static String eventFrames(int eventId) => '/events/$eventId/frames';
+  static String eventFilters(int eventId) => '/events/$eventId/filters';
+
   // ── Packages (public) ─────────────────────────────────────────────────────
   static const String packages = '/packages';
 }

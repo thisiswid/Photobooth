@@ -10,7 +10,7 @@ class FrameController extends Controller
 {
     public function index(Event $event): JsonResponse
     {
-        $frames = $event->frames()->where('active', true)->get(['id', 'name', 'asset_url']);
+        $frames = $event->frames()->where('active', true)->get(['id', 'name', 'asset_url', 'pose_count']);
 
         return response()->json(['success' => true, 'data' => $frames, 'message' => 'OK']);
     }

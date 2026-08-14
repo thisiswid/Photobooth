@@ -1,0 +1,30 @@
+# ── Laravel ───────────────────────────────────────────────────────────────────
+laravel_backend/.env
+laravel_backend/.env.*
+laravel_backend/storage/app/public/
+laravel_backend/storage/logs/
+laravel_backend/storage/framework/cache/
+laravel_backend/storage/framework/sessions/
+laravel_backend/storage/framework/views/
+laravel_backend/vendor/
+laravel_backend/node_modules/
+laravel_backend/public/storage
+laravel_backend/bootstrap/cache/
+laravel_backend/*.sqlite
+laravel_backend/*.sqlite-journal
+laravel_backend/photoboth
+
+# ── Flutter ───────────────────────────────────────────────────────────────────
+flutter_app/.dart_tool/
+flutter_app/build/
+flutter_app/.flutter-plugins
+flutter_app/.flutter-plugins-dependencies
+flutter_app/.packages
+
+# ── General ───────────────────────────────────────────────────────────────────
+.DS_Store
+*.log
+.env
+.env.*
+*.sqlite
+*.sqlite-journal
