@@ -49,6 +49,15 @@ class FrameResource extends Resource
                 ->required()
                 ->maxLength(255),
 
+            TextInput::make('pose_count')
+                ->label('Jumlah Pose')
+                ->helperText('Jumlah foto yang diambil per sesi untuk frame ini.')
+                ->numeric()
+                ->default(4)
+                ->minValue(1)
+                ->maxValue(6)
+                ->required(),
+
             FileUpload::make('asset_url')
                 ->label('File Frame')
                 ->helperText('Upload PNG dengan background transparan. Resolusi minimal 1200×1800px.')
@@ -81,6 +90,7 @@ class FrameResource extends Resource
                     ->schema([
                         TextEntry::make('name')->label('Nama Frame'),
                         TextEntry::make('event.name')->label('Event'),
+                        TextEntry::make('pose_count')->label('Jumlah Pose'),
                         IconEntry::make('active')->label('Aktif')->boolean(),
                         TextEntry::make('created_at')->label('Dibuat')->dateTime('d M Y H:i'),
                     ])
@@ -115,6 +125,12 @@ class FrameResource extends Resource
                     ->sortable()
                     ->badge()
                     ->color('info'),
+
+                TextColumn::make('pose_count')
+                    ->label('Pose')
+                    ->sortable()
+                    ->badge()
+                    ->color('success'),
 
                 IconColumn::make('active')
                     ->label('Aktif')

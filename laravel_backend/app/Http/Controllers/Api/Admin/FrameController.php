@@ -17,10 +17,12 @@ class FrameController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'event_id'  => ['nullable', 'exists:events,id'],
-            'name'      => ['required', 'string', 'max:255'],
-            'asset_url' => ['nullable', 'string'],
-            'active'    => ['boolean'],
+            'event_id'     => ['nullable', 'exists:events,id'],
+            'name'         => ['required', 'string', 'max:255'],
+            'asset_url'    => ['nullable', 'string'],
+            'pose_count'   => ['integer', 'min:1', 'max:6'],
+            'layout_config'=> ['nullable', 'array'],
+            'active'       => ['boolean'],
         ]);
         return response()->json(['success' => true, 'data' => Frame::create($data)], 201);
     }
@@ -33,10 +35,12 @@ class FrameController extends Controller
     public function update(Request $request, Frame $frame): JsonResponse
     {
         $frame->update($request->validate([
-            'event_id'  => ['nullable', 'exists:events,id'],
-            'name'      => ['sometimes', 'string', 'max:255'],
-            'asset_url' => ['nullable', 'string'],
-            'active'    => ['boolean'],
+            'event_id'     => ['nullable', 'exists:events,id'],
+            'name'         => ['sometimes', 'string', 'max:255'],
+            'asset_url'    => ['nullable', 'string'],
+            'pose_count'   => ['sometimes', 'integer', 'min:1', 'max:6'],
+            'layout_config'=> ['nullable', 'array'],
+            'active'       => ['boolean'],
         ]));
         return response()->json(['success' => true, 'data' => $frame]);
     }

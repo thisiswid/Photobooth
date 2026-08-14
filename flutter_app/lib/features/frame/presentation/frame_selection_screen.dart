@@ -3,6 +3,8 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -10,25 +12,18 @@ import '../../../features/session/providers/session_provider.dart';
 import '../../../shared/widgets/customer_header.dart';
 import '../../../shared/widgets/photobooth_layout.dart';
 import '../../../shared/widgets/responsive_button.dart';
+import '../domain/models/frame_model.dart';
+import '../providers/frame_provider.dart';
 
-class FrameOption {
-  const FrameOption({required this.id, required this.name, required this.color, this.description});
-  final String id;
-  final String name;
-  final Color color;
-  final String? description;
+/// Builds the full storage URL for a relative asset path.
+String _storageUrl(String relativePath) {
+  // Replace /api suffix with /storage/ for asset URLs
+  final baseApi = AppConstants.apiBaseUrlDev;
+  final storageBase = baseApi.replaceAll('/api', '/storage');
+  return '$storageBase/$relativePath';
 }
 
-const _mockFrames = [
-  FrameOption(id: 'classic_gold',  name: 'Classic Gold',  color: Color(0xFFC89B5B), description: 'Elegan & timeless'),
-  FrameOption(id: 'coffee_brown',  name: 'Coffee Brown',  color: Color(0xFF5C3A21), description: 'Warm coffee vibes'),
-  FrameOption(id: 'midnight',      name: 'Midnight',      color: Color(0xFF1A1A2E), description: 'Dark & mysterious'),
-  FrameOption(id: 'rose_gold',     name: 'Rose Gold',     color: Color(0xFFB76E79), description: 'Soft & romantic'),
-  FrameOption(id: 'forest',        name: 'Forest',        color: Color(0xFF2D6A4F), description: 'Nature fresh'),
-  FrameOption(id: 'minimal',       name: 'Minimal White', color: Color(0xFFF8F8F8), description: 'Clean & simple'),
-];
-
-/// Frame Selection — header transparan centered 2x.
+/// Frame Selection Screen — fetches frames from backend API.
 class FrameSelectionScreen extends ConsumerStatefulWidget {
   const FrameSelectionScreen({super.key});
 
@@ -37,71 +32,111 @@ class FrameSelectionScreen extends ConsumerStatefulWidget {
 }
 
 class _FrameSelectionScreenState extends ConsumerState<FrameSelectionScreen> {
-  String _selectedId = _mockFrames.first.id;
+  FrameModel? _selectedFrame;
 
   void _onContinue() {
-    ref.read(sessionNotifierProvider.notifier).setFrame(frameId: 1, poseCount: 4);
+    if (_selectedFrame == null) return;
+    ref.read(sessionNotifierProvider.notifier).setFrame(
+      frameId: _selectedFrame!.id,
+      poseCount: _selectedFrame!.poseCount,
+    );
     context.go(AppRoutes.camera);
   }
 
   @override
   Widget build(BuildContext context) {
-    final remaining = ref.watch(sessionNotifierProvider).remainingTime;
+    final sessionState = ref.watch(sessionNotifierProvider);
+    final remaining = sessionState.remainingTime;
     final timerText = '${(remaining.inSeconds ~/ 60).toString().padLeft(2, '0')}:'
         '${(remaining.inSeconds % 60).toString().padLeft(2, '0')}';
+    final eventId = sessionState.session?.eventId ?? 1;
+    final framesAsync = ref.watch(frameListProvider(eventId));
 
     return PhotoboothLayout(
       header: CustomerHeader(
         trailing: TimerChip(text: timerText, isWarning: remaining.inSeconds < 60),
       ),
-      child: Column(
-        children: [
-          SizedBox(height: 8.h),
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 24.w),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('Pilih Frame Favoritmu', style: AppTextStyles.headlineLarge)
-                    .animate().fadeIn(),
-                Text('${_mockFrames.length} pilihan', style: AppTextStyles.caption),
-              ],
-            ),
-          ),
-          SizedBox(height: 4.h),
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 24.w),
-            child: Text('Frame akan menghiasi hasil fotomu',
-                style: AppTextStyles.caption.copyWith(fontSize: 12.sp))
-                .animate().fadeIn(delay: 100.ms),
-          ),
-          SizedBox(height: 12.h),
-          Expanded(
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 24.w),
-              child: GridView.builder(
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3, crossAxisSpacing: 12.w,
-                  mainAxisSpacing: 12.h, childAspectRatio: 1.15,
-                ),
-                itemCount: _mockFrames.length,
-                itemBuilder: (_, i) => _FrameCard(
-                  frame: _mockFrames[i],
-                  isSelected: _mockFrames[i].id == _selectedId,
-                  onTap: () => setState(() => _selectedId = _mockFrames[i].id),
-                ).animate().fadeIn(delay: (i * 50).ms)
-                    .scale(begin: const Offset(0.95, 0.95), delay: (i * 50).ms),
+      child: framesAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, _) => Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.error_outline, size: 48.sp, color: AppColors.brown),
+              SizedBox(height: 12.h),
+              Text('Gagal memuat frame', style: AppTextStyles.titleMedium),
+              SizedBox(height: 8.h),
+              Text(err.toString(), style: AppTextStyles.caption, textAlign: TextAlign.center),
+              SizedBox(height: 16.h),
+              ResponsiveButton(
+                label: 'COBA LAGI',
+                icon: Icons.refresh,
+                onPressed: () => ref.invalidate(frameListProvider(eventId)),
+                width: 200.w,
+                height: 48.h,
               ),
-            ),
+            ],
           ),
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 16.h),
-            child: ResponsiveButton(
-              label: 'MULAI FOTO', icon: Icons.camera_alt_rounded,
-              onPressed: _onContinue, width: double.infinity, height: 60.h,
-            ).animate().fadeIn(delay: 400.ms),
-          ),
-        ],
+        ),
+        data: (frames) {
+          // Auto-select first frame if none selected
+          if (_selectedFrame == null && frames.isNotEmpty) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) setState(() => _selectedFrame = frames.first);
+            });
+          }
+
+          return Column(
+            children: [
+              SizedBox(height: 8.h),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 24.w),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Pilih Frame Favoritmu', style: AppTextStyles.headlineLarge)
+                        .animate().fadeIn(),
+                    Text('${frames.length} pilihan', style: AppTextStyles.caption),
+                  ],
+                ),
+              ),
+              SizedBox(height: 4.h),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 24.w),
+                child: Text('Frame akan menghiasi hasil fotomu',
+                    style: AppTextStyles.caption.copyWith(fontSize: 12.sp))
+                    .animate().fadeIn(delay: 100.ms),
+              ),
+              SizedBox(height: 12.h),
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 24.w),
+                  child: GridView.builder(
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3, crossAxisSpacing: 12.w,
+                      mainAxisSpacing: 12.h, childAspectRatio: 0.75,
+                    ),
+                    itemCount: frames.length,
+                    itemBuilder: (_, i) => _FrameCard(
+                      frame: frames[i],
+                      isSelected: _selectedFrame?.id == frames[i].id,
+                      onTap: () => setState(() => _selectedFrame = frames[i]),
+                    ).animate().fadeIn(delay: (i * 50).ms)
+                        .scale(begin: const Offset(0.95, 0.95), delay: (i * 50).ms),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 16.h),
+                child: ResponsiveButton(
+                  label: 'MULAI FOTO', icon: Icons.camera_alt_rounded,
+                  onPressed: _selectedFrame != null ? _onContinue : null,
+                  width: double.infinity, height: 60.h,
+                ).animate().fadeIn(delay: 400.ms),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -109,7 +144,7 @@ class _FrameSelectionScreenState extends ConsumerState<FrameSelectionScreen> {
 
 class _FrameCard extends StatelessWidget {
   const _FrameCard({required this.frame, required this.isSelected, required this.onTap});
-  final FrameOption frame;
+  final FrameModel frame;
   final bool isSelected;
   final VoidCallback onTap;
 
@@ -119,7 +154,6 @@ class _FrameCard extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: EdgeInsets.all(12.r),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.darkBrown : AppColors.creamWhite,
           borderRadius: BorderRadius.circular(10.r),
@@ -133,38 +167,70 @@ class _FrameCard extends StatelessWidget {
           )],
         ),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              width: 36.r, height: 36.r,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle, color: frame.color,
-                border: Border.all(
-                  color: isSelected ? AppColors.creamWhite.withValues(alpha: 0.5) : AppColors.borderWarm,
-                  width: 1.5,
+            // Frame preview image
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.vertical(top: Radius.circular(9.r)),
+                child: Container(
+                  width: double.infinity,
+                  // Checkerboard bg to show transparency
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFEEEEEE),
+                    image: DecorationImage(
+                      image: AssetImage('assets/images/logo.png'),
+                      fit: BoxFit.none,
+                      opacity: 0.05,
+                    ),
+                  ),
+                  child: frame.assetUrl != null
+                      ? CachedNetworkImage(
+                          imageUrl: _storageUrl(frame.assetUrl!),
+                          fit: BoxFit.contain,
+                          placeholder: (_, __) => Center(
+                            child: SizedBox(
+                              width: 24.r, height: 24.r,
+                              child: const CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                          errorWidget: (_, __, ___) => Center(
+                            child: Icon(Icons.broken_image, size: 32.sp, color: AppColors.lightBrown),
+                          ),
+                        )
+                      : Center(
+                          child: Icon(Icons.photo_size_select_actual, size: 32.sp, color: AppColors.lightBrown),
+                        ),
                 ),
               ),
             ),
-            SizedBox(height: 8.h),
-            Text(frame.name,
-              style: AppTextStyles.titleSmall.copyWith(
-                color: isSelected ? AppColors.creamWhite : AppColors.darkBrown,
-                fontWeight: FontWeight.w700,
+            // Frame info
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 8.h),
+              child: Column(
+                children: [
+                  Text(
+                    frame.name,
+                    style: AppTextStyles.titleSmall.copyWith(
+                      color: isSelected ? AppColors.creamWhite : AppColors.darkBrown,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis,
+                  ),
+                  SizedBox(height: 2.h),
+                  Text(
+                    '${frame.poseCount} foto',
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: isSelected ? AppColors.creamWhite.withValues(alpha: 0.7) : AppColors.brown,
+                      fontSize: 10.sp,
+                    ),
+                  ),
+                  if (isSelected) ...[
+                    SizedBox(height: 4.h),
+                    Icon(Icons.check_circle_rounded, color: AppColors.creamWhite, size: 18.sp),
+                  ],
+                ],
               ),
-              textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
-            if (frame.description != null) ...[
-              SizedBox(height: 2.h),
-              Text(frame.description!,
-                style: AppTextStyles.bodySmall.copyWith(
-                  color: isSelected ? AppColors.creamWhite.withValues(alpha: 0.7) : AppColors.brown,
-                  fontSize: 10.sp,
-                ),
-                textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
-            ],
-            if (isSelected) ...[
-              SizedBox(height: 6.h),
-              Icon(Icons.check_circle_rounded, color: AppColors.creamWhite, size: 18.sp),
-            ],
+            ),
           ],
         ),
       ),

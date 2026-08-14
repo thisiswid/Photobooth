@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' as dart_io;
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -78,6 +79,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   int _currentPose = 0;     // 0-based
   int _retakeCount = 0;
   XFile? _lastCaptured;
+  List<XFile?> _capturedPhotos = [];
   bool _isMirrorEnabled = false;
 
   @override
@@ -131,14 +133,33 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
 
   Future<void> _capturePhoto() async {
     setState(() => _step = _CaptureStep.capturing);
-    await Future<void>.delayed(const Duration(milliseconds: 1200));
     if (!mounted) return;
 
-    // Simulasi capture — di produksi pakai _cameraController!.takePicture()
-    setState(() {
-      _lastCaptured = null; // placeholder
-      _step = _CaptureStep.result;
-    });
+    try {
+      if (_cameraController != null && _isCameraReady) {
+        final file = await _cameraController!.takePicture();
+        if (!mounted) return;
+        setState(() {
+          _lastCaptured = file;
+          _step = _CaptureStep.result;
+        });
+      } else {
+        // Kamera belum siap — fallback tanpa foto
+        await Future<void>.delayed(const Duration(milliseconds: 800));
+        if (!mounted) return;
+        setState(() {
+          _lastCaptured = null;
+          _step = _CaptureStep.result;
+        });
+      }
+    } catch (_) {
+      await Future<void>.delayed(const Duration(milliseconds: 800));
+      if (!mounted) return;
+      setState(() {
+        _lastCaptured = null;
+        _step = _CaptureStep.result;
+      });
+    }
   }
 
   void _onRetake() {
@@ -153,11 +174,11 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     final notifier = ref.read(sessionNotifierProvider.notifier);
     final sessionId = ref.read(sessionNotifierProvider).session?.sessionId.toString() ?? '';
 
-    // Simpan foto ke session
+    // Simpan foto ke session — pakai path file asli jika ada, fallback ke placeholder
     notifier.addPhoto(PhotoModel(
       id: _uuid.v4(),
       sessionId: sessionId,
-      fileUrl: 'assets/mock/photo_placeholder.png',
+      fileUrl: _lastCaptured?.path ?? 'assets/mock/photo_placeholder.png',
       type: PhotoType.raw,
       capturedAt: DateTime.now(),
     ));
@@ -170,6 +191,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     } else {
       // Pose berikutnya
       setState(() {
+        _capturedPhotos = [..._capturedPhotos, _lastCaptured];
         _currentPose++;
         _retakeCount = 0;
         _lastCaptured = null;
@@ -223,7 +245,9 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
           isMirrorEnabled: _isMirrorEnabled,
           retakeCount: _retakeCount,
           maxRetake: _maxRetake,
-          onFrameSelected: (id) => setState(() => _selectedFrameId = id),
+          capturedPhotos: _capturedPhotos,
+          currentPose: _currentPose,
+          totalPoses: totalPoses,
           onMirrorToggle: () => setState(() => _isMirrorEnabled = !_isMirrorEnabled),
           onStartPhoto: _startCountdown,
         );
@@ -287,7 +311,7 @@ class _ProgressBar extends StatelessWidget {
   final int totalPoses;
 
   static const _labels = [
-    'Pilih Frame', 'Countdown', 'Foto Diambil', 'Hasil Foto',
+    'Preview', 'Countdown', 'Foto Diambil', 'Hasil Foto',
   ];
 
   @override
@@ -337,7 +361,9 @@ class _StepFrameAndPreview extends StatelessWidget {
     required this.isMirrorEnabled,
     required this.retakeCount,
     required this.maxRetake,
-    required this.onFrameSelected,
+    required this.capturedPhotos,
+    required this.currentPose,
+    required this.totalPoses,
     required this.onMirrorToggle,
     required this.onStartPhoto,
   });
@@ -347,32 +373,115 @@ class _StepFrameAndPreview extends StatelessWidget {
   final bool isMirrorEnabled;
   final int retakeCount;
   final int maxRetake;
-  final ValueChanged<String> onFrameSelected;
+  final List<XFile?> capturedPhotos;
+  final int currentPose;
+  final int totalPoses;
   final VoidCallback onMirrorToggle;
   final VoidCallback onStartPhoto;
 
   @override
   Widget build(BuildContext context) {
+    final frame = _mockFrames.firstWhere(
+      (f) => f.id == selectedFrameId,
+      orElse: () => _mockFrames.first,
+    );
+
     return Row(
       children: [
-        // ── Kiri: Frame list ──────────────────────────────────────────
+        // ── Kiri: Info frame + foto yang sudah diambil ────────────────
         SizedBox(
           width: 160.w,
           child: Column(
             children: [
+              // Nama frame
+              Container(
+                margin: EdgeInsets.fromLTRB(8.w, 8.h, 8.w, 4.h),
+                padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 8.h),
+                decoration: BoxDecoration(
+                  color: frame.color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8.r),
+                  border: Border.all(color: frame.color.withValues(alpha: 0.4)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 12.r, height: 12.r,
+                      decoration: BoxDecoration(
+                        color: frame.color, shape: BoxShape.circle,
+                      ),
+                    ),
+                    SizedBox(width: 6.w),
+                    Expanded(
+                      child: Text(
+                        frame.name,
+                        style: AppTextStyles.bodySmall.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.darkBrown,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Label "Foto Kamu"
               Padding(
                 padding: EdgeInsets.fromLTRB(8.w, 4.h, 8.w, 4.h),
-                child: Text('Pilih Frame', style: AppTextStyles.titleSmall),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Foto Kamu', style: AppTextStyles.bodySmall.copyWith(
+                      fontWeight: FontWeight.w600, color: AppColors.darkBrown,
+                    )),
+                    Text('${capturedPhotos.length}/$totalPoses',
+                      style: AppTextStyles.caption.copyWith(color: AppColors.brown)),
+                  ],
+                ),
               ),
+              // Grid foto yang sudah diambil
               Expanded(
-                child: ListView.separated(
+                child: Padding(
                   padding: EdgeInsets.symmetric(horizontal: 8.w),
-                  itemCount: _mockFrames.length,
-                  separatorBuilder: (_, __) => SizedBox(height: 6.h),
-                  itemBuilder: (_, i) => _FrameListTile(
-                    frame: _mockFrames[i],
-                    isSelected: _mockFrames[i].id == selectedFrameId,
-                    onTap: () => onFrameSelected(_mockFrames[i].id),
+                  child: GridView.builder(
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 4.w,
+                      mainAxisSpacing: 4.h,
+                    ),
+                    itemCount: totalPoses,
+                    itemBuilder: (_, i) {
+                      final isDone = i < capturedPhotos.length;
+                      final isCurrent = i == currentPose;
+                      final photo = isDone ? capturedPhotos[i] : null;
+                      return Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(6.r),
+                          border: Border.all(
+                            color: isCurrent ? AppColors.darkBrown
+                                : isDone ? AppColors.lightBrown
+                                : AppColors.borderWarm,
+                            width: isCurrent ? 2 : 1,
+                          ),
+                          color: AppColors.paper,
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(5.r),
+                          child: photo != null
+                              ? Image.file(
+                                  dart_io.File(photo.path),
+                                  fit: BoxFit.cover,
+                                )
+                              : Center(
+                                  child: isCurrent
+                                      ? Icon(Icons.camera_alt_rounded,
+                                          color: AppColors.darkBrown, size: 20.sp)
+                                      : Icon(Icons.image_outlined,
+                                          color: AppColors.borderWarm, size: 16.sp),
+                                ),
+                        ),
+                      );
+                    },
                   ),
                 ),
               ),
@@ -468,51 +577,6 @@ class _StepFrameAndPreview extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _FrameListTile extends StatelessWidget {
-  const _FrameListTile({required this.frame, required this.isSelected, required this.onTap});
-  final _FrameData frame;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 8.h),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.darkBrown : AppColors.creamWhite,
-          borderRadius: BorderRadius.circular(8.r),
-          border: Border.all(
-            color: isSelected ? AppColors.darkBrown : AppColors.borderWarm,
-            width: isSelected ? 2 : 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 18.r, height: 18.r,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: frame.color),
-            ),
-            SizedBox(width: 8.w),
-            Expanded(
-              child: Text(frame.name,
-                style: AppTextStyles.bodySmall.copyWith(
-                  color: isSelected ? AppColors.creamWhite : AppColors.darkBrown,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            if (isSelected) Icon(Icons.check, color: AppColors.creamWhite, size: 14.sp),
-          ],
-        ),
-      ),
     );
   }
 }
