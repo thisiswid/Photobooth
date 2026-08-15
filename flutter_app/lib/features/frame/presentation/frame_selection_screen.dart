@@ -16,11 +16,19 @@ import '../domain/models/frame_model.dart';
 import '../providers/frame_provider.dart';
 
 /// Builds the full storage URL for a relative asset path.
+/// Handles both relative paths and already-complete http(s) URLs.
 String _storageUrl(String relativePath) {
-  // Replace /api suffix with /storage/ for asset URLs
+  // Already a full URL — return as-is
+  if (relativePath.startsWith('http://') || relativePath.startsWith('https://')) {
+    return relativePath;
+  }
+  String clean = relativePath;
+  if (clean.startsWith('/')) clean = clean.substring(1);
+  // Strip leading "storage/" prefix since we'll add /storage/ from the base
+  if (clean.startsWith('storage/')) clean = clean.substring('storage/'.length);
   final baseApi = AppConstants.apiBaseUrlDev;
   final storageBase = baseApi.replaceAll('/api', '/storage');
-  return '$storageBase/$relativePath';
+  return '$storageBase/$clean';
 }
 
 /// Frame Selection Screen — fetches frames from backend API.
@@ -39,6 +47,7 @@ class _FrameSelectionScreenState extends ConsumerState<FrameSelectionScreen> {
     ref.read(sessionNotifierProvider.notifier).setFrame(
       frameId: _selectedFrame!.id,
       poseCount: _selectedFrame!.poseCount,
+      frameModel: _selectedFrame,
     );
     context.go(AppRoutes.camera);
   }

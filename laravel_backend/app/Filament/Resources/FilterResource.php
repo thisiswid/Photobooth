@@ -34,13 +34,27 @@ class FilterResource extends Resource
     {
         return $schema->components([
             Select::make('event_id')->label('Event')
-                ->relationship('event', 'name')->searchable()->preload(),
-            TextInput::make('name')->label('Nama Filter')->required()->maxLength(255),
-            FileUpload::make('thumbnail_url')->label('Thumbnail')
+                ->relationship('event', 'name')->searchable()->preload()->required(),
+            TextInput::make('name')->label('Nama Filter')->required()->maxLength(255)
+                ->placeholder('Contoh: Vintage Coffee, B&W Classic, dll'),
+            Select::make('parameters')
+                ->label('Tipe Preset Filter')
+                ->options([
+                    '{"type":"none"}' => '🌿 Original / Normal (Warna Asli)',
+                    '{"type":"grayscale"}' => '🎞️ Monochrome / Black & White Klasik',
+                    '{"type":"sepia","intensity":80}' => '📻 Vintage Sepia Heritage',
+                    '{"type":"warm","r":25,"g":10,"b":0,"brightness":10}' => '☕ Warm Coffee / Nostalgia',
+                    '{"type":"cool","r":-10,"g":0,"b":25,"brightness":5}' => '❄️ Cool Mist / Nordic Chill',
+                    '{"type":"soft","blur":1,"brightness":15}' => '🌸 Soft Glow / Pastel Dream',
+                    '{"type":"contrast","level":30}' => '⚡ High Contrast / Vivid Film',
+                    '{"type":"sunset","r":35,"g":15,"b":-10,"brightness":8}' => '🌅 Golden Hour / Sunset Glow',
+                ])
+                ->default('{"type":"none"}')
+                ->required(),
+            FileUpload::make('thumbnail_url')->label('Thumbnail / Ikon (Opsional)')
                 ->image()->directory('filters')->columnSpanFull(),
-            TextInput::make('parameters')->label('Parameters')->maxLength(500),
-            TextInput::make('sort_order')->label('Urutan')->numeric()->default(0),
-            Toggle::make('active')->label('Aktif')->default(true),
+            TextInput::make('sort_order')->label('Urutan Tampilan')->numeric()->default(0),
+            Toggle::make('active')->label('Aktifkan Filter')->default(true),
         ]);
     }
 

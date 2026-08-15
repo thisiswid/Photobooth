@@ -27,6 +27,7 @@ Route::get('/payments/{payment}/status', [PaymentController::class, 'status']);
 Route::post('/sessions', [SessionController::class, 'store']);
 Route::post('/sessions/{session}/frame', [SessionController::class, 'setFrame']);
 Route::post('/sessions/{session}/photos', [SessionController::class, 'uploadPhotos']);
+Route::post('/sessions/{session}/generate-result', [SessionController::class, 'generateResult']);
 Route::post('/sessions/{session}/finish', [SessionController::class, 'finish']);
 
 Route::get('/results/{token}', [ResultController::class, 'show']);

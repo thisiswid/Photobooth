@@ -9,7 +9,9 @@ use Filament\Infolists\Components\ImageEntry;
 use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Resources\Resource;
+use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
+use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
@@ -20,8 +22,8 @@ class ResultResource extends Resource
     public static function getNavigationIcon(): string { return 'heroicon-o-qr-code'; }
     public static function getNavigationGroup(): string { return 'Operasional'; }
     public static function getNavigationSort(): int { return 3; }
-    public static function getModelLabel(): string { return 'Hasil'; }
-    public static function getPluralModelLabel(): string { return 'Hasil'; }
+    public static function getModelLabel(): string { return 'Hasil Foto'; }
+    public static function getPluralModelLabel(): string { return 'Hasil Foto'; }
 
     public static function form(Schema $schema): Schema
     {
@@ -31,14 +33,35 @@ class ResultResource extends Resource
     public static function infolist(Schema $schema): Schema
     {
         return $schema->components([
-            Section::make('Hasil Sesi')->schema([
-                TextEntry::make('session_id')->label('ID Sesi'),
-                TextEntry::make('qr_token')->label('QR Token'),
-                TextEntry::make('expires_at')->label('Expired')->dateTime('d M Y H:i:s'),
+            Section::make('Informasi Hasil & Akses Download')->schema([
+                TextEntry::make('session.id')->label('ID Sesi'),
+                TextEntry::make('session.event.name')->label('Event'),
+                TextEntry::make('session.frame.name')->label('Frame Terpilih'),
+                TextEntry::make('session.filter.name')->label('Filter Terpilih')->default('Original'),
+                TextEntry::make('download_url')
+                    ->label('🌐 URL Download Publik (Customer HP)')
+                    ->state(fn ($record) => url('/d/' . $record->qr_token))
+                    ->url(fn ($record) => url('/d/' . $record->qr_token))
+                    ->openUrlInNewTab()
+                    ->copyable()
+                    ->copyMessage('URL Download berhasil disalin!')
+                    ->columnSpan(2),
+                TextEntry::make('qr_token')->label('QR Token')->copyable(),
+                TextEntry::make('expires_at')->label('Masa Aktif Hingga')->dateTime('d M Y H:i:s'),
+                TextEntry::make('status_aktif')
+                    ->label('Status Kedaluwarsa')
+                    ->badge()
+                    ->state(fn ($record) => now()->greaterThan($record->expires_at) ? 'Expired (Lewat 7 Hari)' : 'Aktif')
+                    ->color(fn ($state) => str_contains($state, 'Aktif') ? 'success' : 'danger'),
             ])->columns(3),
-            Section::make('File')->schema([
-                ImageEntry::make('final_url')->label('Hasil Final'),
-                ImageEntry::make('gif_url')->label('GIF'),
+
+            Section::make('File Hasil Generasi (HD & Animasi)')->schema([
+                ImageEntry::make('final_url')
+                    ->label('📸 Photo Strip Resolusi Tinggi (HD)')
+                    ->disk('public'),
+                ImageEntry::make('gif_url')
+                    ->label('🎬 Looping Motion GIF Animasi')
+                    ->disk('public'),
             ])->columns(2),
         ]);
     }
@@ -47,14 +70,43 @@ class ResultResource extends Resource
     {
         return $table
             ->columns([
-                TextColumn::make('id')->sortable(),
-                TextColumn::make('session_id')->label('ID Sesi'),
-                TextColumn::make('qr_token')->label('QR Token')->searchable(),
-                TextColumn::make('expires_at')->label('Expired')->dateTime('d M Y H:i')->sortable(),
+                TextColumn::make('id')->label('ID')->sortable(),
+                ImageColumn::make('final_url')->label('Photo Strip')->disk('public')->height(60),
+                ImageColumn::make('gif_url')->label('Motion GIF')->disk('public')->height(60),
+                TextColumn::make('session.id')->label('ID Sesi')->sortable(),
+                TextColumn::make('session.event.name')->label('Event'),
+                TextColumn::make('qr_token')->label('QR Token')->searchable()->copyable()->limit(12),
+                TextColumn::make('download_link')
+                    ->label('Akses Link')
+                    ->state(fn ($record) => url('/d/' . $record->qr_token))
+                    ->url(fn ($record) => url('/d/' . $record->qr_token))
+                    ->openUrlInNewTab()
+                    ->color('primary')
+                    ->limit(28),
+                TextColumn::make('expires_at')
+                    ->label('Status 7 Hari')
+                    ->badge()
+                    ->state(function ($record) {
+                        if (now()->greaterThan($record->expires_at)) {
+                            return 'Expired';
+                        }
+                        $days = max(0, (int) now()->diffInDays($record->expires_at, false));
+                        return "Aktif ({$days} hari lagi)";
+                    })
+                    ->color(fn ($state) => str_contains($state, 'Aktif') ? 'success' : 'danger')
+                    ->sortable(),
                 TextColumn::make('created_at')->label('Dibuat')->dateTime('d M Y H:i')->sortable(),
             ])
             ->defaultSort('id', 'desc')
-            ->actions([ViewAction::make()]);
+            ->actions([
+                ViewAction::make()->label('Detail'),
+                Action::make('open_download')
+                    ->label('Buka Download')
+                    ->icon('heroicon-o-arrow-top-right-on-square')
+                    ->color('success')
+                    ->url(fn ($record) => url('/d/' . $record->qr_token))
+                    ->openUrlInNewTab(),
+            ]);
     }
 
     public static function getPages(): array

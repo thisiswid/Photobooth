@@ -6,15 +6,13 @@ import 'package:go_router/go_router.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
-import '../../../core/utils/responsive_helper.dart';
-import '../../../features/session/domain/models/session_model.dart';
 import '../../../features/session/providers/session_provider.dart';
 import '../../../shared/widgets/customer_header.dart';
 import '../../../shared/widgets/photobooth_layout.dart';
+import '../../../shared/widgets/photo_strip_widget.dart';
 import '../../../shared/widgets/responsive_button.dart';
 
-/// Screen 6 — Photo Preview grid.
-/// CustomerHeader + warm parchment bg + per-photo retake.
+/// Screen 6 — Photo Preview with Frame.
 class PhotoPreviewScreen extends ConsumerWidget {
   const PhotoPreviewScreen({super.key});
 
@@ -56,19 +54,21 @@ class PhotoPreviewScreen extends ConsumerWidget {
           Padding(
             padding: EdgeInsets.symmetric(horizontal: 24.w),
             child: Text(
-              'Ketuk foto untuk melihat atau ambil ulang (maks. 2x per foto)',
+              'Periksa fotomu di dalam frame sebelum memilih filter',
               style: AppTextStyles.bodySmall,
             ).animate().fadeIn(delay: 200.ms),
           ),
           SizedBox(height: 12.h),
 
-          // ── Photo grid ────────────────────────────────────────────────
+          // ── Photo Strip with Frame ───────────────────────────────────
           Expanded(
             child: photos.isEmpty
                 ? const _EmptyPhotos()
-                : Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 24.w),
-                    child: _PhotoGrid(photos: photos, ref: ref),
+                : Center(
+                    child: PhotoStripWidget(
+                      photos: photos,
+                      frame: sessionState.selectedFrame,
+                    ),
                   ),
           ),
 
@@ -105,132 +105,6 @@ class PhotoPreviewScreen extends ConsumerWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ── Photo Grid ────────────────────────────────────────────────────────────────
-
-class _PhotoGrid extends StatelessWidget {
-  const _PhotoGrid({required this.photos, required this.ref});
-  final List<PhotoModel> photos;
-  final WidgetRef ref;
-
-  @override
-  Widget build(BuildContext context) {
-    final crossAxisCount =
-        ResponsiveHelper.gridColumns(context, small: 2, medium: 2, large: 4);
-    return GridView.builder(
-      padding: EdgeInsets.zero,
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: crossAxisCount,
-        crossAxisSpacing: 12.w,
-        mainAxisSpacing: 12.h,
-        childAspectRatio: 4 / 3,
-      ),
-      itemCount: photos.length,
-      itemBuilder: (_, i) => _PhotoThumbnail(
-        photo: photos[i],
-        index: i,
-        retakeCount: ref.read(sessionNotifierProvider).session?.photos[i].retakeCount ?? 0,
-        canRetake: ref.read(sessionNotifierProvider).session?.canRetakePose(i) ?? true,
-        onRetake: () => context.go(AppRoutes.camera, extra: {'retakeIndex': i}),
-      ).animate()
-          .fadeIn(delay: (i * 80).ms)
-          .scale(begin: const Offset(0.95, 0.95), delay: (i * 80).ms),
-    );
-  }
-}
-
-// ── Photo Thumbnail ───────────────────────────────────────────────────────────
-
-class _PhotoThumbnail extends StatelessWidget {
-  const _PhotoThumbnail({
-    required this.photo,
-    required this.index,
-    required this.retakeCount,
-    required this.canRetake,
-    required this.onRetake,
-  });
-
-  final PhotoModel photo;
-  final int index;
-  final int retakeCount;
-  final bool canRetake;
-  final VoidCallback onRetake;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: canRetake ? onRetake : null,
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppColors.paper,
-          borderRadius: BorderRadius.circular(10.r),
-          border: Border.all(color: AppColors.borderWarm, width: 1.5),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.darkBrown.withValues(alpha: 0.08),
-              blurRadius: 6,
-              offset: const Offset(1, 2),
-            ),
-          ],
-        ),
-        child: Stack(
-          children: [
-            // Photo
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8.r),
-              child: Image.asset(
-                photo.fileUrl,
-                fit: BoxFit.cover,
-                width: double.infinity,
-                height: double.infinity,
-                errorBuilder: (_, __, ___) => Center(
-                  child: Icon(Icons.photo,
-                      color: AppColors.lightBrown, size: 32.sp),
-                ),
-              ),
-            ),
-            // Retake badge
-            Positioned(
-              top: 6.r,
-              right: 6.r,
-              child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-                decoration: BoxDecoration(
-                  color: canRetake ? AppColors.darkBrown : AppColors.lightBrown.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(10.r),
-                ),
-                child: Text(
-                  canRetake ? 'Retake' : 'Limit',
-                  style: TextStyle(
-                    fontSize: 9.sp,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.creamWhite,
-                  ),
-                ),
-              ),
-            ),
-            // Retake count
-            Positioned(
-              bottom: 6.r,
-              left: 6.r,
-              child: Text(
-                'Retake: $retakeCount/2',
-                style: TextStyle(
-                  fontSize: 9.sp,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.creamWhite,
-                  shadows: const [
-                    Shadow(color: Colors.black54, blurRadius: 4)
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

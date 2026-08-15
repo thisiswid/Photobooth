@@ -1,4 +1,6 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import '../../filter/domain/models/filter_model.dart';
+import '../../frame/domain/models/frame_model.dart';
 import '../domain/models/session_model.dart';
 
 part 'session_provider.g.dart';
@@ -6,15 +8,11 @@ part 'session_provider.g.dart';
 // ── SessionState ──────────────────────────────────────────────────────────────
 
 /// Full state of an active photobooth session.
-///
-/// Aligned to the ERD and canonical flow:
-/// Payment PAID → Start Session (timer 05:00) → Select Frame →
-/// Photo Session (Mirror/No Mirror) → Countdown 5s → Capture →
-/// Photo Result (Retake/Next) → [repeat per pose] →
-/// Filter Selection → Final Result (Auto Print + QR) → Selesai → Welcome
 class SessionState {
   const SessionState({
     this.session,
+    this.selectedFrame,
+    this.selectedFilter,
     this.currentPoseIndex = 0,
     this.isMirrorEnabled = false,
     this.isLoading = false,
@@ -22,6 +20,8 @@ class SessionState {
   });
 
   final SessionModel? session;
+  final FrameModel? selectedFrame;
+  final FilterModel? selectedFilter;
 
   /// Which pose slot is currently being shot (0-based).
   final int currentPoseIndex;
@@ -57,6 +57,8 @@ class SessionState {
 
   SessionState copyWith({
     SessionModel? session,
+    FrameModel? selectedFrame,
+    FilterModel? selectedFilter,
     int? currentPoseIndex,
     bool? isMirrorEnabled,
     bool? isLoading,
@@ -66,6 +68,8 @@ class SessionState {
   }) {
     return SessionState(
       session:          clearSession ? null : (session ?? this.session),
+      selectedFrame:    clearSession ? null : (selectedFrame ?? this.selectedFrame),
+      selectedFilter:   clearSession ? null : (selectedFilter ?? this.selectedFilter),
       currentPoseIndex: currentPoseIndex ?? this.currentPoseIndex,
       isMirrorEnabled:  isMirrorEnabled ?? this.isMirrorEnabled,
       isLoading:        isLoading ?? this.isLoading,
@@ -101,11 +105,11 @@ class SessionNotifier extends _$SessionNotifier {
     state = state.copyWith(session: session, currentPoseIndex: 0);
   }
 
-  /// Called after Frame Selection — saves frame_id and pose_count.
-  void setFrame({required int frameId, required int poseCount}) {
-   // Also available as selectFrame(String mockId) for Phase 1 mock usage.
+  /// Called after Frame Selection — saves frame_id, pose_count, and frame model.
+  void setFrame({required int frameId, required int poseCount, FrameModel? frameModel}) {
     if (state.session == null) return;
     state = state.copyWith(
+      selectedFrame: frameModel,
       session: state.session!.copyWith(
         frameId:   frameId,
         poseCount: poseCount,
@@ -150,9 +154,14 @@ class SessionNotifier extends _$SessionNotifier {
   }
 
   /// Called after Filter Selection — saves chosen filter.
-  void setFilter({required int filterId, required String filterName}) {
+  void setFilter({
+    required int filterId,
+    required String filterName,
+    FilterModel? filterModel,
+  }) {
     if (state.session == null) return;
     state = state.copyWith(
+      selectedFilter: filterModel,
       session: state.session!.copyWith(
         filterId:       filterId,
         selectedFilter: filterName,

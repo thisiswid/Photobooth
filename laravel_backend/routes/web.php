@@ -1,7 +1,14 @@
 <?php
 
+use App\Http\Controllers\Web\DownloadController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
-    return view('welcome');
+    return redirect('/admin');
 });
+
+// ── Customer QR Code Download Portal ─────────────────────────────────────────
+Route::get('/d/{token}', [DownloadController::class, 'show'])->name('download.show');
+Route::get('/d/{token}/strip', [DownloadController::class, 'downloadStrip'])->name('download.strip');
+Route::get('/d/{token}/gif', [DownloadController::class, 'downloadGif'])->name('download.gif');
+Route::get('/d/{token}/photo/{photoId}', [DownloadController::class, 'downloadPhoto'])->name('download.photo');

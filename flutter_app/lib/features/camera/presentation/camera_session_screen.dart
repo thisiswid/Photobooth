@@ -112,6 +112,10 @@ class _CameraSessionScreenState extends ConsumerState<CameraSessionScreen> {
 
   // ── Capture flow ──────────────────────────────────────────────────────
 
+  void _setMirror(bool value) {
+    setState(() => _mirrorEnabled = value);
+  }
+
   void _startCapture() {
     if (_stage != _CaptureStage.idle) return;
     setState(() {
@@ -531,7 +535,7 @@ class _CameraPanel extends StatelessWidget {
         _MirrorToggle(
           enabled: controlsEnabled,
           isMirrored: state._mirrorEnabled,
-          onChanged: (value) => state.setState(() => state._mirrorEnabled = value),
+          onChanged: (value) => state._setMirror(value),
         ),
         const Spacer(),
         SizedBox(

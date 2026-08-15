@@ -1,6 +1,3 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'dart:io' show Platform;
-
 /// Application-wide constants for Fakultas Kopi Photobooth.
 /// All magic numbers and configuration values live here.
 abstract final class AppConstants {
@@ -15,7 +12,7 @@ abstract final class AppConstants {
   /// - Android Emulator → 10.0.2.2 (alias localhost di dalam emulator)
   /// - Device fisik / Web → IP lokal PC di jaringan WiFi
   static String get apiBaseUrlDev {
-    if (!kIsWeb && Platform.isAndroid) return 'http://10.0.2.2:8000/api';
+    // IP Laptop di jaringan lokal WiFi saat ini: 192.168.1.12
     return 'http://192.168.1.12:8000/api';
   }
 
@@ -33,8 +30,10 @@ abstract final class AppConstants {
   static const Duration qrExpiryDuration = Duration(days: 30);
   static const Duration sessionTransitionDelay = Duration(seconds: 3);
 
-  /// Base URL for result QR code: GET /api/results/{token}
-  static const String resultBaseUrl = 'https://api.fakultaskopi.com/api/results';
+  /// Base URL for customer result QR code: GET /d/{token}
+  static String get resultBaseUrl {
+    return apiBaseUrlDev.replaceAll('/api', '/d');
+  }
   static const int sessionCodeLength = 8;
 
   // ── Camera ────────────────────────────────────────────────────────────────
