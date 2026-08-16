@@ -31,12 +31,16 @@ class PhotoStripWidget extends StatefulWidget {
     this.frame,
     this.filterTint,
     this.colorFilter,
+    this.activePoseIndex,
+    this.liveCameraPreview,
   });
 
   final List<PhotoModel> photos;
   final FrameModel? frame;
   final Color? filterTint;
   final ColorFilter? colorFilter;
+  final int? activePoseIndex;
+  final Widget? liveCameraPreview;
 
   @override
   State<PhotoStripWidget> createState() => _PhotoStripWidgetState();
@@ -242,6 +246,7 @@ class _PhotoStripWidgetState extends State<PhotoStripWidget> {
                           photo,
                           widget.filterTint,
                           widget.colorFilter,
+                          i,
                           i + 1,
                         ),
                       ),
@@ -281,7 +286,70 @@ class _PhotoStripWidgetState extends State<PhotoStripWidget> {
     );
   }
 
-  Widget _buildPhotoItem(PhotoModel? photo, Color? tint, ColorFilter? colorFilter, int poseNumber) {
+  Widget _buildPhotoItem(
+    PhotoModel? photo,
+    Color? tint,
+    ColorFilter? colorFilter,
+    int slotIndex,
+    int poseNumber,
+  ) {
+    // ── Active Pose Live Camera Stream ───────────────────────────────────────
+    if ((photo == null || photo.fileUrl.isEmpty) &&
+        widget.activePoseIndex != null &&
+        slotIndex == widget.activePoseIndex &&
+        widget.liveCameraPreview != null) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          // Live Camera Preview
+          widget.liveCameraPreview!,
+
+          // Active focus border
+          Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: AppColors.gold, width: 1.5.r),
+            ),
+          ),
+
+          // Live pill indicator in top-right
+          Positioned(
+            top: 3.r,
+            right: 3.r,
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 4.w, vertical: 1.5.h),
+              decoration: BoxDecoration(
+                color: Colors.red.shade700.withValues(alpha: 0.9),
+                borderRadius: BorderRadius.circular(3.r),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 3.5.r,
+                    height: 3.5.r,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  SizedBox(width: 2.w),
+                  Text(
+                    'LIVE',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 6.sp,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
     if (photo == null || photo.fileUrl.isEmpty) {
       return Container(
         color: AppColors.paper,

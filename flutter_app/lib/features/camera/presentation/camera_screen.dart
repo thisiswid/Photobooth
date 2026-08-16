@@ -240,6 +240,12 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
           cameraController: _isCameraReady ? _cameraController : null,
           countdown: _countdownValue,
           isMirrorEnabled: _isMirrorEnabled,
+          frame: ref.watch(sessionNotifierProvider).selectedFrame,
+          capturedPhotos: _capturedPhotos,
+          currentPose: _currentPose,
+          totalPoses: totalPoses,
+          retakeCount: _retakeCount,
+          maxRetake: _maxRetake,
         );
       case _CaptureStep.capturing:
         return const _StepCapturing();
@@ -467,7 +473,7 @@ class _StepFrameAndPreview extends StatelessWidget {
                   ),
                 ),
 
-                // Photo Strip Frame Asli (Rasio dinamis sesuai frame)
+                // Photo Strip Frame Asli (Rasio dinamis sesuai frame + Live Camera di slot aktif)
                 Expanded(
                   child: Padding(
                     padding: EdgeInsets.fromLTRB(8.w, 4.h, 8.w, 6.h),
@@ -475,6 +481,20 @@ class _StepFrameAndPreview extends StatelessWidget {
                       child: PhotoStripWidget(
                         photos: displayPhotos,
                         frame: frame,
+                        activePoseIndex: currentPose - 1,
+                        liveCameraPreview: (cameraController != null && cameraController!.value.isInitialized)
+                            ? Transform.flip(
+                                flipX: isMirrorEnabled,
+                                child: FittedBox(
+                                  fit: BoxFit.cover,
+                                  child: SizedBox(
+                                    width: cameraController!.value.previewSize?.width ?? 1280,
+                                    height: cameraController!.value.previewSize?.height ?? 720,
+                                    child: CameraPreview(cameraController!),
+                                  ),
+                                ),
+                              )
+                            : null,
                       ),
                     ),
                   ),
@@ -679,91 +699,247 @@ class _StepCountdown extends StatelessWidget {
     required this.cameraController,
     required this.countdown,
     required this.isMirrorEnabled,
+    this.frame,
+    required this.capturedPhotos,
+    required this.currentPose,
+    required this.totalPoses,
+    required this.retakeCount,
+    required this.maxRetake,
   });
 
   final CameraController? cameraController;
   final int countdown;
   final bool isMirrorEnabled;
+  final FrameModel? frame;
+  final List<XFile?> capturedPhotos;
+  final int currentPose;
+  final int totalPoses;
+  final int retakeCount;
+  final int maxRetake;
 
   @override
   Widget build(BuildContext context) {
+    // List foto yang sudah diambil untuk live photo strip di kiri
+    final List<PhotoModel> displayPhotos = [];
+    for (int i = 0; i < capturedPhotos.length; i++) {
+      if (capturedPhotos[i] != null) {
+        displayPhotos.add(PhotoModel(
+          id: 'pose_$i',
+          sessionId: '',
+          fileUrl: capturedPhotos[i]!.path,
+        ));
+      }
+    }
+
     return Padding(
-      padding: EdgeInsets.fromLTRB(16.w, 0, 16.w, 12.h),
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppColors.darkCoffee,
-          borderRadius: BorderRadius.circular(18.r),
-          border: Border.all(color: AppColors.darkBrown, width: 3),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.darkBrown.withValues(alpha: 0.25),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
+      padding: EdgeInsets.fromLTRB(16.w, 0, 16.w, 8.h),
+      child: Row(
+        children: [
+          // ── Kiri: Vintage Card (Photo Strip Frame Asli + Live Camera Feed di slot aktif) ──
+          Container(
+            width: 175.w,
+            decoration: BoxDecoration(
+              color: AppColors.creamWhite,
+              borderRadius: BorderRadius.circular(16.r),
+              border: Border.all(color: AppColors.borderWarm, width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.darkBrown.withValues(alpha: 0.08),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(15.r),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              // Live camera view
-              if (cameraController != null && cameraController!.value.isInitialized)
-                Center(
-                  child: Transform.flip(
-                    flipX: isMirrorEnabled,
-                    child: FittedBox(
-                      fit: BoxFit.cover,
-                      child: SizedBox(
-                        width: cameraController!.value.previewSize?.width ?? 1280,
-                        height: cameraController!.value.previewSize?.height ?? 720,
-                        child: CameraPreview(cameraController!),
+            child: Column(
+              children: [
+                // Header Frame Badge
+                Container(
+                  margin: EdgeInsets.fromLTRB(10.w, 10.h, 10.w, 6.h),
+                  padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 8.h),
+                  decoration: BoxDecoration(
+                    color: AppColors.darkBrown.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(10.r),
+                    border: Border.all(color: AppColors.gold.withValues(alpha: 0.6)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.photo_filter_rounded, size: 14.sp, color: AppColors.darkBrown),
+                      SizedBox(width: 6.w),
+                      Expanded(
+                        child: Text(
+                          frame?.name ?? 'Classic Strip',
+                          style: AppTextStyles.caption.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.darkBrown,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Label "Strip Preview"
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 2.h),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Photo Strip', style: AppTextStyles.bodySmall.copyWith(
+                        fontWeight: FontWeight.w700, color: AppColors.darkBrown,
+                      )),
+                      Container(
+                        padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
+                        decoration: BoxDecoration(
+                          color: AppColors.paper,
+                          borderRadius: BorderRadius.circular(8.r),
+                        ),
+                        child: Text('${capturedPhotos.length}/$totalPoses',
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.darkBrown,
+                            fontWeight: FontWeight.w700,
+                          )),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Photo Strip Frame Asli (Live Camera di slot aktif)
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(8.w, 4.h, 8.w, 6.h),
+                    child: Center(
+                      child: PhotoStripWidget(
+                        photos: displayPhotos,
+                        frame: frame,
+                        activePoseIndex: currentPose - 1,
+                        liveCameraPreview: (cameraController != null && cameraController!.value.isInitialized)
+                            ? Transform.flip(
+                                flipX: isMirrorEnabled,
+                                child: FittedBox(
+                                  fit: BoxFit.cover,
+                                  child: SizedBox(
+                                    width: cameraController!.value.previewSize?.width ?? 1280,
+                                    height: cameraController!.value.previewSize?.height ?? 720,
+                                    child: CameraPreview(cameraController!),
+                                  ),
+                                ),
+                              )
+                            : null,
                       ),
                     ),
                   ),
-                )
-              else
-                Container(color: AppColors.darkCoffee),
+                ),
 
-              // Warm Coffee Dim Overlay
-              Container(color: AppColors.darkCoffee.withValues(alpha: 0.55)),
-
-              // "BERSIAP YA!" di tengah
-              Center(
-                child: Text(
-                  'BERSIAP YA!',
-                  style: AppTextStyles.headlineLarge.copyWith(
-                    color: AppColors.creamWhite,
-                    fontSize: 32.sp,
-                    letterSpacing: 4,
-                    shadows: [
-                      const Shadow(color: Colors.black87, blurRadius: 12),
-                    ],
+                // Retake info
+                Container(
+                  margin: EdgeInsets.fromLTRB(8.r, 0, 8.r, 8.r),
+                  padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
+                  decoration: BoxDecoration(
+                    color: retakeCount >= maxRetake
+                        ? AppColors.error.withValues(alpha: 0.1)
+                        : AppColors.cream,
+                    borderRadius: BorderRadius.circular(8.r),
+                    border: Border.all(
+                      color: retakeCount >= maxRetake ? AppColors.error : AppColors.borderWarm,
+                    ),
                   ),
-                ).animate().fadeIn(duration: 300.ms),
-              ),
-
-              // Countdown di kanan atas
-              Positioned(
-                top: 20.h,
-                right: 24.w,
-                child: Text(
-                  '$countdown',
-                  style: AppTextStyles.countdownNumber.copyWith(
-                    color: AppColors.gold,
-                    fontSize: 84.sp,
-                    shadows: [
-                      const Shadow(color: Colors.black87, blurRadius: 20),
-                    ],
+                  child: Text(
+                    'Retake: $retakeCount/$maxRetake',
+                    style: AppTextStyles.caption.copyWith(
+                      color: retakeCount >= maxRetake ? AppColors.error : AppColors.darkBrown,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                )
-                    .animate(key: ValueKey(countdown))
-                    .scale(begin: const Offset(1.3, 1.3), duration: 400.ms)
-                    .fadeIn(duration: 200.ms),
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
-        ),
+
+          SizedBox(width: 14.w),
+
+          // ── Kanan: Viewfinder Kamera dengan Countdown Overlay ─────────────
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppColors.darkCoffee,
+                borderRadius: BorderRadius.circular(18.r),
+                border: Border.all(color: AppColors.darkBrown, width: 3),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.darkBrown.withValues(alpha: 0.25),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(15.r),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // Live camera view
+                    if (cameraController != null && cameraController!.value.isInitialized)
+                      Center(
+                        child: Transform.flip(
+                          flipX: isMirrorEnabled,
+                          child: FittedBox(
+                            fit: BoxFit.cover,
+                            child: SizedBox(
+                              width: cameraController!.value.previewSize?.width ?? 1280,
+                              height: cameraController!.value.previewSize?.height ?? 720,
+                              child: CameraPreview(cameraController!),
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      Container(color: AppColors.darkCoffee),
+
+                    // Warm Coffee Dim Overlay
+                    Container(color: AppColors.darkCoffee.withValues(alpha: 0.4)),
+
+                    // "BERSIAP YA!" di tengah
+                    Center(
+                      child: Text(
+                        'BERSIAP YA!',
+                        style: AppTextStyles.headlineLarge.copyWith(
+                          color: AppColors.creamWhite,
+                          fontSize: 32.sp,
+                          letterSpacing: 4,
+                          shadows: [
+                            const Shadow(color: Colors.black87, blurRadius: 12),
+                          ],
+                        ),
+                      ).animate().fadeIn(duration: 300.ms),
+                    ),
+
+                    // Countdown di kanan atas
+                    Positioned(
+                      top: 20.h,
+                      right: 24.w,
+                      child: Text(
+                        '$countdown',
+                        style: AppTextStyles.countdownNumber.copyWith(
+                          color: AppColors.gold,
+                          fontSize: 84.sp,
+                          shadows: [
+                            const Shadow(color: Colors.black87, blurRadius: 20),
+                          ],
+                        ),
+                      )
+                          .animate(key: ValueKey(countdown))
+                          .scale(begin: const Offset(1.3, 1.3), duration: 400.ms)
+                          .fadeIn(duration: 200.ms),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
