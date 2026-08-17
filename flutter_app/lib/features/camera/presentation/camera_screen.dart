@@ -8,6 +8,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/router/app_router.dart';
+import '../../../core/services/error_logger.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../features/frame/domain/models/frame_model.dart';
@@ -57,6 +58,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   _CaptureStep _step = _CaptureStep.frameAndPreview;
   int _countdownValue = _countdownSeconds;
   Timer? _countdownTimer;
+  Timer? _uiRefreshTimer; // keeps session timer in header ticking every second
 
   // ── Current pose ──────────────────────────────────────────────────────────
   int _currentPose = 0;     // 0-based
@@ -69,10 +71,16 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   void initState() {
     super.initState();
     _initCamera();
+    // Tick every second so the session timer in the header stays live
+    // regardless of which capture step is active.
+    _uiRefreshTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
   void dispose() {
+    _uiRefreshTimer?.cancel();
     _countdownTimer?.cancel();
     _cameraController?.dispose();
     _cameraController = null;
@@ -84,7 +92,10 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   Future<void> _initCamera() async {
     try {
       final cameras = await availableCameras();
-      if (!mounted || cameras.isEmpty) return;
+      if (!mounted || cameras.isEmpty) {
+        ErrorLogger.instance.logCameraError(message: 'Tidak ada perangkat kamera yang terdeteksi di sistem');
+        return;
+      }
       final camera = cameras.firstWhere(
         (c) => c.lensDirection == CameraLensDirection.front,
         orElse: () => cameras.first,
@@ -96,7 +107,12 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
       await controller.initialize();
       if (!mounted) { await controller.dispose(); return; }
       setState(() { _cameraController = controller; _isCameraReady = true; });
-    } catch (_) {}
+    } catch (e, stack) {
+      ErrorLogger.instance.logCameraError(
+        message: 'Gagal inisialisasi kamera: $e',
+        stackTrace: stack,
+      );
+    }
   }
 
   // ── Flow transitions ──────────────────────────────────────────────────────
@@ -128,6 +144,9 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
         });
       } else {
         // Kamera belum siap — fallback tanpa foto
+        ErrorLogger.instance.logCameraError(
+          message: 'Kamera belum siap saat capture dipicu (isCameraReady=false)',
+        );
         await Future<void>.delayed(const Duration(milliseconds: 800));
         if (!mounted) return;
         setState(() {
@@ -135,7 +154,11 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
           _step = _CaptureStep.result;
         });
       }
-    } catch (_) {
+    } catch (e, stack) {
+      ErrorLogger.instance.logCameraError(
+        message: 'Gagal mengambil gambar/takePicture: $e',
+        stackTrace: stack,
+      );
       await Future<void>.delayed(const Duration(milliseconds: 800));
       if (!mounted) return;
       setState(() {
@@ -481,7 +504,7 @@ class _StepFrameAndPreview extends StatelessWidget {
                       child: PhotoStripWidget(
                         photos: displayPhotos,
                         frame: frame,
-                        activePoseIndex: currentPose - 1,
+                        activePoseIndex: currentPose,
                         liveCameraPreview: (cameraController != null && cameraController!.value.isInitialized)
                             ? Transform.flip(
                                 flipX: isMirrorEnabled,
@@ -813,7 +836,7 @@ class _StepCountdown extends StatelessWidget {
                       child: PhotoStripWidget(
                         photos: displayPhotos,
                         frame: frame,
-                        activePoseIndex: currentPose - 1,
+                        activePoseIndex: currentPose,
                         liveCameraPreview: (cameraController != null && cameraController!.value.isInitialized)
                             ? Transform.flip(
                                 flipX: isMirrorEnabled,

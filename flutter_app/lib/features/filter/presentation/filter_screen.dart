@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/router/app_router.dart';
+import '../../../core/services/error_logger.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../features/session/providers/session_provider.dart';
@@ -73,7 +74,14 @@ class _FilterScreenState extends ConsumerState<FilterScreen> {
               ResponsiveButton(
                 label: 'COBA LAGI',
                 icon: Icons.refresh,
-                onPressed: () => ref.invalidate(filterListProvider(eventId)),
+                onPressed: () {
+                  ErrorLogger.instance.logRetryAttempt(
+                    action: 'Muat Ulang Filter',
+                    attempt: 1,
+                    reason: err.toString(),
+                  );
+                  ref.invalidate(filterListProvider(eventId));
+                },
                 width: 200.w,
                 height: 48.h,
               ),

@@ -38,8 +38,11 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->login()
-            ->colors(['primary' => Color::Indigo])
-            ->brandName('LumaBooth Admin')
+            ->colors([
+                'primary' => Color::Amber,
+                'gray'    => Color::Stone,
+            ])
+            ->brandName('Fakultas Kopi Photobooth')
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->pages([Dashboard::class])

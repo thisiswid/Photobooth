@@ -55,13 +55,21 @@ class ResultResource extends Resource
                     ->color(fn ($state) => str_contains($state, 'Aktif') ? 'success' : 'danger'),
             ])->columns(3),
 
-            Section::make('File Hasil Generasi (HD & Animasi)')->schema([
+            Section::make('File Hasil Generasi (HD, Original & Video)')->schema([
                 ImageEntry::make('final_url')
-                    ->label('📸 Photo Strip Resolusi Tinggi (HD)')
+                    ->label('📸 Photo Strip Filter (HD)')
+                    ->disk('public'),
+                ImageEntry::make('raw_final_url')
+                    ->label('🖼️ Photo Strip Asli (Tanpa Filter)')
                     ->disk('public'),
                 ImageEntry::make('gif_url')
-                    ->label('🎬 Looping Motion GIF Animasi')
+                    ->label('🎬 Looping Motion GIF')
                     ->disk('public'),
+                TextEntry::make('video_url')
+                    ->label('🎥 File Video MP4 (Klik untuk Unduh/Putar)')
+                    ->state(fn ($record) => $record->video_url ? url('storage/' . $record->video_url) : '-')
+                    ->url(fn ($record) => $record->video_url ? url('storage/' . $record->video_url) : null)
+                    ->openUrlInNewTab(),
             ])->columns(2),
         ]);
     }
@@ -71,8 +79,15 @@ class ResultResource extends Resource
         return $table
             ->columns([
                 TextColumn::make('id')->label('ID')->sortable(),
-                ImageColumn::make('final_url')->label('Photo Strip')->disk('public')->height(60),
+                ImageColumn::make('final_url')->label('Strip Filter')->disk('public')->height(60),
+                ImageColumn::make('raw_final_url')->label('Strip Asli')->disk('public')->height(60),
                 ImageColumn::make('gif_url')->label('Motion GIF')->disk('public')->height(60),
+                TextColumn::make('video_url')
+                    ->label('Video MP4')
+                    ->state(fn ($record) => $record->video_url ? '▶️ Video MP4' : '-')
+                    ->url(fn ($record) => $record->video_url ? url('storage/' . $record->video_url) : null)
+                    ->openUrlInNewTab()
+                    ->color('warning'),
                 TextColumn::make('session.id')->label('ID Sesi')->sortable(),
                 TextColumn::make('session.event.name')->label('Event'),
                 TextColumn::make('qr_token')->label('QR Token')->searchable()->copyable()->limit(12),

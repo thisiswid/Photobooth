@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Result extends Model
 {
-    protected $fillable = ['session_id', 'final_url', 'gif_url', 'qr_token', 'expires_at'];
+    protected $fillable = ['session_id', 'final_url', 'raw_final_url', 'gif_url', 'video_url', 'qr_token', 'expires_at'];
 
     protected $casts = ['expires_at' => 'datetime'];
 

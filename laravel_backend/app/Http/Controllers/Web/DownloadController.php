@@ -27,10 +27,13 @@ class DownloadController extends Controller
         $isExpired = now()->greaterThan($result->expires_at);
         $session = $result->session;
         $event = $session ? $session->event : null;
+        $hasFilter = $session && $session->filter_id;
 
         $rawPhotos = $session ? $session->photos()->where('type', 'raw')->orderBy('id')->get() : collect();
 
         $stripUrl = $result->final_url ? asset('storage/' . $result->final_url) : null;
+        $rawStripUrl = $result->raw_final_url ? asset('storage/' . $result->raw_final_url) : $stripUrl;
+        $videoUrl = $result->video_url ? asset('storage/' . $result->video_url) : null;
         $gifUrl = $result->gif_url ? asset('storage/' . $result->gif_url) : null;
 
         // Calculate days left
@@ -38,21 +41,24 @@ class DownloadController extends Controller
         $hoursLeft = max(0, (int) now()->diffInHours($result->expires_at, false));
 
         return view('download', [
-            'result'     => $result,
-            'session'    => $session,
-            'event'      => $event,
-            'rawPhotos'  => $rawPhotos,
-            'stripUrl'   => $stripUrl,
-            'gifUrl'     => $gifUrl,
-            'isExpired'  => $isExpired,
-            'daysLeft'   => $daysLeft,
-            'hoursLeft'  => $hoursLeft,
-            'token'      => $token,
+            'result'      => $result,
+            'session'     => $session,
+            'event'       => $event,
+            'hasFilter'   => $hasFilter,
+            'rawPhotos'   => $rawPhotos,
+            'stripUrl'    => $stripUrl,
+            'rawStripUrl' => $rawStripUrl,
+            'videoUrl'    => $videoUrl,
+            'gifUrl'      => $gifUrl,
+            'isExpired'   => $isExpired,
+            'daysLeft'    => $daysLeft,
+            'hoursLeft'   => $hoursLeft,
+            'token'       => $token,
         ]);
     }
 
     /**
-     * Download High-Res Photo Strip PNG.
+     * Download High-Res Photo Strip PNG (with selected filter).
      */
     public function downloadStrip(string $token)
     {
@@ -73,6 +79,61 @@ class DownloadController extends Controller
         $filename = 'FakultasKopi_PhotoStrip_' . date('Ymd_His') . '.png';
         return response()->download($filePath, $filename, [
             'Content-Type' => 'image/png',
+        ]);
+    }
+
+    /**
+     * Download High-Res Original Photo Strip PNG (without filter).
+     */
+    public function downloadRawStrip(string $token)
+    {
+        $result = Result::where('qr_token', $token)->firstOrFail();
+        if (now()->greaterThan($result->expires_at)) {
+            abort(403, 'Masa aktif foto telah berakhir.');
+        }
+
+        $relPath = $result->raw_final_url ?: $result->final_url;
+        $filePath = Storage::disk('public')->path($relPath);
+        if (!file_exists($filePath)) {
+            $filePath = public_path('storage/' . $relPath);
+        }
+
+        if (!file_exists($filePath)) {
+            abort(404, 'File foto asli tidak ditemukan.');
+        }
+
+        $filename = 'FakultasKopi_PhotoStrip_Original_' . date('Ymd_His') . '.png';
+        return response()->download($filePath, $filename, [
+            'Content-Type' => 'image/png',
+        ]);
+    }
+
+    /**
+     * Download High-Quality MP4 Video (Instagram/TikTok/WhatsApp ready).
+     */
+    public function downloadVideo(string $token)
+    {
+        $result = Result::where('qr_token', $token)->firstOrFail();
+        if (now()->greaterThan($result->expires_at)) {
+            abort(403, 'Masa aktif video telah berakhir.');
+        }
+
+        if (!$result->video_url) {
+            abort(404, 'Video tidak tersedia.');
+        }
+
+        $filePath = Storage::disk('public')->path($result->video_url);
+        if (!file_exists($filePath)) {
+            $filePath = public_path('storage/' . $result->video_url);
+        }
+
+        if (!file_exists($filePath)) {
+            abort(404, 'File video tidak ditemukan.');
+        }
+
+        $filename = 'FakultasKopi_MotionVideo_' . date('Ymd_His') . '.mp4';
+        return response()->download($filePath, $filename, [
+            'Content-Type' => 'video/mp4',
         ]);
     }
 

@@ -49,18 +49,56 @@ class FrameResource extends Resource
                 ->required()
                 ->maxLength(255),
 
+            Select::make('layout_type')
+                ->label('Tipe Layout Frame')
+                ->options([
+                    'single'   => 'Single Strip / Standar (1 Kolom)',
+                    'double_6' => 'Double Strip 6 Foto (2 Kolom: Kiri 3, Kanan 3 — Ambil 3 Pose)',
+                    'double_8' => 'Double Strip 8 Foto (2 Kolom: Kiri 4, Kanan 4 — Ambil 4 Pose)',
+                ])
+                ->default('single')
+                ->live()
+                ->afterStateUpdated(function ($state, callable $set) {
+                    if ($state === 'double_6') {
+                        $set('pose_count', 3);
+                    } elseif ($state === 'double_8') {
+                        $set('pose_count', 4);
+                    }
+                })
+                ->afterStateHydrated(function ($component, $state, $record) {
+                    if ($record && !empty($record->layout_config['layout_type'])) {
+                        $component->state($record->layout_config['layout_type']);
+                    }
+                }),
+
+            Select::make('right_column_order')
+                ->label('Urutan Pose Kolom Kanan')
+                ->options([
+                    'scrambled_1' => 'Pose 3, Pose 1, Pose 2 (Acak 1)',
+                    'scrambled_2' => 'Pose 2, Pose 3, Pose 1 (Acak 2)',
+                    'reversed'    => 'Pose 3, Pose 2, Pose 1 (Terbalik)',
+                    'identical'   => 'Pose 1, Pose 2, Pose 3 (Identik / Kembar)',
+                ])
+                ->default('scrambled_1')
+                ->visible(fn ($get) => in_array($get('layout_type'), ['double_6', 'double_8']))
+                ->afterStateHydrated(function ($component, $state, $record) {
+                    if ($record && !empty($record->layout_config['right_column_order_key'])) {
+                        $component->state($record->layout_config['right_column_order_key']);
+                    }
+                }),
+
             TextInput::make('pose_count')
-                ->label('Jumlah Pose')
-                ->helperText('Jumlah foto yang diambil per sesi untuk frame ini.')
+                ->label('Jumlah Pose yang Diambil Kamera')
+                ->helperText('Berapa kali kamera akan menjepret foto untuk frame ini.')
                 ->numeric()
                 ->default(4)
                 ->minValue(1)
-                ->maxValue(6)
+                ->maxValue(8)
                 ->required(),
 
             FileUpload::make('asset_url')
-                ->label('File Frame')
-                ->helperText('Upload PNG dengan background transparan. Resolusi minimal 1200×1800px.')
+                ->label('File Frame Template')
+                ->helperText('Upload PNG transparan. Resolusi strip vertikal misal 189×567px atau 4R 1200×1800px.')
                 ->image()
                 ->imagePreviewHeight('300')
                 ->disk('public')
@@ -89,12 +127,21 @@ class FrameResource extends Resource
                 Section::make('Informasi')
                     ->schema([
                         TextEntry::make('name')->label('Nama Frame'),
-                        TextEntry::make('event.name')->label('Event'),
+                        TextEntry::make('event.name')->label('Event')->default('Main Booth'),
                         TextEntry::make('pose_count')->label('Jumlah Pose'),
+                        TextEntry::make('layout_type_display')
+                            ->label('Tipe Layout')
+                            ->state(fn ($record) => match($record->layout_config['layout_type'] ?? 'single') {
+                                'double_6' => 'Double Strip 6 Foto (2 Kolom × 3)',
+                                'double_8' => 'Double Strip 8 Foto (2 Kolom × 4)',
+                                default    => 'Single Strip',
+                            })
+                            ->badge()
+                            ->color('info'),
                         IconEntry::make('active')->label('Aktif')->boolean(),
                         TextEntry::make('created_at')->label('Dibuat')->dateTime('d M Y H:i'),
                     ])
-                    ->columns(4),
+                    ->columns(3),
             ]);
     }
 
@@ -126,9 +173,13 @@ class FrameResource extends Resource
                     ->badge()
                     ->color('info'),
 
-                TextColumn::make('pose_count')
-                    ->label('Pose')
-                    ->sortable()
+                TextColumn::make('pose_info')
+                    ->label('Tipe & Pose')
+                    ->state(fn ($record) => match($record->layout_config['layout_type'] ?? 'single') {
+                        'double_6' => '3 Pose (6 Slot)',
+                        'double_8' => '4 Pose (8 Slot)',
+                        default    => "{$record->pose_count} Pose",
+                    })
                     ->badge()
                     ->color('success'),
 

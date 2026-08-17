@@ -6,6 +6,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/router/app_router.dart';
+import '../../../core/services/error_logger.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../features/session/providers/session_provider.dart';
@@ -80,12 +81,20 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         context.go(AppRoutes.frame);
       case 'failed':
         setState(() => _isProcessing = false);
+        ErrorLogger.instance.logPaymentError(
+          reason: 'Transaksi pembayaran QRIS ditolak / gagal diproses',
+          amount: 48000,
+        );
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Pembayaran gagal.', style: AppTextStyles.bodySmall.copyWith(color: AppColors.creamWhite)),
           backgroundColor: AppColors.error, behavior: SnackBarBehavior.floating,
         ));
       case 'pending':
         setState(() => _isProcessing = false);
+        ErrorLogger.instance.logPaymentError(
+          reason: 'Menunggu konfirmasi gateway (pending timeout)',
+          amount: 48000,
+        );
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Menunggu konfirmasi...', style: AppTextStyles.bodySmall.copyWith(color: AppColors.creamWhite)),
           backgroundColor: AppColors.darkBrown, behavior: SnackBarBehavior.floating,

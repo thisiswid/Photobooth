@@ -4,6 +4,7 @@ import 'package:logger/logger.dart';
 import '../constants/app_constants.dart';
 import '../errors/app_exception.dart';
 import '../errors/error_handler.dart';
+import '../services/error_logger.dart';
 
 /// Singleton Dio HTTP client with auth, logging, and retry interceptors.
 final class DioClient {
@@ -179,6 +180,21 @@ class _LoggingInterceptor extends Interceptor {
       'Status: ${err.response?.statusCode}\n'
       'Error: ${err.message}',
     );
+
+    // Skip logging calls to /logs to prevent recursive loop
+    if (!err.requestOptions.path.contains('/logs')) {
+      ErrorLogger.instance.logNetworkError(
+        endpoint: '${err.requestOptions.method} ${err.requestOptions.path}',
+        message: err.message ?? 'Unknown network failure',
+        statusCode: err.response?.statusCode,
+        extra: {
+          'type': err.type.name,
+          'responseData': err.response?.data,
+        },
+        stackTrace: err.stackTrace,
+      );
+    }
+
     handler.next(err);
   }
 }

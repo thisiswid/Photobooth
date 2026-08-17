@@ -21,21 +21,30 @@ class GenerateResultService
     {
         $qrToken = (string) Str::uuid();
         $expiresAt = now()->addDays(7);
+        $filter = $session->filter;
 
-        // 1. Generate Photo Strip PNG
-        $stripPath = $this->generatePhotoStrip($session, $qrToken);
+        // 1. Generate Filtered Photo Strip PNG
+        $stripPath = $this->generatePhotoStrip($session, $qrToken, $filter, '');
 
-        // 2. Generate Animated GIF
+        // 2. Generate Original / Raw (Unfiltered) Photo Strip PNG
+        $rawStripPath = $filter
+            ? $this->generatePhotoStrip($session, $qrToken, null, '_raw')
+            : $stripPath;
+
+        // 3. Generate Animated GIF & MP4 Motion Video
         $gifPath = $this->generateAnimatedGif($session, $qrToken);
+        $videoPath = $this->generateShortVideo($session, $qrToken);
 
-        // 3. Save or update Result
+        // 4. Save or update Result
         return Result::updateOrCreate(
             ['session_id' => $session->id],
             [
-                'final_url'  => $stripPath,
-                'gif_url'    => $gifPath,
-                'qr_token'   => $qrToken,
-                'expires_at' => $expiresAt,
+                'final_url'     => $stripPath,
+                'raw_final_url' => $rawStripPath,
+                'gif_url'       => $gifPath,
+                'video_url'     => $videoPath,
+                'qr_token'      => $qrToken,
+                'expires_at'    => $expiresAt,
             ]
         );
     }
@@ -43,10 +52,10 @@ class GenerateResultService
     /**
      * Composites photos into the frame template.
      */
-    public function generatePhotoStrip(Session $session, string $token): string
+    public function generatePhotoStrip(Session $session, string $token, $filter = null, string $suffix = ''): string
     {
         $frame = $session->frame;
-        $filter = $session->filter;
+        $filter = $filter ?? ($suffix === '_raw' ? null : $session->filter);
         $photos = $session->photos()->where('type', 'raw')->orderBy('id')->get();
 
         // 1. Determine canvas size from Frame PNG or standard fallback
@@ -82,10 +91,14 @@ class GenerateResultService
 
         // 4. Paste each photo into its slot with BoxFit.cover cropping and filter
         foreach ($slots as $i => $slot) {
-            if ($i >= $photos->count()) {
+            if ($photos->isEmpty()) {
                 break;
             }
-            $photoModel = $photos[$i];
+            $mappedPoseIndex = $slot['pose_index'] ?? ($i % $photos->count());
+            if ($mappedPoseIndex >= $photos->count()) {
+                $mappedPoseIndex = $mappedPoseIndex % $photos->count();
+            }
+            $photoModel = $photos[$mappedPoseIndex];
             $photoImg = $this->loadPhotoGd($photoModel->file_url);
 
             if ($photoImg) {
@@ -117,7 +130,7 @@ class GenerateResultService
         }
 
         // 6. Save final composite image
-        $relPath = "results/strip_{$session->id}_{$token}.png";
+        $relPath = "results/strip_{$session->id}_{$token}{$suffix}.png";
         $fullDestPath = Storage::disk('public')->path($relPath);
         @mkdir(dirname($fullDestPath), 0755, true);
 
@@ -177,12 +190,94 @@ class GenerateResultService
     }
 
     /**
-     * Resolve slot bounding boxes for any frame resolution.
+     * Generates a high-quality looping MP4 short video (Instagram / TikTok / WhatsApp ready)
+     * using FFmpeg with H.264 encoding and faststart.
+     */
+    public function generateShortVideo(Session $session, string $token): string
+    {
+        $filter = $session->filter;
+        $photos = $session->photos()->where('type', 'raw')->orderBy('id')->get();
+
+        if ($photos->isEmpty()) {
+            return '';
+        }
+
+        $relPath = "results/video_{$session->id}_{$token}.mp4";
+        $fullDestPath = Storage::disk('public')->path($relPath);
+        @mkdir(dirname($fullDestPath), 0755, true);
+
+        $tempDir = storage_path("app/public/temp_video_{$session->id}_{$token}");
+        @mkdir($tempDir, 0755, true);
+
+        // Prepare frame sequence repeated 3 times (3x Boomerang cycle for longer story video)
+        $photoList = $photos->values();
+        $count = $photoList->count();
+        $baseSeq = [];
+        for ($i = 0; $i < $count; $i++) {
+            $baseSeq[] = $i;
+        }
+        if ($count > 2) {
+            for ($i = $count - 2; $i > 0; $i--) {
+                $baseSeq[] = $i; // Boomerang effect
+            }
+        }
+
+        $seq = [];
+        for ($repeat = 0; $repeat < 3; $repeat++) {
+            foreach ($baseSeq as $p) {
+                $seq[] = $p;
+            }
+        }
+
+        $frameIdx = 0;
+        foreach ($seq as $pIdx) {
+            if (!isset($photoList[$pIdx])) continue;
+
+            $photoImg = $this->loadPhotoGd($photoList[$pIdx]->file_url);
+            if ($photoImg) {
+                $this->applyFilter($photoImg, $filter);
+
+                $frameCanvas = imagecreatetruecolor(1080, 1440);
+                $bgColor = imagecolorallocate($frameCanvas, 20, 20, 20);
+                imagefilledrectangle($frameCanvas, 0, 0, 1080, 1440, $bgColor);
+
+                $this->pasteProportional($frameCanvas, $photoImg, 0, 0, 1080, 1440);
+
+                imagejpeg($frameCanvas, "$tempDir/frame_{$frameIdx}.jpg", 90);
+                imagedestroy($frameCanvas);
+                imagedestroy($photoImg);
+                $frameIdx++;
+            }
+        }
+
+        if ($frameIdx === 0) {
+            @rmdir($tempDir);
+            return '';
+        }
+
+        // Run FFmpeg: 2 frames per second (0.5s per pose) encoded to ultra-compatible H.264
+        $cmd = "ffmpeg -y -framerate 2 -i \"$tempDir/frame_%d.jpg\" -c:v libx264 -preset fast -crf 22 -pix_fmt yuv420p -movflags +faststart \"$fullDestPath\" 2>&1";
+        exec($cmd, $output, $returnCode);
+
+        // Cleanup temporary frames
+        array_map('unlink', glob("$tempDir/*.*"));
+        @rmdir($tempDir);
+
+        return $returnCode === 0 ? $relPath : '';
+    }
+
+    /**
+     * Resolve slot bounding boxes for any frame resolution and layout type.
      */
     private function resolveSlots($frame, int $canvasW, int $canvasH, int $poseCount): array
     {
-        if ($frame && !empty($frame->layout_config['slots'])) {
-            $dbSlots = $frame->layout_config['slots'];
+        $layoutConfig = $frame && is_array($frame->layout_config) ? $frame->layout_config : [];
+        $layoutType = $layoutConfig['layout_type'] ?? 'single';
+        $rightOrder = $layoutConfig['right_column_order'] ?? null;
+
+        // 1. Explicit DB Slots
+        if (!empty($layoutConfig['slots'])) {
+            $dbSlots = $layoutConfig['slots'];
             $maxRight = 0;
             $maxBottom = 0;
             foreach ($dbSlots as $s) {
@@ -193,18 +288,69 @@ class GenerateResultService
             $refH = $maxBottom > 800 ? 1800.0 : $canvasH;
 
             $slots = [];
-            foreach ($dbSlots as $s) {
+            foreach ($dbSlots as $i => $s) {
                 $slots[] = [
-                    'x' => (int) round(($s['x'] / $refW) * $canvasW),
-                    'y' => (int) round(($s['y'] / $refH) * $canvasH),
-                    'w' => (int) round(($s['w'] / $refW) * $canvasW),
-                    'h' => (int) round(($s['h'] / $refH) * $canvasH),
+                    'x'          => (int) round(($s['x'] / $refW) * $canvasW),
+                    'y'          => (int) round(($s['y'] / $refH) * $canvasH),
+                    'w'          => (int) round(($s['w'] / $refW) * $canvasW),
+                    'h'          => (int) round(($s['h'] / $refH) * $canvasH),
+                    'pose_index' => $s['pose_index'] ?? ($i % $poseCount),
                 ];
             }
             return $slots;
         }
 
-        // Dynamic auto-calculated slots
+        // 2. Double Strip 6 Slots (2 Columns × 3 Rows from 3 Poses)
+        if ($layoutType === 'double_6' || ($poseCount === 3 && ($canvasW / $canvasH) >= 0.55)) {
+            $rightOrder = $rightOrder ?: [2, 0, 1]; // Pose 3, Pose 1, Pose 2
+            $colW = (int) round($canvasW * 0.42);
+            $slotH = (int) round($canvasH * 0.265);
+            $leftColX = (int) round($canvasW * 0.055);
+            $rightColX = (int) round($canvasW * 0.525);
+            $topPadding = (int) round($canvasH * 0.04);
+            $gapY = (int) round($canvasH * 0.035);
+
+            $slots = [];
+            // Left Column (Poses 0, 1, 2)
+            for ($r = 0; $r < 3; $r++) {
+                $top = $topPadding + ($r * ($slotH + $gapY));
+                $slots[] = ['x' => $leftColX, 'y' => $top, 'w' => $colW, 'h' => $slotH, 'pose_index' => $r];
+            }
+            // Right Column (Mapped Poses e.g. 2, 0, 1)
+            for ($r = 0; $r < 3; $r++) {
+                $top = $topPadding + ($r * ($slotH + $gapY));
+                $pIndex = isset($rightOrder[$r]) ? $rightOrder[$r] : ($r % $poseCount);
+                $slots[] = ['x' => $rightColX, 'y' => $top, 'w' => $colW, 'h' => $slotH, 'pose_index' => $pIndex];
+            }
+            return $slots;
+        }
+
+        // 3. Double Strip 8 Slots (2 Columns × 4 Rows from 4 Poses)
+        if ($layoutType === 'double_8' || ($poseCount === 4 && ($canvasW / $canvasH) >= 0.55)) {
+            $rightOrder = $rightOrder ?: [3, 0, 1, 2]; // Pose 4, Pose 1, Pose 2, Pose 3
+            $colW = (int) round($canvasW * 0.42);
+            $slotH = (int) round($canvasH * 0.205);
+            $leftColX = (int) round($canvasW * 0.055);
+            $rightColX = (int) round($canvasW * 0.525);
+            $topPadding = (int) round($canvasH * 0.035);
+            $gapY = (int) round($canvasH * 0.022);
+
+            $slots = [];
+            // Left Column (Poses 0, 1, 2, 3)
+            for ($r = 0; $r < 4; $r++) {
+                $top = $topPadding + ($r * ($slotH + $gapY));
+                $slots[] = ['x' => $leftColX, 'y' => $top, 'w' => $colW, 'h' => $slotH, 'pose_index' => $r];
+            }
+            // Right Column (Mapped Poses)
+            for ($r = 0; $r < 4; $r++) {
+                $top = $topPadding + ($r * ($slotH + $gapY));
+                $pIndex = isset($rightOrder[$r]) ? $rightOrder[$r] : ($r % $poseCount);
+                $slots[] = ['x' => $rightColX, 'y' => $top, 'w' => $colW, 'h' => $slotH, 'pose_index' => $pIndex];
+            }
+            return $slots;
+        }
+
+        // 4. Dynamic Vertical Strip (1:3 or 2x6 inch)
         $canvasRatio = $canvasW / $canvasH;
         $isVerticalStrip = $canvasRatio <= 0.45; // e.g. 189x567 or 1:3 ratio
 
@@ -225,11 +371,11 @@ class GenerateResultService
             $slots = [];
             for ($i = 0; $i < $poseCount; $i++) {
                 $top = $topPadding + ($i * ($slotH + $gap));
-                $slots[] = ['x' => $sideMargin, 'y' => $top, 'w' => $slotW, 'h' => $slotH];
+                $slots[] = ['x' => $sideMargin, 'y' => $top, 'w' => $slotW, 'h' => $slotH, 'pose_index' => $i];
             }
             return $slots;
         } else {
-            // Standard 4R Card
+            // Standard 4R Card Single Column
             $sideMargin = (int) round($canvasW * 0.05);
             $slotW = $canvasW - (2 * $sideMargin);
             $slotH = (int) round(($canvasH * 0.86) / $poseCount);
@@ -239,7 +385,7 @@ class GenerateResultService
             $slots = [];
             for ($i = 0; $i < $poseCount; $i++) {
                 $top = $topPadding + ($i * ($slotH + $gap));
-                $slots[] = ['x' => $sideMargin, 'y' => $top, 'w' => $slotW, 'h' => $slotH];
+                $slots[] = ['x' => $sideMargin, 'y' => $top, 'w' => $slotW, 'h' => $slotH, 'pose_index' => $i];
             }
             return $slots;
         }

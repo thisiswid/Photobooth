@@ -3,14 +3,13 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 
-/// Reusable internal page header — TRANSPARAN, logo + brand CENTER, 2x ukuran.
+/// Reusable internal page header — TRANSPARAN, logo & brand di kiri, timer di kanan.
 ///
-/// Dipakai di semua screen KECUALI WelcomeScreen.
 /// Layout:
-///   ┌─────────────────────────────────────────┐
-///   │         [LOGO]  FAKULTAS KOPI           │
-///   │                 PHOTObooth              │
-///   └─────────────────────────────────────────┘
+///   ┌────────────────────────────────────────────────────────┐
+///   │ [LOGO] FAKULTAS KOPI                      [TIMER 04:59]│
+///   │        PHOTObooth                                      │
+///   └────────────────────────────────────────────────────────┘
 class CustomerHeader extends StatelessWidget {
   const CustomerHeader({super.key, this.trailing});
 
@@ -20,26 +19,28 @@ class CustomerHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 80.h,
-      padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 8.h),
-      // Transparan — tanpa background putih
+      height: 68.h,
+      padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 6.h),
       color: Colors.transparent,
-      child: Stack(
-        alignment: Alignment.center,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Center: logo + brand name
+          // Sisi Kiri: Logo + Nama Brand (Fakultas Kopi Photobooth)
           _BrandLockup(),
-          // Right: trailing widget (timer, etc.)
+
+          // Sisi Kanan: Timer Chip / Trailing Widget (Dijamin tidak akan tumpang tindih)
           if (trailing != null)
-            Positioned(right: 0, child: trailing!),
+            trailing!
+          else
+            const SizedBox.shrink(),
         ],
       ),
     );
   }
 }
 
-/// Brand lockup center — logo + FAKULTAS KOPI + PHOTObooth.
-/// Dipakai di header internal (2x ukuran dari sebelumnya).
+/// Brand lockup — logo + FAKULTAS KOPI + PHOTObooth.
 class _BrandLockup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -47,31 +48,36 @@ class _BrandLockup extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        // Logo 2x lebih besar (88px vs 44px sebelumnya), transparan
         Image.asset(
           'assets/images/logo.png',
-          width: 64.r,
-          height: 64.r,
+          width: 48.r,
+          height: 48.r,
           fit: BoxFit.contain,
           errorBuilder: (_, __, ___) => Icon(
             Icons.local_cafe_rounded,
             color: AppColors.darkBrown,
-            size: 64.r,
+            size: 44.r,
           ),
         ),
-        SizedBox(width: 12.w),
-        // Brand text 2x
+        SizedBox(width: 10.w),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
               'FAKULTAS KOPI',
-              style: AppTextStyles.brandNameLarge.copyWith(fontSize: 24.sp),
+              style: AppTextStyles.brandNameLarge.copyWith(
+                fontSize: 18.sp,
+                letterSpacing: 1.2,
+              ),
             ),
             Text(
-              'PHOTObooth',
-              style: AppTextStyles.brandSubtitle.copyWith(fontSize: 11.sp),
+              'PHOTOBOOTH',
+              style: AppTextStyles.brandSubtitle.copyWith(
+                fontSize: 9.5.sp,
+                letterSpacing: 2.0,
+                color: AppColors.brown.withValues(alpha: 0.8),
+              ),
             ),
           ],
         ),
@@ -93,18 +99,34 @@ class TimerChip extends StatelessWidget {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
+        color: isWarning
+            ? AppColors.error.withValues(alpha: 0.12)
+            : AppColors.creamWhite,
         borderRadius: BorderRadius.circular(20.r),
-        border: Border.all(color: color.withValues(alpha: 0.5)),
+        border: Border.all(
+          color: isWarning ? AppColors.error : AppColors.borderWarm,
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.darkBrown.withValues(alpha: 0.05),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.access_time_rounded, size: 14.sp, color: color),
-          SizedBox(width: 5.w),
+          SizedBox(width: 6.w),
           Text(
             text,
-            style: AppTextStyles.timerText.copyWith(color: color, fontSize: 14.sp),
+            style: AppTextStyles.timerText.copyWith(
+              color: color,
+              fontSize: 13.sp,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ],
       ),
