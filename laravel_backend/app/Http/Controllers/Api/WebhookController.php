@@ -12,39 +12,74 @@ class WebhookController extends Controller
 {
     public function xendit(Request $request): JsonResponse
     {
-        // Verify Xendit webhook token
         $token = $request->header('x-callback-token');
-        if ($token !== config('services.xendit.webhook_token')) {
-            Log::warning('Invalid Xendit webhook token');
+        $expectedToken = config('services.xendit.webhook_token');
+
+        // Verify token if configured in .env
+        if (!empty($expectedToken) && $token !== $expectedToken) {
+            Log::warning('Invalid Xendit webhook token received', [
+                'received' => $token,
+            ]);
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
         $data = $request->all();
         Log::info('Xendit webhook received', $data);
 
-        $externalId = $data['external_id'] ?? null;
-        $status     = $data['status'] ?? null;
+        // Ekstraksi External ID dari berbagai format payload Xendit (QRIS, Invoice, VA, Test)
+        $externalId = $data['qr_code']['external_id'] 
+            ?? $data['external_id'] 
+            ?? $data['reference_id'] 
+            ?? $data['data']['qr_code']['external_id'] 
+            ?? $data['data']['reference_id'] 
+            ?? null;
 
-        if (!$externalId || !$status) {
-            return response()->json(['message' => 'Invalid payload'], 422);
+        $status = strtoupper($data['status'] ?? $data['event'] ?? 'PAID');
+
+        // Jika ini adalah Test Webhook dari tombol "Test Webhook" di dashboard Xendit
+        if (!$externalId && isset($data['event'])) {
+            return response()->json(['message' => 'Test Webhook Verified successfully', 'status' => 'OK']);
+        }
+
+        if (!$externalId) {
+            return response()->json(['message' => 'Webhook received, but external_id not found in payload', 'payload' => $data], 200);
         }
 
         $payment = Payment::where('xendit_payment_id', $externalId)->first();
 
-        if (!$payment) {
-            return response()->json(['message' => 'Payment not found'], 404);
+        // Fallback: jika payment ID diekstrak dari format 'PB-PAY-{id}-...'
+        if (!$payment && preg_match('/PB-PAY-(\d+)/', $externalId, $matches)) {
+            $payment = Payment::find($matches[1]);
         }
 
-        if ($status === 'PAID' || $status === 'SETTLED') {
+        if (!$payment) {
+            Log::warning('Payment record not found for external_id: ' . $externalId);
+            return response()->json(['message' => 'Payment not found in local database, but webhook acknowledged'], 200);
+        }
+
+        if (in_array($status, ['PAID', 'SETTLED', 'COMPLETED', 'QR.PAYMENT'])) {
             $payment->update([
                 'status'  => 'paid',
                 'paid_at' => now(),
             ]);
-            $payment->session->update(['status' => 'active']);
-        } elseif ($status === 'EXPIRED' || $status === 'FAILED') {
+
+            if ($payment->session) {
+                $payment->session->update([
+                    'status'     => 'active',
+                    'started_at' => now(),
+                    'expires_at' => now()->addMinutes(5),
+                ]);
+            }
+
+            Log::info("Payment #{$payment->id} and Session #{$payment->session_id} successfully ACTIVATED via Xendit Webhook.");
+        } elseif (in_array($status, ['EXPIRED', 'FAILED'])) {
             $payment->update(['status' => 'failed']);
         }
 
-        return response()->json(['message' => 'OK']);
+        return response()->json([
+            'message'    => 'OK',
+            'payment_id' => $payment->id,
+            'status'     => $payment->status,
+        ]);
     }
 }

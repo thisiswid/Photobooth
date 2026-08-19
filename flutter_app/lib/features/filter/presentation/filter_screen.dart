@@ -6,11 +6,13 @@ import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/router/app_router.dart';
+import '../../../core/services/error_logger.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../features/session/providers/session_provider.dart';
 import '../../../shared/widgets/customer_header.dart';
 import '../../../shared/widgets/photobooth_layout.dart';
+import '../../../shared/widgets/photo_strip_widget.dart';
 import '../../../shared/widgets/responsive_button.dart';
 import '../domain/models/filter_model.dart';
 import '../providers/filter_provider.dart';
@@ -38,6 +40,7 @@ class _FilterScreenState extends ConsumerState<FilterScreen> {
     ref.read(sessionNotifierProvider.notifier).setFilter(
       filterId: _selectedFilter!.id,
       filterName: _selectedFilter!.name,
+      filterModel: _selectedFilter,
     );
     context.go(AppRoutes.result);
   }
@@ -49,7 +52,6 @@ class _FilterScreenState extends ConsumerState<FilterScreen> {
     final timerText = '${(remaining.inSeconds ~/ 60).toString().padLeft(2, '0')}:'
         '${(remaining.inSeconds % 60).toString().padLeft(2, '0')}';
     final photos = sessionState.session?.photos ?? [];
-    final previewPhoto = photos.isNotEmpty ? photos.first : null;
     final eventId = sessionState.session?.eventId ?? 1;
     final filtersAsync = ref.watch(filterListProvider(eventId));
 
@@ -66,11 +68,22 @@ class _FilterScreenState extends ConsumerState<FilterScreen> {
               Icon(Icons.error_outline, size: 48.sp, color: AppColors.brown),
               SizedBox(height: 12.h),
               Text('Gagal memuat filter', style: AppTextStyles.titleMedium),
+              SizedBox(height: 8.h),
+              Text(err.toString(), style: AppTextStyles.caption, textAlign: TextAlign.center),
               SizedBox(height: 16.h),
               ResponsiveButton(
-                label: 'COBA LAGI', icon: Icons.refresh,
-                onPressed: () => ref.invalidate(filterListProvider(eventId)),
-                width: 200.w, height: 48.h,
+                label: 'COBA LAGI',
+                icon: Icons.refresh,
+                onPressed: () {
+                  ErrorLogger.instance.logRetryAttempt(
+                    action: 'Muat Ulang Filter',
+                    attempt: 1,
+                    reason: err.toString(),
+                  );
+                  ref.invalidate(filterListProvider(eventId));
+                },
+                width: 200.w,
+                height: 48.h,
               ),
             ],
           ),
@@ -85,38 +98,27 @@ class _FilterScreenState extends ConsumerState<FilterScreen> {
 
           return Row(
             children: [
-              // ── Preview ──────────────────────────────────────────
+              // ── Preview Photo Strip with Frame & Filter ──────────
               Expanded(
                 flex: 2,
                 child: Padding(
-                  padding: EdgeInsets.all(16.r),
+                  padding: EdgeInsets.all(12.r),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Text('Preview', style: AppTextStyles.titleMedium).animate().fadeIn(),
+                      Text('Preview Photo Strip', style: AppTextStyles.titleMedium).animate().fadeIn(),
                       SizedBox(height: 8.h),
                       Expanded(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12.r),
-                          child: Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              Container(
-                                color: AppColors.paper,
-                                child: previewPhoto != null
-                                    ? Image.asset(previewPhoto.fileUrl, fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) => Center(
-                                          child: Icon(Icons.photo, size: 64.sp, color: AppColors.lightBrown)))
-                                    : Center(child: Icon(Icons.photo, size: 64.sp, color: AppColors.lightBrown)),
-                              ),
-                              if (_selectedFilter?.previewTint != null)
-                                Container(color: _selectedFilter!.previewTint),
-                            ],
+                        child: Center(
+                          child: PhotoStripWidget(
+                            photos: photos,
+                            frame: sessionState.selectedFrame,
+                            colorFilter: _selectedFilter?.colorFilter,
                           ),
                         ),
                       ),
                       SizedBox(height: 8.h),
-                      Text('Filter: ${_selectedFilter?.name ?? 'Belum dipilih'}',
+                      Text('Filter: ${_selectedFilter?.name ?? 'Normal'}',
                           style: AppTextStyles.labelMedium),
                     ],
                   ),

@@ -18,6 +18,7 @@ class Session extends Model
     protected $table = 'photo_sessions';
 
     protected $fillable = [
+        'cafe_id',
         'event_id',
         'frame_id',
         'filter_id',
@@ -39,6 +40,7 @@ class Session extends Model
 
     // ── Relationships ──────────────────────────────────────────────────────────
 
+    public function cafe(): BelongsTo     { return $this->belongsTo(Cafe::class); }
     public function event(): BelongsTo    { return $this->belongsTo(Event::class); }
     public function frame(): BelongsTo    { return $this->belongsTo(Frame::class); }
     public function filter(): BelongsTo   { return $this->belongsTo(Filter::class); }

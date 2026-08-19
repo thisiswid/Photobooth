@@ -35,4 +35,19 @@ return [
         ],
     ],
 
+    'xendit' => [
+        'secret_key'    => env('XENDIT_SECRET_KEY'),
+        'webhook_token' => env('XENDIT_WEBHOOK_TOKEN'),
+    ],
+
+    'openagentic' => [
+        'key'      => env('OPENAGENTIC_API_KEY'),
+        'base_url' => env('OPENAGENTIC_BASE_URL', 'https://openagentic.id/api/v1'),
+        'model'    => env('OPENAGENTIC_MODEL', 'claude-sonnet-4.6'),
+    ],
+
+    'gemini' => [
+        'key'      => env('GEMINI_API_KEY'),
+    ],
+
 ];

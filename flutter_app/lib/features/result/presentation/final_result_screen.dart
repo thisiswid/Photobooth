@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io' as dart_io;
+import 'package:dio/dio.dart' as dio_pkg;
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,12 +8,14 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/network/dio_client.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../features/session/providers/session_provider.dart';
 import '../../../shared/widgets/customer_header.dart';
 import '../../../shared/widgets/photobooth_layout.dart';
+import '../../../shared/widgets/photo_strip_widget.dart';
 import '../../../shared/widgets/responsive_button.dart';
 
 /// Final Result Screen — header transparan centered 2x.
@@ -25,7 +29,7 @@ class FinalResultScreen extends ConsumerStatefulWidget {
 }
 
 class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
-  static const int _autoResetSeconds = 30;
+  static const int _autoResetSeconds = 60;
   Timer? _autoResetTimer;
   int _autoResetCountdown = _autoResetSeconds;
 
@@ -33,6 +37,60 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
   void initState() {
     super.initState();
     _startAutoResetCountdown();
+    _triggerBackendGeneration();
+  }
+
+  Future<void> _triggerBackendGeneration() async {
+    final sessionState = ref.read(sessionNotifierProvider);
+    final session = sessionState.session;
+    if (session == null) return;
+
+    try {
+      final dio_pkg.FormData formData = dio_pkg.FormData();
+
+      if (session.filterId != null) {
+        formData.fields.add(MapEntry('filter_id', session.filterId.toString()));
+      }
+      if (session.selectedFilter != null) {
+        formData.fields.add(MapEntry('selected_filter', session.selectedFilter!));
+      }
+      if (session.frameId != null) {
+        formData.fields.add(MapEntry('frame_id', session.frameId.toString()));
+      }
+      formData.fields.add(MapEntry('event_id', session.eventId.toString()));
+
+      for (int i = 0; i < session.photos.length; i++) {
+        final path = session.photos[i].fileUrl;
+        final file = dart_io.File(path);
+        if (await file.exists()) {
+          formData.files.add(MapEntry(
+            'photos[]',
+            await dio_pkg.MultipartFile.fromFile(
+              path,
+              filename: 'pose_${i + 1}.jpg',
+            ),
+          ));
+        } else {
+          formData.fields.add(MapEntry('photos[]', path));
+        }
+      }
+
+      final response = await DioClient.instance.dio.post(
+        '/sessions/${session.sessionId}/generate-result',
+        data: formData,
+      );
+
+      if (response.data['success'] == true && response.data['data'] != null) {
+        final data = response.data['data'];
+        ref.read(sessionNotifierProvider.notifier).setResult(
+          finalUrl: data['final_url'] ?? '',
+          gifUrl:   data['gif_url'] ?? '',
+          qrToken:  data['qr_token'] ?? '',
+        );
+      }
+    } catch (e) {
+      debugPrint('Backend result generation note: $e');
+    }
   }
 
   @override
@@ -57,11 +115,14 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final session = ref.watch(sessionNotifierProvider).session;
+    final sessionState = ref.watch(sessionNotifierProvider);
+    final session = sessionState.session;
+    final photos = session?.photos ?? [];
+    final frame = sessionState.selectedFrame;
+
     final qrUrl = session?.qrToken != null
         ? '${AppConstants.resultBaseUrl}/${session!.qrToken}'
         : AppConstants.resultBaseUrl;
-    final finalUrl = session?.finalUrl;
 
     return PhotoboothLayout(
       header: const CustomerHeader(),
@@ -77,7 +138,7 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
           SizedBox(height: 4.h),
           Padding(
             padding: EdgeInsets.symmetric(horizontal: 32.w),
-            child: Text('Cetak atau download via QR di bawah',
+            child: Text('Cetak atau download via QR di samping',
                 style: AppTextStyles.caption).animate().fadeIn(delay: 100.ms),
           ),
           SizedBox(height: 12.h),
@@ -87,11 +148,16 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
               padding: EdgeInsets.symmetric(horizontal: 32.w),
               child: Row(
                 children: [
-                  // ── Preview foto — LEBIH LEBAR (flex: 4) ──────────────
+                  // ── Preview Photo Strip dengan Frame (flex: 3) ─────────
                   Expanded(
-                    flex: 4,
-                    child: _PrintedPhotoCard(finalUrl: finalUrl)
-                        .animate().slideX(begin: -0.05, duration: 500.ms).fadeIn(duration: 500.ms),
+                    flex: 3,
+                    child: Center(
+                      child: PhotoStripWidget(
+                        photos: photos,
+                        frame: frame,
+                        colorFilter: sessionState.selectedFilter?.colorFilter,
+                      ),
+                    ).animate().scale(begin: const Offset(0.95, 0.95), duration: 500.ms).fadeIn(duration: 500.ms),
                   ),
 
                   SizedBox(width: 24.w),
@@ -124,46 +190,6 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
       ),
     );
   }
-}
-
-class _PrintedPhotoCard extends StatelessWidget {
-  const _PrintedPhotoCard({required this.finalUrl});
-  final String? finalUrl;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(4.r),
-        border: Border.all(color: AppColors.borderWarm),
-        boxShadow: [BoxShadow(
-          color: AppColors.darkBrown.withValues(alpha: 0.15),
-          blurRadius: 20, offset: const Offset(4, 6))],
-      ),
-      padding: EdgeInsets.fromLTRB(12.r, 12.r, 12.r, 28.r),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(2.r),
-        child: finalUrl != null
-            ? Image.network(finalUrl!, fit: BoxFit.cover, width: double.infinity,
-                errorBuilder: (_, __, ___) => _placeholder())
-            : _placeholder(),
-      ),
-    );
-  }
-
-  Widget _placeholder() => Container(
-    color: AppColors.paper, width: double.infinity,
-    child: Center(child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(Icons.photo, size: 80, color: AppColors.lightBrown),
-        const SizedBox(height: 8),
-        Text('Foto akan tampil di sini',
-          style: TextStyle(color: AppColors.lightBrown, fontSize: 14)),
-      ],
-    )),
-  );
 }
 
 class _QrCard extends StatelessWidget {

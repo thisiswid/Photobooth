@@ -3,17 +3,23 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Event extends Model
 {
-    protected $fillable = ['name', 'description', 'starts_at', 'ends_at', 'active'];
+    protected $fillable = ['cafe_id', 'name', 'description', 'starts_at', 'ends_at', 'active'];
 
     protected $casts = [
         'starts_at' => 'datetime',
         'ends_at'   => 'datetime',
         'active'    => 'boolean',
     ];
+
+    public function cafe(): BelongsTo
+    {
+        return $this->belongsTo(Cafe::class);
+    }
 
     public function frames(): HasMany
     {

@@ -11,6 +11,7 @@ abstract final class AppColors {
   static const Color lightBrown   = Color(0xFFB8956A);
   static const Color buttonBrown  = Color(0xFF4A2915);
   static const Color creamWhite   = Color(0xFFFFF8ED);
+  static const Color gold         = Color(0xFFC89B5B);
 
   // ── Legacy aliases (kept for existing code) ───────────────────────────────
   static const Color coffeeBrown        = darkBrown;

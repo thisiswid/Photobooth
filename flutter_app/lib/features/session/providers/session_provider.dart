@@ -1,4 +1,7 @@
+import 'dart:async';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import '../../filter/domain/models/filter_model.dart';
+import '../../frame/domain/models/frame_model.dart';
 import '../domain/models/session_model.dart';
 
 part 'session_provider.g.dart';
@@ -6,28 +9,30 @@ part 'session_provider.g.dart';
 // ── SessionState ──────────────────────────────────────────────────────────────
 
 /// Full state of an active photobooth session.
-///
-/// Aligned to the ERD and canonical flow:
-/// Payment PAID → Start Session (timer 05:00) → Select Frame →
-/// Photo Session (Mirror/No Mirror) → Countdown 5s → Capture →
-/// Photo Result (Retake/Next) → [repeat per pose] →
-/// Filter Selection → Final Result (Auto Print + QR) → Selesai → Welcome
 class SessionState {
   const SessionState({
     this.session,
+    this.selectedFrame,
+    this.selectedFilter,
     this.currentPoseIndex = 0,
     this.isMirrorEnabled = false,
+    this.remainingSeconds = 300,
     this.isLoading = false,
     this.error,
   });
 
   final SessionModel? session;
+  final FrameModel? selectedFrame;
+  final FilterModel? selectedFilter;
 
   /// Which pose slot is currently being shot (0-based).
   final int currentPoseIndex;
 
   /// Mirror toggle state for the current photo session.
   final bool isMirrorEnabled;
+
+  /// Remaining seconds in the session (ticks down every 1 second).
+  final int remainingSeconds;
 
   final bool isLoading;
   final String? error;
@@ -38,7 +43,7 @@ class SessionState {
 
   bool get isPaid => session?.isPaid ?? false;
 
-  bool get isExpired => session?.isExpired ?? false;
+  bool get isExpired => remainingSeconds <= 0 || (session?.isExpired ?? false);
 
   /// Total poses required by the selected frame.
   int get totalPoses => session?.poseCount ?? 1;
@@ -48,8 +53,18 @@ class SessionState {
 
   bool get allPosesDone => session?.allPosesDone ?? false;
 
-  /// Remaining session time (zero when not started or expired).
-  Duration get remainingTime => session?.remainingTime ?? Duration.zero;
+  /// Remaining session time as a Duration.
+  Duration get remainingTime => Duration(seconds: remainingSeconds);
+
+  /// Formatted timer string "MM:SS" (e.g. "04:59").
+  String get formattedRemainingTime {
+    final m = (remainingSeconds ~/ 60).toString().padLeft(2, '0');
+    final s = (remainingSeconds % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
+  /// Warning flag when less than 60 seconds remain.
+  bool get isTimerWarning => remainingSeconds < 60;
 
   /// Whether the current pose can still be retaken.
   bool get canRetakeCurrentPose =>
@@ -57,8 +72,11 @@ class SessionState {
 
   SessionState copyWith({
     SessionModel? session,
+    FrameModel? selectedFrame,
+    FilterModel? selectedFilter,
     int? currentPoseIndex,
     bool? isMirrorEnabled,
+    int? remainingSeconds,
     bool? isLoading,
     String? error,
     bool clearError = false,
@@ -66,8 +84,11 @@ class SessionState {
   }) {
     return SessionState(
       session:          clearSession ? null : (session ?? this.session),
+      selectedFrame:    clearSession ? null : (selectedFrame ?? this.selectedFrame),
+      selectedFilter:   clearSession ? null : (selectedFilter ?? this.selectedFilter),
       currentPoseIndex: currentPoseIndex ?? this.currentPoseIndex,
       isMirrorEnabled:  isMirrorEnabled ?? this.isMirrorEnabled,
+      remainingSeconds: remainingSeconds ?? this.remainingSeconds,
       isLoading:        isLoading ?? this.isLoading,
       error:            clearError ? null : (error ?? this.error),
     );
@@ -78,19 +99,28 @@ class SessionState {
 
 @riverpod
 class SessionNotifier extends _$SessionNotifier {
+  Timer? _tickerTimer;
+
   @override
-  SessionState build() => const SessionState();
+  SessionState build() {
+    ref.onDispose(() {
+      _tickerTimer?.cancel();
+    });
+    return const SessionState();
+  }
 
   // ── Session Lifecycle ─────────────────────────────────────────────────────
 
   /// Called after the backend confirms PAID and returns session data.
-  /// This is where the 5-minute timer begins (business rule #3).
+  /// Starts the 5-minute session countdown timer that continuously ticks across ALL screens.
   void startSession({
     required int sessionId,
     required int eventId,
     required DateTime startedAt,
     required DateTime expiresAt,
   }) {
+    _tickerTimer?.cancel();
+
     final session = SessionModel(
       sessionId:  sessionId,
       eventId:    eventId,
@@ -98,14 +128,36 @@ class SessionNotifier extends _$SessionNotifier {
       startedAt:  startedAt,
       expiresAt:  expiresAt,
     );
-    state = state.copyWith(session: session, currentPoseIndex: 0);
+
+    final initialSeconds = expiresAt.difference(DateTime.now()).inSeconds.clamp(0, 3600);
+
+    state = state.copyWith(
+      session: session,
+      currentPoseIndex: 0,
+      remainingSeconds: initialSeconds,
+    );
+
+    // Continuous 1-second ticker that drives the entire session timer
+    _tickerTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (state.session?.expiresAt == null) {
+        t.cancel();
+        return;
+      }
+      final diff = state.session!.expiresAt!.difference(DateTime.now()).inSeconds;
+      if (diff <= 0) {
+        t.cancel();
+        state = state.copyWith(remainingSeconds: 0);
+      } else {
+        state = state.copyWith(remainingSeconds: diff);
+      }
+    });
   }
 
-  /// Called after Frame Selection — saves frame_id and pose_count.
-  void setFrame({required int frameId, required int poseCount}) {
-   // Also available as selectFrame(String mockId) for Phase 1 mock usage.
+  /// Called after Frame Selection — saves frame_id, pose_count, and frame model.
+  void setFrame({required int frameId, required int poseCount, FrameModel? frameModel}) {
     if (state.session == null) return;
     state = state.copyWith(
+      selectedFrame: frameModel,
       session: state.session!.copyWith(
         frameId:   frameId,
         poseCount: poseCount,
@@ -150,9 +202,14 @@ class SessionNotifier extends _$SessionNotifier {
   }
 
   /// Called after Filter Selection — saves chosen filter.
-  void setFilter({required int filterId, required String filterName}) {
+  void setFilter({
+    required int filterId,
+    required String filterName,
+    FilterModel? filterModel,
+  }) {
     if (state.session == null) return;
     state = state.copyWith(
+      selectedFilter: filterModel,
       session: state.session!.copyWith(
         filterId:       filterId,
         selectedFilter: filterName,
@@ -166,6 +223,7 @@ class SessionNotifier extends _$SessionNotifier {
     required String gifUrl,
     required String qrToken,
   }) {
+    _tickerTimer?.cancel();
     if (state.session == null) return;
     state = state.copyWith(
       session: state.session!.copyWith(
@@ -192,9 +250,9 @@ class SessionNotifier extends _$SessionNotifier {
 
   // ── Session Reset ─────────────────────────────────────────────────────────
 
-  /// Full reset — clears ALL session data.
-  /// Call when transitioning back to WelcomeScreen (Selesai or timeout).
+  /// Full reset — clears ALL session data and cancels timer.
   void resetSession() {
+    _tickerTimer?.cancel();
     state = const SessionState();
   }
 }

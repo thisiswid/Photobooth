@@ -28,7 +28,12 @@ class DeviceResource extends Resource
     {
         return $schema->components([
             Select::make('event_id')->label('Event')
-                ->relationship('event', 'name')->searchable()->preload(),
+                ->relationship(
+                    name: 'event',
+                    titleAttribute: 'name',
+                    modifyQueryUsing: fn ($query) => auth()->user()?->cafe_id ? $query->where('cafe_id', auth()->user()->cafe_id) : $query
+                )
+                ->searchable()->preload(),
             TextInput::make('name')->label('Nama')->required()->maxLength(255),
             Select::make('platform')->label('Platform')
                 ->options(['android' => 'Android', 'ios' => 'iOS', 'web' => 'Web'])
@@ -51,6 +56,15 @@ class DeviceResource extends Resource
             ])
             ->filters([SelectFilter::make('status')->options(['active' => 'Active', 'inactive' => 'Inactive'])])
             ->actions([EditAction::make(), DeleteAction::make()]);
+    }
+
+    public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
+    {
+        $query = parent::getEloquentQuery();
+        if ($cafeId = auth()->user()?->cafe_id) {
+            $query->where('cafe_id', $cafeId);
+        }
+        return $query;
     }
 
     public static function getPages(): array

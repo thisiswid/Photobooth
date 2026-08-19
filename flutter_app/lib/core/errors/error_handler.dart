@@ -129,7 +129,6 @@ final class ErrorHandler {
         f != null ? 'Field $f: ${e.message}' : e.message,
       GenerationException() => e.message,
       UnknownException() => 'Terjadi kesalahan. Coba lagi.',
-      _ => e.message,
     };
   }
 }

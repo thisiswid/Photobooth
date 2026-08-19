@@ -6,6 +6,8 @@ laravel_backend/storage/logs/
 laravel_backend/storage/framework/cache/
 laravel_backend/storage/framework/sessions/
 laravel_backend/storage/framework/views/
+laravel_backend/storage/*.json
+laravel_backend/storage/*.txt
 laravel_backend/vendor/
 laravel_backend/node_modules/
 laravel_backend/public/storage

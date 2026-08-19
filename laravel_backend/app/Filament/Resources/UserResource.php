@@ -57,6 +57,15 @@ class UserResource extends Resource
             ->actions([EditAction::make(), DeleteAction::make()]);
     }
 
+    public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
+    {
+        $query = parent::getEloquentQuery()->where('role', '!=', 'super_admin');
+        if ($cafeId = auth()->user()?->cafe_id) {
+            $query->where('cafe_id', $cafeId);
+        }
+        return $query;
+    }
+
     public static function getPages(): array
     {
         return [

@@ -55,6 +55,15 @@ class EventResource extends Resource
             ->bulkActions([BulkActionGroup::make([DeleteBulkAction::make()])]);
     }
 
+    public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
+    {
+        $query = parent::getEloquentQuery();
+        if ($cafeId = auth()->user()?->cafe_id) {
+            $query->where('cafe_id', $cafeId);
+        }
+        return $query;
+    }
+
     public static function getPages(): array
     {
         return [

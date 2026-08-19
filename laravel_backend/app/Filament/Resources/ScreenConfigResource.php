@@ -35,7 +35,12 @@ class ScreenConfigResource extends Resource
     {
         return $schema->components([
             Select::make('event_id')->label('Event')
-                ->relationship('event', 'name')->searchable()->preload(),
+                ->relationship(
+                    name: 'event',
+                    titleAttribute: 'name',
+                    modifyQueryUsing: fn ($query) => auth()->user()?->cafe_id ? $query->where('cafe_id', auth()->user()->cafe_id) : $query
+                )
+                ->searchable()->preload(),
             Select::make('screen_type')->label('Tipe Layar')
                 ->options(['welcome' => 'Welcome', 'tutorial' => 'Tutorial'])
                 ->required(),
@@ -109,6 +114,15 @@ class ScreenConfigResource extends Resource
                 DeleteAction::make(),
             ])
             ->bulkActions([BulkActionGroup::make([DeleteBulkAction::make()])]);
+    }
+
+    public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
+    {
+        $query = parent::getEloquentQuery();
+        if ($cafeId = auth()->user()?->cafe_id) {
+            $query->whereHas('event', fn ($q) => $q->where('cafe_id', $cafeId));
+        }
+        return $query;
     }
 
     public static function getPages(): array
