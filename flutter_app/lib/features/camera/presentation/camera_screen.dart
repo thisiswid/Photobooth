@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/router/app_router.dart';
+import '../../../core/services/camera_service.dart';
 import '../../../core/services/error_logger.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../features/frame/domain/models/frame_model.dart';
@@ -87,30 +88,23 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
 
   Future<void> _initCamera() async {
     try {
-      final cameras = await availableCameras();
-      if (!mounted || cameras.isEmpty) {
-        ErrorLogger.instance.logCameraError(message: 'Tidak ada perangkat kamera yang terdeteksi di sistem');
-        return;
-      }
-      final camera = cameras.firstWhere(
-        (c) => c.lensDirection == CameraLensDirection.front,
-        orElse: () => cameras.first,
+      final controller = await CameraService.createController(
+        resolution: ResolutionPreset.high,
       );
-      final controller = CameraController(
-        camera,
-        ResolutionPreset.medium,
-        enableAudio: false,
-        imageFormatGroup: ImageFormatGroup.jpeg,
-      );
-      await controller.initialize();
       if (!mounted) {
-        await controller.dispose();
+        await controller?.dispose();
         return;
       }
-      setState(() {
-        _cameraController = controller;
-        _isCameraReady = true;
-      });
+      if (controller != null) {
+        setState(() {
+          _cameraController = controller;
+          _isCameraReady = true;
+        });
+      } else {
+        ErrorLogger.instance.logCameraError(
+          message: 'Tidak ada perangkat kamera yang siap digunakan',
+        );
+      }
     } catch (e, stack) {
       ErrorLogger.instance.logCameraError(
         message: 'Gagal inisialisasi kamera: $e',
