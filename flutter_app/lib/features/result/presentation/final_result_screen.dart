@@ -10,6 +10,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/router/app_router.dart';
+import '../../../core/services/printer_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../features/session/providers/session_provider.dart';
@@ -113,6 +114,39 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
     if (mounted) context.go(AppRoutes.welcome);
   }
 
+  bool _isPrinting = false;
+
+  Future<void> _handlePrint() async {
+    if (_isPrinting) return;
+    setState(() => _isPrinting = true);
+
+    try {
+      final sessionState = ref.read(sessionNotifierProvider);
+      final session = sessionState.session;
+
+      if (session != null && session.photos.isNotEmpty) {
+        final firstPhotoPath = session.photos.first.fileUrl;
+        final file = dart_io.File(firstPhotoPath);
+        if (await file.exists()) {
+          final bytes = await file.readAsBytes();
+          await PrinterService.printPhotoBytes(imageBytes: bytes);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('🖨️ Mengirim foto ke Printer Epson L8050...'),
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Print error: $e');
+    } finally {
+      if (mounted) setState(() => _isPrinting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final sessionState = ref.watch(sessionNotifierProvider);
@@ -169,10 +203,22 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         _QrCard(qrUrl: qrUrl),
-                        SizedBox(height: 20.h),
+                        SizedBox(height: 14.h),
                         ResponsiveButton(
-                          label: 'SELESAI', icon: Icons.check_rounded,
-                          onPressed: _finishSession, width: double.infinity, height: 52.h,
+                          label: _isPrinting ? 'MENCETAK...' : 'CETAK FOTO',
+                          icon: Icons.print_rounded,
+                          variant: ButtonVariant.outlined,
+                          onPressed: _isPrinting ? null : _handlePrint,
+                          width: double.infinity,
+                          height: 48.h,
+                        ).animate().fadeIn(delay: 400.ms),
+                        SizedBox(height: 10.h),
+                        ResponsiveButton(
+                          label: 'SELESAI',
+                          icon: Icons.check_rounded,
+                          onPressed: _finishSession,
+                          width: double.infinity,
+                          height: 48.h,
                         ).animate().fadeIn(delay: 500.ms),
                         SizedBox(height: 8.h),
                         Text('Kembali otomatis dalam $_autoResetCountdown detik',
