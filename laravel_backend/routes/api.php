@@ -1,21 +1,27 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
-use App\Http\Controllers\Api\ScreenContentController;
-use App\Http\Controllers\Api\FrameController;
-use App\Http\Controllers\Api\FilterController;
-use App\Http\Controllers\Api\PaymentController;
-use App\Http\Controllers\Api\SessionController;
+use App\Http\Controllers\Api\DeviceProvisioningController;
 use App\Http\Controllers\Api\ErrorLogController;
+use App\Http\Controllers\Api\FilterController;
+use App\Http\Controllers\Api\FrameController;
+use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\ResultController;
+use App\Http\Controllers\Api\ScreenContentController;
+use App\Http\Controllers\Api\SessionController;
 use App\Http\Controllers\Api\WebhookController;
 use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
-| Fakultas Kopi Photobooth API Routes
+| Photobooth API Routes
 |--------------------------------------------------------------------------
 */
+
+// ── Kiosk Device Provisioning & Telemetry ─────────────────────────────────────
+Route::post('/devices/activate', [DeviceProvisioningController::class, 'activate']);
+Route::get('/devices/{device_key}/config', [DeviceProvisioningController::class, 'config']);
+Route::post('/devices/heartbeat', [DeviceProvisioningController::class, 'heartbeat']);
 
 // ── Customer & Client Telemetry ───────────────────────────────────────────────
 Route::get('/events/{event}/screen-content', [ScreenContentController::class, 'show']);
@@ -27,6 +33,7 @@ Route::post('/logs', [ErrorLogController::class, 'store']);
 
 Route::post('/payments', [PaymentController::class, 'store']);
 Route::get('/payments/{payment}/status', [PaymentController::class, 'status']);
+Route::post('/payments/{payment}/simulate-paid', [PaymentController::class, 'simulatePaid']);
 
 Route::post('/sessions', [SessionController::class, 'store']);
 Route::post('/sessions/{session}/frame', [SessionController::class, 'setFrame']);

@@ -6,30 +6,29 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/services/error_logger.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_text_styles.dart';
 import '../../../features/frame/domain/models/frame_model.dart';
 import '../../../features/session/domain/models/session_model.dart';
 import '../../../features/session/providers/session_provider.dart';
 import '../../../shared/widgets/customer_header.dart';
 import '../../../shared/widgets/photobooth_layout.dart';
 import '../../../shared/widgets/photo_strip_widget.dart';
-import '../../../shared/widgets/responsive_button.dart';
 
 // ── Step enum ─────────────────────────────────────────────────────────────────
 
-/// 5 tahap proses foto dalam satu screen.
+/// Tahap proses pengambilan foto.
 enum _CaptureStep {
-  /// Step 1: Pilih frame + preview kamera live + tombol Mulai Foto.
+  /// Step 1: Live preview kamera + toggle cermin + tombol Ambil Foto.
   frameAndPreview,
-  /// Step 2: Countdown 5 detik dengan kamera gelap + teks "BERSIAP YA!".
+  /// Step 2: Hitung mundur 5 detik dengan circular progress & overlay kamera.
   countdown,
-  /// Step 3: Foto sedang diambil — icon kamera + teks proses.
+  /// Step 3: Proses pengambilan gambar sedang berlangsung.
   capturing,
-  /// Step 4: Hasil foto tampil + frame terpilih + Retake / Next.
+  /// Step 4: Menampilkan hasil foto + opsi Retake / Pose Berikutnya.
   result,
 }
 
@@ -39,9 +38,7 @@ const _uuid = Uuid();
 const _countdownSeconds = 5;
 const _maxRetake = 2;
 
-/// Screen 5 — Sesi Foto.
-/// Header transparan centered 2x.
-/// Flow 5-step: Pilih Frame → Countdown → Mengambil → Hasil → Pose Berikutnya.
+/// Screen Sesi Foto — Redesigned matching `Detail halaman foto.png` & `UI Customer.png`.
 class CameraScreen extends ConsumerStatefulWidget {
   const CameraScreen({super.key});
 
@@ -58,21 +55,20 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   _CaptureStep _step = _CaptureStep.frameAndPreview;
   int _countdownValue = _countdownSeconds;
   Timer? _countdownTimer;
-  Timer? _uiRefreshTimer; // keeps session timer in header ticking every second
+  Timer? _uiRefreshTimer;
 
   // ── Current pose ──────────────────────────────────────────────────────────
-  int _currentPose = 0;     // 0-based
+  int _currentPose = 0; // 0-based index
   int _retakeCount = 0;
   XFile? _lastCaptured;
   List<XFile?> _capturedPhotos = [];
   bool _isMirrorEnabled = false;
+  bool _showPoseTransitionBanner = false;
 
   @override
   void initState() {
     super.initState();
     _initCamera();
-    // Tick every second so the session timer in the header stays live
-    // regardless of which capture step is active.
     _uiRefreshTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
@@ -101,12 +97,20 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
         orElse: () => cameras.first,
       );
       final controller = CameraController(
-        camera, ResolutionPreset.medium,
-        enableAudio: false, imageFormatGroup: ImageFormatGroup.jpeg,
+        camera,
+        ResolutionPreset.medium,
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.jpeg,
       );
       await controller.initialize();
-      if (!mounted) { await controller.dispose(); return; }
-      setState(() { _cameraController = controller; _isCameraReady = true; });
+      if (!mounted) {
+        await controller.dispose();
+        return;
+      }
+      setState(() {
+        _cameraController = controller;
+        _isCameraReady = true;
+      });
     } catch (e, stack) {
       ErrorLogger.instance.logCameraError(
         message: 'Gagal inisialisasi kamera: $e',
@@ -118,9 +122,17 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   // ── Flow transitions ──────────────────────────────────────────────────────
 
   void _startCountdown() {
-    setState(() { _step = _CaptureStep.countdown; _countdownValue = _countdownSeconds; });
+    setState(() {
+      _step = _CaptureStep.countdown;
+      _countdownValue = _countdownSeconds;
+      _showPoseTransitionBanner = false;
+    });
+
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (!mounted) { t.cancel(); return; }
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
       if (_countdownValue > 1) {
         setState(() => _countdownValue--);
       } else {
@@ -143,11 +155,10 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
           _step = _CaptureStep.result;
         });
       } else {
-        // Kamera belum siap — fallback tanpa foto
         ErrorLogger.instance.logCameraError(
           message: 'Kamera belum siap saat capture dipicu (isCameraReady=false)',
         );
-        await Future<void>.delayed(const Duration(milliseconds: 800));
+        await Future<void>.delayed(const Duration(milliseconds: 700));
         if (!mounted) return;
         setState(() {
           _lastCaptured = null;
@@ -159,7 +170,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
         message: 'Gagal mengambil gambar/takePicture: $e',
         stackTrace: stack,
       );
-      await Future<void>.delayed(const Duration(milliseconds: 800));
+      await Future<void>.delayed(const Duration(milliseconds: 700));
       if (!mounted) return;
       setState(() {
         _lastCaptured = null;
@@ -172,6 +183,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     if (_retakeCount >= _maxRetake) return;
     setState(() {
       _retakeCount++;
+      _lastCaptured = null;
       _step = _CaptureStep.frameAndPreview;
     });
   }
@@ -180,7 +192,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     final notifier = ref.read(sessionNotifierProvider.notifier);
     final sessionId = ref.read(sessionNotifierProvider).session?.sessionId.toString() ?? '';
 
-    // Simpan foto ke session — pakai path file asli jika ada, fallback ke placeholder
+    // Simpan foto ke session
     notifier.addPhoto(PhotoModel(
       id: _uuid.v4(),
       sessionId: sessionId,
@@ -192,16 +204,24 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     final state = ref.read(sessionNotifierProvider);
 
     if (state.allPosesDone) {
-      // Semua pose selesai → ke filter
+      // Semua pose telah diambil → Lanjut ke Filter
       context.go(AppRoutes.filter);
     } else {
-      // Pose berikutnya
+      // Lanjut ke pose berikutnya dengan animasi transisi
       setState(() {
         _capturedPhotos = [..._capturedPhotos, _lastCaptured];
         _currentPose++;
         _retakeCount = 0;
         _lastCaptured = null;
         _step = _CaptureStep.frameAndPreview;
+        _showPoseTransitionBanner = true;
+      });
+
+      // Hilangkan banner penyemangat setelah 3 detik
+      Future.delayed(const Duration(seconds: 3), () {
+        if (mounted) {
+          setState(() => _showPoseTransitionBanner = false);
+        }
       });
     }
   }
@@ -227,58 +247,90 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
         ),
         child: Column(
           children: [
-            // ── Pose indicator ──────────────────────────────────────────
-            _PoseIndicator(current: _currentPose, total: totalPoses),
+            // ── Pose Tabs Header ──────────────────────────────────────────
+            if (totalPoses > 1)
+              Padding(
+                padding: EdgeInsets.only(bottom: 8.h),
+                child: _PoseTabs(
+                  current: _currentPose,
+                  total: totalPoses,
+                ),
+              ),
 
-            SizedBox(height: 6.h),
+            // ── Main Content Area ─────────────────────────────────────────
+            Expanded(
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: _buildStage(totalPoses),
+                  ),
 
-            // ── Main content (changes per step) ────────────────────────
-            Expanded(child: _buildStep(totalPoses)),
-
-            // ── Progress bar ────────────────────────────────────────────
-            _ProgressBar(step: _step, currentPose: _currentPose, totalPoses: totalPoses),
+                  // ── Pose Transition Toast / Banner ────────────────────────
+                  if (_showPoseTransitionBanner)
+                    Positioned(
+                      top: 10.h,
+                      left: 0,
+                      right: 0,
+                      child: Center(
+                        child: _PoseTransitionToast(
+                          currentPose: _currentPose + 1,
+                          totalPoses: totalPoses,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildStep(int totalPoses) {
+  Widget _buildStage(int totalPoses) {
+    final selectedFrame = ref.watch(sessionNotifierProvider).selectedFrame;
+
     switch (_step) {
       case _CaptureStep.frameAndPreview:
         return _StepFrameAndPreview(
           cameraController: _isCameraReady ? _cameraController : null,
-          frame: ref.watch(sessionNotifierProvider).selectedFrame,
+          frame: selectedFrame,
           isMirrorEnabled: _isMirrorEnabled,
           retakeCount: _retakeCount,
           maxRetake: _maxRetake,
           capturedPhotos: _capturedPhotos,
           currentPose: _currentPose,
           totalPoses: totalPoses,
-          onMirrorToggle: () => setState(() => _isMirrorEnabled = !_isMirrorEnabled),
+          onMirrorToggle: (val) => setState(() => _isMirrorEnabled = val),
           onStartPhoto: _startCountdown,
         );
+
       case _CaptureStep.countdown:
         return _StepCountdown(
           cameraController: _isCameraReady ? _cameraController : null,
           countdown: _countdownValue,
           isMirrorEnabled: _isMirrorEnabled,
-          frame: ref.watch(sessionNotifierProvider).selectedFrame,
+          frame: selectedFrame,
           capturedPhotos: _capturedPhotos,
           currentPose: _currentPose,
           totalPoses: totalPoses,
-          retakeCount: _retakeCount,
-          maxRetake: _maxRetake,
         );
+
       case _CaptureStep.capturing:
-        return const _StepCapturing();
+        return _StepCapturing(
+          frame: selectedFrame,
+          capturedPhotos: _capturedPhotos,
+          currentPose: _currentPose,
+          totalPoses: totalPoses,
+        );
+
       case _CaptureStep.result:
         return _StepResult(
           lastCaptured: _lastCaptured,
           capturedPhotos: _capturedPhotos,
           currentPose: _currentPose,
           totalPoses: totalPoses,
-          frame: ref.watch(sessionNotifierProvider).selectedFrame,
+          frame: selectedFrame,
           retakeCount: _retakeCount,
           maxRetake: _maxRetake,
           onRetake: _onRetake,
@@ -288,95 +340,278 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   }
 }
 
-// ── Pose Indicator ────────────────────────────────────────────────────────────
+// ── Pose Tabs ─────────────────────────────────────────────────────────────────
 
-class _PoseIndicator extends StatelessWidget {
-  const _PoseIndicator({required this.current, required this.total});
+class _PoseTabs extends StatelessWidget {
+  const _PoseTabs({required this.current, required this.total});
   final int current;
   final int total;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 4.h),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: List.generate(total, (i) => Padding(
-          padding: EdgeInsets.symmetric(horizontal: 4.w),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            width: i == current ? 36.w : 14.w,
-            height: 8.h,
-            decoration: BoxDecoration(
-              color: i <= current ? AppColors.darkBrown : AppColors.borderWarm,
-              borderRadius: BorderRadius.circular(4.r),
-              border: Border.all(
-                color: i == current ? AppColors.gold : Colors.transparent,
-                width: 1,
-              ),
-            ),
-          ),
-        )),
+      padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 4.h),
+      decoration: BoxDecoration(
+        color: AppColors.parchmentDark.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(24.r),
+        border: Border.all(color: AppColors.borderWarm.withValues(alpha: 0.8)),
       ),
-    );
-  }
-}
-
-// ── Progress Bar ──────────────────────────────────────────────────────────────
-
-class _ProgressBar extends StatelessWidget {
-  const _ProgressBar({required this.step, required this.currentPose, required this.totalPoses});
-  final _CaptureStep step;
-  final int currentPose;
-  final int totalPoses;
-
-  static const _labels = [
-    'Preview', 'Countdown', 'Foto Diambil', 'Hasil Foto',
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final stepIndex = _CaptureStep.values.indexOf(step);
-    return Container(
-      height: 36.h,
-      color: AppColors.creamWhite.withValues(alpha: 0.9),
-      padding: EdgeInsets.symmetric(horizontal: 20.w),
       child: Row(
-        children: _CaptureStep.values.asMap().entries.map((e) {
-          final isActive = e.key == stepIndex;
-          final isDone = e.key < stepIndex;
-          return Expanded(
-            child: Container(
-              margin: EdgeInsets.symmetric(horizontal: 3.w),
-              padding: EdgeInsets.symmetric(vertical: 4.h),
+        mainAxisSize: MainAxisSize.min,
+        children: List.generate(total, (i) {
+          final isDone = i < current;
+          final isActive = i == current;
+
+          return Padding(
+            padding: EdgeInsets.symmetric(horizontal: 3.w),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+              padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 6.h),
               decoration: BoxDecoration(
-                color: isDone ? AppColors.darkBrown
-                    : isActive ? AppColors.buttonBrown
-                    : AppColors.borderWarm,
-                borderRadius: BorderRadius.circular(4.r),
+                color: isActive
+                    ? AppColors.darkBrown
+                    : isDone
+                        ? AppColors.buttonBrown.withValues(alpha: 0.85)
+                        : Colors.transparent,
+                borderRadius: BorderRadius.circular(18.r),
                 border: Border.all(
-                  color: isActive ? AppColors.gold : Colors.transparent,
-                  width: 1,
+                  color: isActive
+                      ? AppColors.gold
+                      : isDone
+                          ? AppColors.gold.withValues(alpha: 0.5)
+                          : Colors.transparent,
+                  width: 1.2,
                 ),
+                boxShadow: isActive
+                    ? [
+                        BoxShadow(
+                          color: AppColors.darkBrown.withValues(alpha: 0.25),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        )
+                      ]
+                    : null,
               ),
-              child: Center(
-                child: Text(
-                  _labels[e.key],
-                  style: TextStyle(
-                    fontSize: 9.sp, fontWeight: FontWeight.w700,
-                    color: (isDone || isActive) ? AppColors.creamWhite : AppColors.brown,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (isDone) ...[
+                    Icon(Icons.check_circle_rounded, size: 13.sp, color: AppColors.gold),
+                    SizedBox(width: 4.w),
+                  ] else if (isActive) ...[
+                    Container(
+                      width: 6.r,
+                      height: 6.r,
+                      decoration: const BoxDecoration(
+                        color: AppColors.gold,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    SizedBox(width: 5.w),
+                  ],
+                  Text(
+                    'POSE ${i + 1}',
+                    style: GoogleFonts.inter(
+                      fontSize: 11.sp,
+                      fontWeight: isActive || isDone ? FontWeight.w800 : FontWeight.w600,
+                      color: isActive
+                          ? AppColors.creamWhite
+                          : isDone
+                              ? AppColors.creamWhite.withValues(alpha: 0.9)
+                              : AppColors.brown.withValues(alpha: 0.7),
+                      letterSpacing: 0.8,
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
           );
-        }).toList(),
+        }),
       ),
     );
   }
 }
 
-// ── Step 1: Frame & Preview (Vintage Coffee Layout) ──────────────────────────
+// ── Pose Transition Toast ─────────────────────────────────────────────────────
+
+class _PoseTransitionToast extends StatelessWidget {
+  const _PoseTransitionToast({
+    required this.currentPose,
+    required this.totalPoses,
+  });
+
+  final int currentPose;
+  final int totalPoses;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 10.h),
+      decoration: BoxDecoration(
+        color: AppColors.darkBrown.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(30.r),
+        border: Border.all(color: AppColors.gold, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.35),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.auto_awesome_rounded, color: AppColors.gold, size: 18.sp),
+          SizedBox(width: 8.w),
+          Text(
+            'Pose $currentPose dari $totalPoses — Siapkan gaya terbaikmu!',
+            style: GoogleFonts.inter(
+              color: AppColors.creamWhite,
+              fontSize: 13.sp,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
+      ),
+    )
+        .animate()
+        .slideY(begin: -0.6, duration: 400.ms, curve: Curves.easeOutBack)
+        .fadeIn(duration: 300.ms);
+  }
+}
+
+// ── Left Card: Photo Strip & Frame Preview ────────────────────────────────────
+
+class _FrameSidebarCard extends StatelessWidget {
+  const _FrameSidebarCard({
+    required this.frame,
+    required this.capturedPhotos,
+    required this.currentPose,
+    required this.totalPoses,
+    this.liveCameraPreview,
+  });
+
+  final FrameModel? frame;
+  final List<XFile?> capturedPhotos;
+  final int currentPose;
+  final int totalPoses;
+  final Widget? liveCameraPreview;
+
+  @override
+  Widget build(BuildContext context) {
+    final List<PhotoModel> displayPhotos = [];
+    for (int i = 0; i < capturedPhotos.length; i++) {
+      if (capturedPhotos[i] != null) {
+        displayPhotos.add(PhotoModel(
+          id: 'pose_$i',
+          sessionId: '',
+          fileUrl: capturedPhotos[i]!.path,
+        ));
+      }
+    }
+
+    return Container(
+      width: 178.w,
+      decoration: BoxDecoration(
+        color: AppColors.creamWhite,
+        borderRadius: BorderRadius.circular(18.r),
+        border: Border.all(color: AppColors.borderWarm, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.darkBrown.withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Header Badge: Frame Terpilih
+          Container(
+            margin: EdgeInsets.fromLTRB(10.w, 10.h, 10.w, 6.h),
+            padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 8.h),
+            decoration: BoxDecoration(
+              color: AppColors.darkBrown.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(10.r),
+              border: Border.all(color: AppColors.gold.withValues(alpha: 0.5)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.crop_original_rounded, size: 14.sp, color: AppColors.darkBrown),
+                SizedBox(width: 6.w),
+                Expanded(
+                  child: Text(
+                    frame?.name ?? 'Frame Terpilih',
+                    style: GoogleFonts.inter(
+                      fontSize: 11.sp,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.darkBrown,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Label Photo Strip + Counter
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 2.h),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Photo Strip',
+                  style: GoogleFonts.inter(
+                    fontSize: 10.5.sp,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.darkBrown,
+                  ),
+                ),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
+                  decoration: BoxDecoration(
+                    color: AppColors.paper,
+                    borderRadius: BorderRadius.circular(6.r),
+                  ),
+                  child: Text(
+                    '${capturedPhotos.length}/$totalPoses',
+                    style: GoogleFonts.inter(
+                      fontSize: 9.5.sp,
+                      color: AppColors.darkBrown,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Photo Strip View with Dynamic Aspect Ratio & Live Stream in Active Slot
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(8.w, 4.h, 8.w, 8.h),
+              child: Center(
+                child: PhotoStripWidget(
+                  photos: displayPhotos,
+                  frame: frame,
+                  activePoseIndex: currentPose,
+                  liveCameraPreview: liveCameraPreview,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Step 1: Frame & Preview (Ambil Foto) ───────────────────────────────────────
 
 class _StepFrameAndPreview extends StatelessWidget {
   const _StepFrameAndPreview({
@@ -400,167 +635,52 @@ class _StepFrameAndPreview extends StatelessWidget {
   final List<XFile?> capturedPhotos;
   final int currentPose;
   final int totalPoses;
-  final VoidCallback onMirrorToggle;
+  final ValueChanged<bool> onMirrorToggle;
   final VoidCallback onStartPhoto;
 
   @override
   Widget build(BuildContext context) {
-    // List foto yang sudah diambil untuk live photo strip di kiri
-    final List<PhotoModel> displayPhotos = [];
-    for (int i = 0; i < capturedPhotos.length; i++) {
-      if (capturedPhotos[i] != null) {
-        displayPhotos.add(PhotoModel(
-          id: 'pose_$i',
-          sessionId: '',
-          fileUrl: capturedPhotos[i]!.path,
-        ));
-      }
-    }
+    final isCamReady = cameraController != null && cameraController!.value.isInitialized;
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(16.w, 0, 16.w, 8.h),
+      padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 8.h),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ── Kiri: Vintage Card (Photo Strip Frame Asli) ───────────────────
-          Container(
-            width: 175.w,
-            decoration: BoxDecoration(
-              color: AppColors.creamWhite,
-              borderRadius: BorderRadius.circular(16.r),
-              border: Border.all(color: AppColors.borderWarm, width: 1.5),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.darkBrown.withValues(alpha: 0.08),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                // Header Frame Badge
-                Container(
-                  margin: EdgeInsets.fromLTRB(10.w, 10.h, 10.w, 6.h),
-                  padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 8.h),
-                  decoration: BoxDecoration(
-                    color: AppColors.darkBrown.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(10.r),
-                    border: Border.all(color: AppColors.gold.withValues(alpha: 0.6)),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 10.r, height: 10.r,
-                        decoration: const BoxDecoration(
-                          color: AppColors.gold, shape: BoxShape.circle,
-                        ),
-                      ),
-                      SizedBox(width: 8.w),
-                      Expanded(
-                        child: Text(
-                          frame?.name ?? 'Strip Klasik',
-                          style: AppTextStyles.bodySmall.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.darkBrown,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Label "Strip Preview"
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 2.h),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Photo Strip', style: AppTextStyles.bodySmall.copyWith(
-                        fontWeight: FontWeight.w700, color: AppColors.darkBrown,
-                      )),
-                      Container(
-                        padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
-                        decoration: BoxDecoration(
-                          color: AppColors.paper,
-                          borderRadius: BorderRadius.circular(8.r),
-                        ),
-                        child: Text('${capturedPhotos.length}/$totalPoses',
-                          style: AppTextStyles.caption.copyWith(
-                            color: AppColors.darkBrown,
-                            fontWeight: FontWeight.w700,
-                          )),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Photo Strip Frame Asli (Rasio dinamis sesuai frame + Live Camera di slot aktif)
-                Expanded(
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(8.w, 4.h, 8.w, 6.h),
-                    child: Center(
-                      child: PhotoStripWidget(
-                        photos: displayPhotos,
-                        frame: frame,
-                        activePoseIndex: currentPose,
-                        liveCameraPreview: (cameraController != null && cameraController!.value.isInitialized)
-                            ? Transform.flip(
-                                flipX: isMirrorEnabled,
-                                child: FittedBox(
-                                  fit: BoxFit.cover,
-                                  child: SizedBox(
-                                    width: cameraController!.value.previewSize?.width ?? 1280,
-                                    height: cameraController!.value.previewSize?.height ?? 720,
-                                    child: CameraPreview(cameraController!),
-                                  ),
-                                ),
-                              )
-                            : null,
+          // ── Kiri: Card Photo Strip Frame Terpilih ─────────────────────────
+          _FrameSidebarCard(
+            frame: frame,
+            capturedPhotos: capturedPhotos,
+            currentPose: currentPose,
+            totalPoses: totalPoses,
+            liveCameraPreview: isCamReady
+                ? Transform.flip(
+                    flipX: isMirrorEnabled,
+                    child: FittedBox(
+                      fit: BoxFit.cover,
+                      child: SizedBox(
+                        width: cameraController!.value.previewSize?.width ?? 1280,
+                        height: cameraController!.value.previewSize?.height ?? 720,
+                        child: CameraPreview(cameraController!),
                       ),
                     ),
-                  ),
-                ),
-
-                // Retake info
-                Container(
-                  margin: EdgeInsets.fromLTRB(8.r, 0, 8.r, 8.r),
-                  padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
-                  decoration: BoxDecoration(
-                    color: retakeCount >= maxRetake
-                        ? AppColors.error.withValues(alpha: 0.1)
-                        : AppColors.cream,
-                    borderRadius: BorderRadius.circular(8.r),
-                    border: Border.all(
-                      color: retakeCount >= maxRetake ? AppColors.error : AppColors.borderWarm,
-                    ),
-                  ),
-                  child: Text(
-                    'Retake: $retakeCount/$maxRetake',
-                    style: AppTextStyles.caption.copyWith(
-                      color: retakeCount >= maxRetake ? AppColors.error : AppColors.darkBrown,
-                      fontWeight: FontWeight.w700,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ],
-            ),
+                  )
+                : null,
           ),
 
-          SizedBox(width: 14.w),
+          SizedBox(width: 18.w),
 
-          // ── Kanan: Large Viewfinder Kamera + Tombol Ambil Foto ─────────────
+          // ── Kanan: Viewfinder Kamera Utama & Kontrol Bawah ─────────────────
           Expanded(
             child: Column(
               children: [
+                // Viewfinder Kamera Besar
                 Expanded(
                   child: Container(
                     decoration: BoxDecoration(
                       color: AppColors.darkCoffee,
-                      borderRadius: BorderRadius.circular(18.r),
-                      border: Border.all(color: AppColors.darkBrown, width: 3),
+                      borderRadius: BorderRadius.circular(20.r),
+                      border: Border.all(color: AppColors.darkBrown, width: 2.5),
                       boxShadow: [
                         BoxShadow(
                           color: AppColors.darkBrown.withValues(alpha: 0.2),
@@ -570,12 +690,11 @@ class _StepFrameAndPreview extends StatelessWidget {
                       ],
                     ),
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(15.r),
+                      borderRadius: BorderRadius.circular(17.r),
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
-                          // Live Camera Preview (Proporsional, tidak gepeng)
-                          if (cameraController != null && cameraController!.value.isInitialized)
+                          if (isCamReady)
                             Center(
                               child: Transform.flip(
                                 flipX: isMirrorEnabled,
@@ -593,51 +712,54 @@ class _StepFrameAndPreview extends StatelessWidget {
                             Container(
                               color: AppColors.darkCoffee,
                               child: Center(
-                                child: Icon(Icons.camera_alt_rounded,
-                                    color: AppColors.paper.withValues(alpha: 0.4), size: 64.sp),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.photo_camera_rounded,
+                                      size: 54.sp,
+                                      color: AppColors.paper.withValues(alpha: 0.35),
+                                    ),
+                                    SizedBox(height: 12.h),
+                                    Text(
+                                      'Menyiapkan Kamera...',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 13.sp,
+                                        color: AppColors.creamWhite.withValues(alpha: 0.7),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
 
-                          // Floating Vintage Mirror / No Mirror Toggle
+                          // Pose Watermark Indicator di pojok kiri atas kamera
                           Positioned(
-                            bottom: 14.h,
-                            left: 0,
-                            right: 0,
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Container(
-                                  padding: EdgeInsets.all(3.r),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.creamWhite.withValues(alpha: 0.92),
-                                    borderRadius: BorderRadius.circular(20.r),
-                                    border: Border.all(color: AppColors.borderWarm),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: AppColors.darkBrown.withValues(alpha: 0.2),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
+                            top: 14.h,
+                            left: 16.w,
+                            child: Container(
+                              padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.5),
+                                borderRadius: BorderRadius.circular(12.r),
+                                border: Border.all(color: AppColors.gold.withValues(alpha: 0.4)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.camera_alt_outlined, color: AppColors.gold, size: 12.sp),
+                                  SizedBox(width: 5.w),
+                                  Text(
+                                    'POSE ${currentPose + 1} OF $totalPoses',
+                                    style: GoogleFonts.inter(
+                                      color: AppColors.creamWhite,
+                                      fontSize: 10.sp,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 1,
+                                    ),
                                   ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      _MirrorButton(
-                                        label: 'Mirror',
-                                        isActive: isMirrorEnabled,
-                                        onTap: isMirrorEnabled ? null : onMirrorToggle,
-                                      ),
-                                      SizedBox(width: 4.w),
-                                      _MirrorButton(
-                                        label: 'No Mirror',
-                                        isActive: !isMirrorEnabled,
-                                        onTap: !isMirrorEnabled ? null : onMirrorToggle,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                         ],
@@ -646,36 +768,64 @@ class _StepFrameAndPreview extends StatelessWidget {
                   ),
                 ),
 
-                SizedBox(height: 10.h),
+                SizedBox(height: 12.h),
 
-                // Tombol AMBIL FOTO (Vintage Brown & Gold)
-                SizedBox(
-                  width: double.infinity,
-                  height: 52.h,
-                  child: ElevatedButton.icon(
-                    onPressed: onStartPhoto,
-                    icon: Icon(Icons.camera_alt_rounded, size: 22.sp, color: AppColors.creamWhite),
-                    label: Text(
-                      'AMBIL FOTO',
-                      style: TextStyle(
-                        fontSize: 16.sp,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 2,
-                        color: AppColors.creamWhite,
+                // Baris Kontrol Bawah (Cermin + Mulai Foto)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // Sisi Kiri: Cermin Toggle
+                    Text(
+                      'Cermin',
+                      style: GoogleFonts.inter(
+                        fontSize: 13.sp,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.darkBrown,
                       ),
                     ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.buttonBrown,
-                      foregroundColor: AppColors.creamWhite,
-                      elevation: 4,
-                      shadowColor: AppColors.darkBrown.withValues(alpha: 0.4),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14.r),
-                        side: const BorderSide(color: AppColors.gold, width: 1.5),
+                    SizedBox(width: 10.w),
+                    _MirrorTogglePill(
+                      isMirrored: isMirrorEnabled,
+                      onChanged: onMirrorToggle,
+                    ),
+
+                    const Spacer(),
+
+                    // Sisi Kanan: Tombol AMBIL / MULAI FOTO
+                    SizedBox(
+                      width: 210.w,
+                      height: 52.h,
+                      child: ElevatedButton.icon(
+                        onPressed: onStartPhoto,
+                        icon: Icon(Icons.camera_alt_rounded, size: 20.sp, color: AppColors.creamWhite),
+                        label: Text(
+                          'MULAI FOTO',
+                          style: GoogleFonts.inter(
+                            fontSize: 15.sp,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.5,
+                            color: AppColors.creamWhite,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.buttonBrown,
+                          foregroundColor: AppColors.creamWhite,
+                          elevation: 4,
+                          shadowColor: AppColors.darkBrown.withValues(alpha: 0.4),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14.r),
+                            side: const BorderSide(color: AppColors.gold, width: 1.2),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
+
+                SizedBox(height: 8.h),
+
+                // Keterangan Sesi di Bagian Bawah
+                _SessionInfoPill(retakeCount: retakeCount, maxRetake: maxRetake),
               ],
             ),
           ),
@@ -685,11 +835,67 @@ class _StepFrameAndPreview extends StatelessWidget {
   }
 }
 
-class _MirrorButton extends StatelessWidget {
-  const _MirrorButton({required this.label, required this.isActive, this.onTap});
+// ── Mirror Toggle Pill ────────────────────────────────────────────────────────
+
+class _MirrorTogglePill extends StatelessWidget {
+  const _MirrorTogglePill({
+    required this.isMirrored,
+    required this.onChanged,
+  });
+
+  final bool isMirrored;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.all(3.r),
+      decoration: BoxDecoration(
+        color: AppColors.creamWhite,
+        borderRadius: BorderRadius.circular(20.r),
+        border: Border.all(color: AppColors.borderWarm),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.darkBrown.withValues(alpha: 0.06),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _TogglePillOption(
+            label: 'MIRROR',
+            icon: Icons.flip_rounded,
+            isActive: isMirrored,
+            onTap: () => onChanged(true),
+          ),
+          SizedBox(width: 2.w),
+          _TogglePillOption(
+            label: 'NO MIRROR',
+            icon: Icons.crop_original_rounded,
+            isActive: !isMirrored,
+            onTap: () => onChanged(false),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TogglePillOption extends StatelessWidget {
+  const _TogglePillOption({
+    required this.label,
+    required this.icon,
+    required this.isActive,
+    required this.onTap,
+  });
+
   final String label;
+  final IconData icon;
   final bool isActive;
-  final VoidCallback? onTap;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -697,37 +903,101 @@ class _MirrorButton extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 6.h),
+        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
         decoration: BoxDecoration(
           color: isActive ? AppColors.darkBrown : Colors.transparent,
           borderRadius: BorderRadius.circular(16.r),
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 11.sp,
-            fontWeight: FontWeight.w700,
-            color: isActive ? AppColors.creamWhite : AppColors.darkBrown,
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 13.sp,
+              color: isActive ? AppColors.gold : AppColors.brown.withValues(alpha: 0.7),
+            ),
+            SizedBox(width: 5.w),
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 10.5.sp,
+                fontWeight: FontWeight.w700,
+                color: isActive ? AppColors.creamWhite : AppColors.darkBrown,
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-// ── Step 2: Countdown ─────────────────────────────────────────────────────────
+// ── Session Info Pill ─────────────────────────────────────────────────────────
+
+class _SessionInfoPill extends StatelessWidget {
+  const _SessionInfoPill({required this.retakeCount, required this.maxRetake});
+
+  final int retakeCount;
+  final int maxRetake;
+
+  @override
+  Widget build(BuildContext context) {
+    final sisaRetake = maxRetake - retakeCount;
+
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 5.h),
+      decoration: BoxDecoration(
+        color: AppColors.parchmentDark.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(16.r),
+        border: Border.all(color: AppColors.borderWarm.withValues(alpha: 0.6)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '1 sesi foto: 5 menit',
+            style: GoogleFonts.inter(
+              fontSize: 10.5.sp,
+              color: AppColors.brown,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 8.w),
+            child: Container(
+              width: 3.5.r,
+              height: 3.5.r,
+              decoration: const BoxDecoration(
+                color: AppColors.lightBrown,
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Text(
+            'Maksimal 2 kali retake per pose (Sisa: $sisaRetake)',
+            style: GoogleFonts.inter(
+              fontSize: 10.5.sp,
+              color: sisaRetake <= 0 ? AppColors.error : AppColors.brown,
+              fontWeight: sisaRetake <= 0 ? FontWeight.w700 : FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Step 2: Countdown 5 Detik ─────────────────────────────────────────────────
 
 class _StepCountdown extends StatelessWidget {
   const _StepCountdown({
     required this.cameraController,
     required this.countdown,
     required this.isMirrorEnabled,
-    this.frame,
+    required this.frame,
     required this.capturedPhotos,
     required this.currentPose,
     required this.totalPoses,
-    required this.retakeCount,
-    required this.maxRetake,
   });
 
   final CameraController? cameraController;
@@ -737,108 +1007,66 @@ class _StepCountdown extends StatelessWidget {
   final List<XFile?> capturedPhotos;
   final int currentPose;
   final int totalPoses;
-  final int retakeCount;
-  final int maxRetake;
 
   @override
   Widget build(BuildContext context) {
-    // List foto yang sudah diambil untuk live photo strip di kiri
-    final List<PhotoModel> displayPhotos = [];
-    for (int i = 0; i < capturedPhotos.length; i++) {
-      if (capturedPhotos[i] != null) {
-        displayPhotos.add(PhotoModel(
-          id: 'pose_$i',
-          sessionId: '',
-          fileUrl: capturedPhotos[i]!.path,
-        ));
-      }
-    }
+    final isCamReady = cameraController != null && cameraController!.value.isInitialized;
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(16.w, 0, 16.w, 8.h),
+      padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 8.h),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ── Kiri: Vintage Card (Photo Strip Frame Asli + Live Camera Feed di slot aktif) ──
-          Container(
-            width: 175.w,
-            decoration: BoxDecoration(
-              color: AppColors.creamWhite,
-              borderRadius: BorderRadius.circular(16.r),
-              border: Border.all(color: AppColors.borderWarm, width: 1.5),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.darkBrown.withValues(alpha: 0.08),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
+          // Sisi Kiri: Photo Strip Frame
+          _FrameSidebarCard(
+            frame: frame,
+            capturedPhotos: capturedPhotos,
+            currentPose: currentPose,
+            totalPoses: totalPoses,
+            liveCameraPreview: isCamReady
+                ? Transform.flip(
+                    flipX: isMirrorEnabled,
+                    child: FittedBox(
+                      fit: BoxFit.cover,
+                      child: SizedBox(
+                        width: cameraController!.value.previewSize?.width ?? 1280,
+                        height: cameraController!.value.previewSize?.height ?? 720,
+                        child: CameraPreview(cameraController!),
+                      ),
+                    ),
+                  )
+                : null,
+          ),
+
+          SizedBox(width: 18.w),
+
+          // Sisi Kanan: Viewfinder dengan Overlay Countdown Melingkar
+          Expanded(
             child: Column(
               children: [
-                // Header Frame Badge
-                Container(
-                  margin: EdgeInsets.fromLTRB(10.w, 10.h, 10.w, 6.h),
-                  padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 8.h),
-                  decoration: BoxDecoration(
-                    color: AppColors.darkBrown.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(10.r),
-                    border: Border.all(color: AppColors.gold.withValues(alpha: 0.6)),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.photo_filter_rounded, size: 14.sp, color: AppColors.darkBrown),
-                      SizedBox(width: 6.w),
-                      Expanded(
-                        child: Text(
-                          frame?.name ?? 'Classic Strip',
-                          style: AppTextStyles.caption.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.darkBrown,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Label "Strip Preview"
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 2.h),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Photo Strip', style: AppTextStyles.bodySmall.copyWith(
-                        fontWeight: FontWeight.w700, color: AppColors.darkBrown,
-                      )),
-                      Container(
-                        padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
-                        decoration: BoxDecoration(
-                          color: AppColors.paper,
-                          borderRadius: BorderRadius.circular(8.r),
-                        ),
-                        child: Text('${capturedPhotos.length}/$totalPoses',
-                          style: AppTextStyles.caption.copyWith(
-                            color: AppColors.darkBrown,
-                            fontWeight: FontWeight.w700,
-                          )),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Photo Strip Frame Asli (Live Camera di slot aktif)
                 Expanded(
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(8.w, 4.h, 8.w, 6.h),
-                    child: Center(
-                      child: PhotoStripWidget(
-                        photos: displayPhotos,
-                        frame: frame,
-                        activePoseIndex: currentPose,
-                        liveCameraPreview: (cameraController != null && cameraController!.value.isInitialized)
-                            ? Transform.flip(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.darkCoffee,
+                      borderRadius: BorderRadius.circular(20.r),
+                      border: Border.all(color: AppColors.darkBrown, width: 2.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.darkBrown.withValues(alpha: 0.25),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(17.r),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          // Live camera preview
+                          if (isCamReady)
+                            Center(
+                              child: Transform.flip(
                                 flipX: isMirrorEnabled,
                                 child: FittedBox(
                                   fit: BoxFit.cover,
@@ -848,118 +1076,84 @@ class _StepCountdown extends StatelessWidget {
                                     child: CameraPreview(cameraController!),
                                   ),
                                 ),
-                              )
-                            : null,
+                              ),
+                            )
+                          else
+                            Container(color: AppColors.darkCoffee),
+
+                          // Dim overlay semi-transparan
+                          Container(
+                            color: Colors.black.withValues(alpha: 0.5),
+                          ),
+
+                          // Center Ring & Countdown Number & "BERSIAP YA!"
+                          Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(
+                                  width: 130.r,
+                                  height: 130.r,
+                                  child: Stack(
+                                    alignment: Alignment.center,
+                                    children: [
+                                      // Circular Progress Indicator
+                                      SizedBox(
+                                        width: 130.r,
+                                        height: 130.r,
+                                        child: CircularProgressIndicator(
+                                          value: countdown / _countdownSeconds,
+                                          strokeWidth: 6,
+                                          backgroundColor: Colors.white24,
+                                          valueColor: const AlwaysStoppedAnimation(AppColors.gold),
+                                        ),
+                                      ),
+
+                                      // Big Countdown Number
+                                      Text(
+                                        '$countdown',
+                                        style: GoogleFonts.playfairDisplay(
+                                          fontSize: 64.sp,
+                                          fontWeight: FontWeight.w800,
+                                          color: AppColors.creamWhite,
+                                          shadows: [
+                                            const Shadow(color: Colors.black87, blurRadius: 16),
+                                          ],
+                                        ),
+                                      )
+                                          .animate(key: ValueKey(countdown))
+                                          .scale(begin: const Offset(1.3, 1.3), duration: 350.ms, curve: Curves.easeOutBack)
+                                          .fadeIn(duration: 150.ms),
+                                    ],
+                                  ),
+                                ),
+                                SizedBox(height: 20.h),
+                                Text(
+                                  'BERSIAP YA!',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 20.sp,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 3,
+                                    color: AppColors.creamWhite,
+                                    shadows: [
+                                      const Shadow(color: Colors.black87, blurRadius: 12),
+                                    ],
+                                  ),
+                                ).animate().fadeIn(duration: 300.ms),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
                 ),
 
-                // Retake info
-                Container(
-                  margin: EdgeInsets.fromLTRB(8.r, 0, 8.r, 8.r),
-                  padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
-                  decoration: BoxDecoration(
-                    color: retakeCount >= maxRetake
-                        ? AppColors.error.withValues(alpha: 0.1)
-                        : AppColors.cream,
-                    borderRadius: BorderRadius.circular(8.r),
-                    border: Border.all(
-                      color: retakeCount >= maxRetake ? AppColors.error : AppColors.borderWarm,
-                    ),
-                  ),
-                  child: Text(
-                    'Retake: $retakeCount/$maxRetake',
-                    style: AppTextStyles.caption.copyWith(
-                      color: retakeCount >= maxRetake ? AppColors.error : AppColors.darkBrown,
-                      fontWeight: FontWeight.w700,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
+                SizedBox(height: 12.h),
+
+                // Info banner tetap ada agar tata letak stabil
+                const _SessionInfoPill(retakeCount: 0, maxRetake: _maxRetake),
               ],
-            ),
-          ),
-
-          SizedBox(width: 14.w),
-
-          // ── Kanan: Viewfinder Kamera dengan Countdown Overlay ─────────────
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: AppColors.darkCoffee,
-                borderRadius: BorderRadius.circular(18.r),
-                border: Border.all(color: AppColors.darkBrown, width: 3),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.darkBrown.withValues(alpha: 0.25),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(15.r),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    // Live camera view
-                    if (cameraController != null && cameraController!.value.isInitialized)
-                      Center(
-                        child: Transform.flip(
-                          flipX: isMirrorEnabled,
-                          child: FittedBox(
-                            fit: BoxFit.cover,
-                            child: SizedBox(
-                              width: cameraController!.value.previewSize?.width ?? 1280,
-                              height: cameraController!.value.previewSize?.height ?? 720,
-                              child: CameraPreview(cameraController!),
-                            ),
-                          ),
-                        ),
-                      )
-                    else
-                      Container(color: AppColors.darkCoffee),
-
-                    // Warm Coffee Dim Overlay
-                    Container(color: AppColors.darkCoffee.withValues(alpha: 0.4)),
-
-                    // "BERSIAP YA!" di tengah
-                    Center(
-                      child: Text(
-                        'BERSIAP YA!',
-                        style: AppTextStyles.headlineLarge.copyWith(
-                          color: AppColors.creamWhite,
-                          fontSize: 32.sp,
-                          letterSpacing: 4,
-                          shadows: [
-                            const Shadow(color: Colors.black87, blurRadius: 12),
-                          ],
-                        ),
-                      ).animate().fadeIn(duration: 300.ms),
-                    ),
-
-                    // Countdown di kanan atas
-                    Positioned(
-                      top: 20.h,
-                      right: 24.w,
-                      child: Text(
-                        '$countdown',
-                        style: AppTextStyles.countdownNumber.copyWith(
-                          color: AppColors.gold,
-                          fontSize: 84.sp,
-                          shadows: [
-                            const Shadow(color: Colors.black87, blurRadius: 20),
-                          ],
-                        ),
-                      )
-                          .animate(key: ValueKey(countdown))
-                          .scale(begin: const Offset(1.3, 1.3), duration: 400.ms)
-                          .fadeIn(duration: 200.ms),
-                    ),
-                  ],
-                ),
-              ),
             ),
           ),
         ],
@@ -968,58 +1162,117 @@ class _StepCountdown extends StatelessWidget {
   }
 }
 
-// ── Step 3: Capturing ─────────────────────────────────────────────────────────
+// ── Step 3: Foto Sedang Diambil (Capturing) ───────────────────────────────────
 
 class _StepCapturing extends StatelessWidget {
-  const _StepCapturing();
+  const _StepCapturing({
+    required this.frame,
+    required this.capturedPhotos,
+    required this.currentPose,
+    required this.totalPoses,
+  });
+
+  final FrameModel? frame;
+  final List<XFile?> capturedPhotos;
+  final int currentPose;
+  final int totalPoses;
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 40.w, vertical: 32.h),
-        decoration: BoxDecoration(
-          color: AppColors.creamWhite,
-          borderRadius: BorderRadius.circular(20.r),
-          border: Border.all(color: AppColors.borderWarm, width: 2),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.darkBrown.withValues(alpha: 0.12),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 8.h),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Sisi Kiri: Frame sidebar
+          _FrameSidebarCard(
+            frame: frame,
+            capturedPhotos: capturedPhotos,
+            currentPose: currentPose,
+            totalPoses: totalPoses,
+          ),
+
+          SizedBox(width: 18.w),
+
+          // Sisi Kanan: Box Sedang Mengambil Foto
+          Expanded(
+            child: Column(
+              children: [
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.creamWhite,
+                      borderRadius: BorderRadius.circular(20.r),
+                      border: Border.all(color: AppColors.borderWarm, width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.darkBrown.withValues(alpha: 0.1),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 80.r,
+                            height: 80.r,
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: AppColors.darkBrown,
+                            ),
+                            child: Icon(Icons.camera_alt_rounded, color: AppColors.creamWhite, size: 40.sp),
+                          )
+                              .animate(onPlay: (c) => c.repeat(reverse: true))
+                              .scale(begin: const Offset(0.92, 0.92), end: const Offset(1.08, 1.08), duration: 500.ms),
+                          SizedBox(height: 20.h),
+                          Text(
+                            'FOTO SEDANG DIAMBIL',
+                            style: GoogleFonts.inter(
+                              fontSize: 18.sp,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.2,
+                              color: AppColors.darkBrown,
+                            ),
+                          ).animate().fadeIn(duration: 300.ms),
+                          SizedBox(height: 6.h),
+                          Text(
+                            'Mohon diam sebentar ya',
+                            style: GoogleFonts.inter(
+                              fontSize: 13.sp,
+                              color: AppColors.brown,
+                            ),
+                          ).animate().fadeIn(delay: 150.ms),
+                          SizedBox(height: 24.h),
+                          SizedBox(
+                            width: 28.r,
+                            height: 28.r,
+                            child: const CircularProgressIndicator(
+                              strokeWidth: 3,
+                              color: AppColors.darkBrown,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+                SizedBox(height: 12.h),
+
+                const _SessionInfoPill(retakeCount: 0, maxRetake: _maxRetake),
+              ],
             ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.camera_alt_rounded, size: 72.sp, color: AppColors.darkBrown)
-                .animate(onPlay: (c) => c.repeat(reverse: true))
-                .scale(begin: const Offset(0.92, 0.92), end: const Offset(1.08, 1.08), duration: 500.ms),
-            SizedBox(height: 20.h),
-            Text(
-              'FOTO SEDANG DIAMBIL',
-              style: AppTextStyles.headlineMedium.copyWith(letterSpacing: 2),
-            ).animate().fadeIn(duration: 400.ms),
-            SizedBox(height: 8.h),
-            Text(
-              'Mohon diam sebentar ya',
-              style: AppTextStyles.bodyMedium.copyWith(color: AppColors.brown),
-            ).animate().fadeIn(delay: 200.ms),
-            SizedBox(height: 28.h),
-            SizedBox(
-              width: 32.r, height: 32.r,
-              child: const CircularProgressIndicator(
-                strokeWidth: 3, color: AppColors.darkBrown),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
-// ── Step 4: Result ────────────────────────────────────────────────────────────
+// ── Step 4: Hasil Foto & Action Buttons ────────────────────────────────────────
 
 class _StepResult extends StatelessWidget {
   const _StepResult({
@@ -1049,132 +1302,150 @@ class _StepResult extends StatelessWidget {
     final canRetake = retakeCount < maxRetake;
     final isLastPose = currentPose + 1 >= totalPoses;
 
-    // Susun list foto yang sudah diambil sampai pose ini
-    final List<PhotoModel> displayPhotos = [];
-    for (int i = 0; i < currentPose; i++) {
-      if (i < capturedPhotos.length && capturedPhotos[i] != null) {
-        displayPhotos.add(PhotoModel(
-          id: 'pose_$i',
-          sessionId: '',
-          fileUrl: capturedPhotos[i]!.path,
-        ));
-      }
-    }
-    if (lastCaptured != null) {
-      displayPhotos.add(PhotoModel(
-        id: 'pose_$currentPose',
-        sessionId: '',
-        fileUrl: lastCaptured!.path,
-      ));
-    }
+    // List foto termasuk yang baru diambil
+    final List<XFile?> allPhotosWithCurrent = [...capturedPhotos, lastCaptured];
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(16.w, 0, 16.w, 8.h),
+      padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 8.h),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ── Preview foto terakhir (tanpa frame) ─────────────────────
+          // Sisi Kiri: Photo Strip Frame dengan foto yang baru saja terisi
+          _FrameSidebarCard(
+            frame: frame,
+            capturedPhotos: allPhotosWithCurrent,
+            currentPose: currentPose,
+            totalPoses: totalPoses,
+          ),
+
+          SizedBox(width: 18.w),
+
+          // Sisi Kanan: Preview Hasil Foto Besar & Tombol Aksi di Bawah
           Expanded(
-            flex: 3,
-            child: Center(
-              child: lastCaptured != null
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(12.r),
-                      child: Image.file(
-                        dart_io.File(lastCaptured!.path),
-                        fit: BoxFit.contain,
-                      ),
-                    )
-                  : Container(
-                      decoration: BoxDecoration(
-                        color: AppColors.paper,
-                        borderRadius: BorderRadius.circular(12.r),
-                        border: Border.all(color: AppColors.borderWarm),
-                      ),
-                      child: Center(
-                        child: Icon(Icons.camera_alt_outlined,
-                            size: 48.sp, color: AppColors.brown),
-                      ),
-                    ),
-            ),
-          ).animate().scale(begin: const Offset(0.95, 0.95), duration: 400.ms).fadeIn(),
-
-          SizedBox(width: 20.w),
-
-          // ── Tombol Retake / Lanjut ───────────────────────────────────
-          SizedBox(
-            width: 200.w,
-            child: Container(
-              padding: EdgeInsets.all(16.r),
-              decoration: BoxDecoration(
-                color: AppColors.creamWhite,
-                borderRadius: BorderRadius.circular(16.r),
-                border: Border.all(color: AppColors.borderWarm, width: 1.5),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.darkBrown.withValues(alpha: 0.08),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 6.h),
+            child: Column(
+              children: [
+                // Display Foto yang Baru Diambil
+                Expanded(
+                  child: Container(
                     decoration: BoxDecoration(
-                      color: AppColors.darkBrown.withValues(alpha: 0.08),
+                      color: AppColors.paper.withValues(alpha: 0.6),
                       borderRadius: BorderRadius.circular(20.r),
-                      border: Border.all(color: AppColors.gold.withValues(alpha: 0.6)),
+                      border: Border.all(color: AppColors.borderWarm, width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.darkBrown.withValues(alpha: 0.12),
+                          blurRadius: 14,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
-                    child: Text(
-                      'Pose ${currentPose + 1} / $totalPoses',
-                      style: AppTextStyles.titleMedium.copyWith(
-                        color: AppColors.darkBrown,
-                        fontWeight: FontWeight.w800,
+                    padding: EdgeInsets.all(12.r),
+                    child: Center(
+                      child: lastCaptured != null
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(12.r),
+                              child: Image.file(
+                                dart_io.File(lastCaptured!.path),
+                                fit: BoxFit.contain,
+                              ),
+                            )
+                          : Container(
+                              decoration: BoxDecoration(
+                                color: AppColors.creamWhite,
+                                borderRadius: BorderRadius.circular(12.r),
+                              ),
+                              child: Center(
+                                child: Icon(
+                                  Icons.camera_alt_outlined,
+                                  size: 48.sp,
+                                  color: AppColors.brown,
+                                ),
+                              ),
+                            ),
+                    ),
+                  ).animate().scale(begin: const Offset(0.96, 0.96), duration: 350.ms).fadeIn(),
+                ),
+
+                SizedBox(height: 14.h),
+
+                // Tombol Aksi Horizontal: RETAKE & NEXT / PILIH FILTER
+                Row(
+                  children: [
+                    // Tombol RETAKE
+                    if (canRetake) ...[
+                      Expanded(
+                        flex: 1,
+                        child: SizedBox(
+                          height: 52.h,
+                          child: OutlinedButton.icon(
+                            onPressed: onRetake,
+                            icon: Icon(Icons.refresh_rounded, size: 20.sp, color: AppColors.darkBrown),
+                            label: Text(
+                              'RETAKE (${maxRetake - retakeCount})',
+                              style: GoogleFonts.inter(
+                                fontSize: 13.5.sp,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.darkBrown,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: AppColors.darkBrown, width: 1.5),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14.r),
+                              ),
+                              backgroundColor: AppColors.creamWhite,
+                            ),
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 14.w),
+                    ],
+
+                    // Tombol NEXT / POSE BERIKUT / PILIH FILTER
+                    Expanded(
+                      flex: canRetake ? 2 : 1,
+                      child: SizedBox(
+                        height: 52.h,
+                        child: ElevatedButton.icon(
+                          onPressed: onNext,
+                          icon: Icon(
+                            isLastPose ? Icons.check_circle_rounded : Icons.arrow_forward_rounded,
+                            size: 20.sp,
+                            color: AppColors.creamWhite,
+                          ),
+                          label: Text(
+                            isLastPose ? 'PILIH FILTER' : 'POSE BERIKUT',
+                            style: GoogleFonts.inter(
+                              fontSize: 15.sp,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.5,
+                              color: AppColors.creamWhite,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.buttonBrown,
+                            foregroundColor: AppColors.creamWhite,
+                            elevation: 4,
+                            shadowColor: AppColors.darkBrown.withValues(alpha: 0.35),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14.r),
+                              side: const BorderSide(color: AppColors.gold, width: 1.2),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                  SizedBox(height: 12.h),
-                  Text(
-                    'Foto berhasil diambil!',
-                    style: AppTextStyles.bodyMedium.copyWith(
-                      color: AppColors.darkBrown,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  SizedBox(height: 4.h),
-                  Text(
-                    'Retake tersisa: ${maxRetake - retakeCount}/$maxRetake',
-                    style: AppTextStyles.caption.copyWith(color: AppColors.brown),
-                  ),
-                  SizedBox(height: 24.h),
-                  if (canRetake) ...[
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48.h,
-                      child: ResponsiveButton(
-                        label: 'Foto Ulang',
-                        icon: Icons.refresh_rounded,
-                        onPressed: onRetake,
-                        variant: ButtonVariant.outlined,
-                      ),
-                    ),
-                    SizedBox(height: 12.h),
                   ],
-                  SizedBox(
-                    width: double.infinity,
-                    height: 52.h,
-                    child: ResponsiveButton(
-                      label: isLastPose ? 'PILIH FILTER' : 'POSE BERIKUT',
-                      icon: isLastPose ? Icons.check_circle_rounded : Icons.arrow_forward_rounded,
-                      onPressed: onNext,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+
+                SizedBox(height: 8.h),
+
+                // Keterangan Sesi di Bawah
+                _SessionInfoPill(retakeCount: retakeCount, maxRetake: maxRetake),
+              ],
             ),
-          ).animate().slideX(begin: 0.1, delay: 150.ms).fadeIn(delay: 150.ms),
+          ),
         ],
       ),
     );

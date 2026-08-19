@@ -5,7 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\PaymentResource\Pages;
 use App\Models\Payment;
 use Filament\Schemas\Schema;
-use Filament\Infolists\Components\Section;
+use Filament\Schemas\Components\Section;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Resources\Resource;
 use Filament\Actions\Action;
@@ -86,12 +86,39 @@ class PaymentResource extends Resource
             ])
             ->actions([
                 ViewAction::make()->label('Detail'),
+                Action::make('simulate_paid')
+                    ->label('⚡ Bayar Lunas')
+                    ->icon('heroicon-o-check-badge')
+                    ->color('success')
+                    ->requiresConfirmation()
+                    ->modalHeading('Konfirmasi Pembayaran Lunas')
+                    ->modalDescription('Apakah Anda ingin menandai pembayaran ini sebagai SUKSES / LUNAS? Sesi foto akan otomatis aktif.')
+                    ->visible(fn ($record) => $record->status === 'pending')
+                    ->action(function ($record) {
+                        \App\Services\XenditService::simulatePaid($record);
+                        \Filament\Notifications\Notification::make()
+                            ->title('Pembayaran berhasil diverifikasi & sesi foto diaktifkan!')
+                            ->success()
+                            ->send();
+                    }),
                 Action::make('view_session')
                     ->label('Lihat Sesi')
                     ->icon('heroicon-o-clock')
                     ->url(fn ($record) => $record->session_id ? url('/admin/sessions/' . $record->session_id) : null),
             ])
             ->poll('15s');
+    }
+
+    public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
+    {
+        $query = parent::getEloquentQuery();
+        if ($cafeId = auth()->user()?->cafe_id) {
+            $query->whereHas('session', fn ($sq) => 
+                $sq->where('cafe_id', $cafeId)
+                   ->orWhereHas('event', fn ($eq) => $eq->where('cafe_id', $cafeId))
+            );
+        }
+        return $query;
     }
 
     public static function getPages(): array

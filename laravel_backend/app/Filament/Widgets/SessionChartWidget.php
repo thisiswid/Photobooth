@@ -14,11 +14,18 @@ class SessionChartWidget extends ChartWidget
 
     protected function getData(): array
     {
-        $data = collect(range(6, 0))->map(function ($daysAgo) {
+        $cafeId = auth()->user()?->cafe_id;
+
+        $data = collect(range(6, 0))->map(function ($daysAgo) use ($cafeId) {
             $date = Carbon::today()->subDays($daysAgo);
+            $query = Session::whereDate('created_at', $date);
+            if ($cafeId) {
+                $query->where(fn($q) => $q->where('cafe_id', $cafeId)->orWhereHas('event', fn($eq) => $eq->where('cafe_id', $cafeId)));
+            }
+
             return [
                 'label' => $date->format('d M'),
-                'count' => Session::whereDate('created_at', $date)->count(),
+                'count' => $query->count(),
             ];
         });
 

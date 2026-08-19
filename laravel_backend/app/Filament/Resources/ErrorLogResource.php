@@ -5,8 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\ErrorLogResource\Pages;
 use App\Models\ErrorLog;
 use Filament\Schemas\Schema;
-use Filament\Infolists\Components\KeyValueEntry;
-use Filament\Infolists\Components\Section;
+use Filament\Schemas\Components\Section;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Resources\Resource;
 use Filament\Actions\DeleteAction;
@@ -24,6 +23,22 @@ class ErrorLogResource extends Resource
     public static function getNavigationSort(): int { return 1; }
     public static function getModelLabel(): string { return 'Log Error'; }
     public static function getPluralModelLabel(): string { return 'Log Error & Diagnostik'; }
+
+    public static function getNavigationBadge(): ?string
+    {
+        $cafeId = auth()->user()?->cafe_id;
+        $query = static::getModel()::whereDate('created_at', today());
+        if ($cafeId) {
+            $query->where(fn($q) => $q->where('cafe_id', $cafeId)->orWhereHas('event', fn($eq) => $eq->where('cafe_id', $cafeId)));
+        }
+        $count = $query->count();
+        return $count > 0 ? (string) $count : null;
+    }
+
+    public static function getNavigationBadgeColor(): ?string
+    {
+        return 'danger';
+    }
 
     public static function infolist(Schema $schema): Schema
     {
@@ -151,6 +166,18 @@ class ErrorLogResource extends Resource
                 DeleteAction::make()->label('Hapus'),
             ])
             ->defaultSort('id', 'desc');
+    }
+
+    public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
+    {
+        $query = parent::getEloquentQuery();
+        if ($cafeId = auth()->user()?->cafe_id) {
+            $query->where(function ($q) use ($cafeId) {
+                $q->where('cafe_id', $cafeId)
+                  ->orWhereHas('event', fn ($eq) => $eq->where('cafe_id', $cafeId));
+            });
+        }
+        return $query;
     }
 
     public static function getPages(): array

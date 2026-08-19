@@ -42,12 +42,16 @@ class AdminPanelProvider extends PanelProvider
                 'primary' => Color::Amber,
                 'gray'    => Color::Stone,
             ])
-            ->brandName('Fakultas Kopi Photobooth')
+            ->brandName(fn () => auth()->user()?->cafe?->name ?? 'Photobooth Cafe Admin')
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->pages([Dashboard::class])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
-            ->widgets([StatsOverviewWidget::class, SessionChartWidget::class])
+            ->widgets([
+                StatsOverviewWidget::class,
+                SessionChartWidget::class,
+                \App\Filament\Widgets\LatestErrorLogsWidget::class,
+            ])
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,

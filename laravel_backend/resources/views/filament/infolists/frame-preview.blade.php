@@ -1,6 +1,13 @@
 @php
-    $state = $getState();
-    $imageUrl = $state ? asset('storage/' . $state) : null;
+    $state = $getState() ?? $getRecord()?->asset_url;
+    $imageUrl = null;
+    if ($state) {
+        if (str_starts_with($state, 'http://') || str_starts_with($state, 'https://')) {
+            $imageUrl = $state;
+        } else {
+            $imageUrl = '/storage/' . ltrim($state, '/');
+        }
+    }
 @endphp
 
 <div style="text-align: center; padding: 16px;">

@@ -34,7 +34,12 @@ class FilterResource extends Resource
     {
         return $schema->components([
             Select::make('event_id')->label('Event')
-                ->relationship('event', 'name')->searchable()->preload()->required(),
+                ->relationship(
+                    name: 'event',
+                    titleAttribute: 'name',
+                    modifyQueryUsing: fn ($query) => auth()->user()?->cafe_id ? $query->where('cafe_id', auth()->user()->cafe_id) : $query
+                )
+                ->searchable()->preload()->required(),
             TextInput::make('name')->label('Nama Filter')->required()->maxLength(255)
                 ->placeholder('Contoh: Vintage Coffee, B&W Classic, dll'),
             Select::make('parameters')
@@ -62,7 +67,11 @@ class FilterResource extends Resource
     {
         return $table
             ->columns([
-                ImageColumn::make('thumbnail_url')->label('Thumbnail')->square(),
+                ImageColumn::make('thumbnail_url')
+                    ->label('Thumbnail')
+                    ->square()
+                    ->disk('public')
+                    ->defaultImageUrl(fn ($record) => null),
                 TextColumn::make('name')->label('Nama')->searchable()->sortable(),
                 TextColumn::make('event.name')->label('Event')->sortable(),
                 TextColumn::make('sort_order')->label('Urutan')->sortable(),
@@ -73,6 +82,15 @@ class FilterResource extends Resource
             ->actions([EditAction::make(), DeleteAction::make()])
             ->bulkActions([BulkActionGroup::make([DeleteBulkAction::make()])])
             ->reorderable('sort_order');
+    }
+
+    public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
+    {
+        $query = parent::getEloquentQuery();
+        if ($cafeId = auth()->user()?->cafe_id) {
+            $query->whereHas('event', fn ($q) => $q->where('cafe_id', $cafeId));
+        }
+        return $query;
     }
 
     public static function getPages(): array

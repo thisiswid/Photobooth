@@ -10,6 +10,7 @@ use Filament\Actions\ViewAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -40,7 +41,11 @@ class FrameResource extends Resource
         return $schema->components([
             Select::make('event_id')
                 ->label('Event')
-                ->relationship('event', 'name')
+                ->relationship(
+                    name: 'event',
+                    titleAttribute: 'name',
+                    modifyQueryUsing: fn ($query) => auth()->user()?->cafe_id ? $query->where('cafe_id', auth()->user()->cafe_id) : $query
+                )
                 ->searchable()
                 ->preload(),
 
@@ -96,14 +101,57 @@ class FrameResource extends Resource
                 ->maxValue(8)
                 ->required(),
 
+            Hidden::make('ai_status_text')->dehydrated(false),
+
             FileUpload::make('asset_url')
-                ->label('File Frame Template')
-                ->helperText('Upload PNG transparan. Resolusi strip vertikal misal 189×567px atau 4R 1200×1800px.')
+                ->label('File Frame Template (PNG Transparan / Gambar Frame)')
+                ->helperText(function (callable $get) {
+                    $status = $get('ai_status_text');
+                    if ($status) {
+                        return new \Illuminate\Support\HtmlString($status);
+                    }
+                    return '✨ Upload file frame (PNG/JPG). Sistem AI akan otomatis mendeteksi layout & melubangi kotak foto.';
+                })
                 ->image()
                 ->imagePreviewHeight('300')
                 ->disk('public')
                 ->directory('frames')
-                ->acceptedFileTypes(['image/png'])
+                ->acceptedFileTypes(['image/png', 'image/jpeg', 'image/webp'])
+                ->live()
+                ->afterStateUpdated(function ($state, callable $set, callable $get) {
+                    if (!$state) {
+                        $set('ai_status_text', null);
+                        return;
+                    }
+                    $analysis = \App\Services\FrameSlotDetector::analyze($state, autoPunchTransparency: true);
+                    if ($analysis['success']) {
+                        $set('layout_type', $analysis['layout_type']);
+                        $set('pose_count', $analysis['pose_count']);
+                        
+                        // Buat teks status inline dengan icon line
+                        if (!empty($analysis['ai_feedback']) && !$analysis['ai_feedback']['success'] && !empty($analysis['ai_feedback']['attempted'])) {
+                            $statusType = $analysis['ai_feedback']['status'] ?? 'warning';
+                            if ($statusType === 'danger') {
+                                $statusHtml = '<span style="color:#ef4444; font-weight:600;">❌ ' . e($analysis['ai_feedback']['title']) . ':</span> ' . e($analysis['ai_feedback']['message']) . ' <span style="color:#64748b;">(Layout lokal: ' . e($analysis['layout_label']) . ')</span>';
+                            } else {
+                                $statusHtml = '<span style="color:#f59e0b; font-weight:600;">⚠️ ' . e($analysis['ai_feedback']['title']) . ':</span> ' . e($analysis['ai_feedback']['message']) . ' <span style="color:#64748b;">(Layout lokal: ' . e($analysis['layout_label']) . ')</span>';
+                            }
+                        } elseif ($analysis['method'] === 'openagentic_ai_vision' || $analysis['method'] === 'gemini_ai_vision') {
+                            $aiName = ($analysis['method'] === 'openagentic_ai_vision') ? 'Claude Sonnet 4.6 (AI Vision)' : 'Gemini AI Vision';
+                            $punchInfo = !empty($analysis['punched']) ? ' • 🪄 <b>Kotak foto telah dibuat transparan</b>' : '';
+                            $statusHtml = '<span style="color:#10b981; font-weight:600;">✨ ' . $aiName . ':</span> ' . e($analysis['layout_label']) . ' (' . $analysis['pose_count'] . ' Pose)' . $punchInfo;
+                        } elseif ($analysis['method'] === 'alpha_contour') {
+                            $statusHtml = '<span style="color:#3b82f6; font-weight:600;">🎨 Computer Vision:</span> ' . e($analysis['layout_label']) . ' (' . $analysis['pose_count'] . ' Pose) — ' . e($analysis['description']);
+                        } else {
+                            $punchInfo = !empty($analysis['punched']) ? ' • 🪄 <b>Kotak foto dilubangi transparan</b>' : '';
+                            $statusHtml = '<span style="color:#6366f1; font-weight:600;">📐 Deteksi Rasio:</span> ' . e($analysis['layout_label']) . ' (' . $analysis['pose_count'] . ' Pose)' . $punchInfo;
+                        }
+
+                        $set('ai_status_text', $statusHtml);
+                    } else {
+                        $set('ai_status_text', '<span style="color:#ef4444; font-weight:600;">⚠️ Gagal Deteksi:</span> ' . e($analysis['message'] ?? 'Gambar tidak dapat dianalisis.'));
+                    }
+                })
                 ->columnSpanFull(),
 
             Toggle::make('active')
@@ -151,14 +199,11 @@ class FrameResource extends Resource
             ->columns([
                 ImageColumn::make('asset_url')
                     ->label('Preview')
-                    ->height(80)
-                    ->width(60)
-                    ->getStateUsing(fn ($record) => $record->asset_url
-                        ? asset('storage/' . $record->asset_url)
-                        : null
-                    )
+                    ->height(75)
+                    ->width(55)
+                    ->disk('public')
                     ->extraImgAttributes([
-                        'style' => 'object-fit: contain; background: repeating-conic-gradient(#e0e0e0 0% 25%, #fff 0% 50%) 0 0 / 10px 10px;',
+                        'style' => 'object-fit: contain; background: repeating-conic-gradient(#e0e0e0 0% 25%, #fff 0% 50%) 0 0 / 10px 10px; border-radius: 4px;',
                     ]),
 
                 TextColumn::make('name')
@@ -205,6 +250,15 @@ class FrameResource extends Resource
             ->bulkActions([
                 BulkActionGroup::make([DeleteBulkAction::make()]),
             ]);
+    }
+
+    public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
+    {
+        $query = parent::getEloquentQuery();
+        if ($cafeId = auth()->user()?->cafe_id) {
+            $query->whereHas('event', fn ($q) => $q->where('cafe_id', $cafeId));
+        }
+        return $query;
     }
 
     public static function getPages(): array

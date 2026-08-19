@@ -5,8 +5,8 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\SessionResource\Pages;
 use App\Models\Session;
 use Filament\Schemas\Schema;
+use Filament\Schemas\Components\Section;
 use Filament\Infolists\Components\ImageEntry;
-use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Resources\Resource;
 use Filament\Actions\Action;
@@ -131,6 +131,18 @@ class SessionResource extends Resource
                 DeleteAction::make(),
             ])
             ->poll('10s');
+    }
+
+    public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
+    {
+        $query = parent::getEloquentQuery();
+        if ($cafeId = auth()->user()?->cafe_id) {
+            $query->where(function ($q) use ($cafeId) {
+                $q->where('cafe_id', $cafeId)
+                  ->orWhereHas('event', fn ($eq) => $eq->where('cafe_id', $cafeId));
+            });
+        }
+        return $query;
     }
 
     public static function getPages(): array

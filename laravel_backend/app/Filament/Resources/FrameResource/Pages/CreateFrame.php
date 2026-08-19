@@ -30,16 +30,20 @@ class CreateFrame extends CreateRecord
             default    => (int)($data['pose_count'] ?? 4),
         };
 
-        // Auto-detect transparent slots if asset is uploaded
+        // Auto-detect transparent slots and punch transparency if needed
         $detectedSlots = [];
         if (!empty($data['asset_url'])) {
             $pngPath = Storage::disk('public')->path($data['asset_url']);
-            $detectedSlots = FrameSlotDetector::detect($pngPath, $layoutType, $rightOrder);
+            $analysis = FrameSlotDetector::analyze($pngPath, autoPunchTransparency: true);
+            if (!empty($analysis['punched']) && !empty($analysis['relative_path'])) {
+                $data['asset_url'] = $analysis['relative_path'];
+            }
+            $detectedSlots = $analysis['slots'] ?? [];
         }
 
         $data['layout_config'] = [
             'layout_type'            => $layoutType,
-            'slot_count'              => count($detectedSlots) ?: $slotCount,
+            'slot_count'             => count($detectedSlots) ?: $slotCount,
             'right_column_order_key' => $rightKey,
             'right_column_order'     => $rightOrder,
             'slots'                  => $detectedSlots,

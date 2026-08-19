@@ -5,8 +5,8 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\ResultResource\Pages;
 use App\Models\Result;
 use Filament\Schemas\Schema;
+use Filament\Schemas\Components\Section;
 use Filament\Infolists\Components\ImageEntry;
-use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Resources\Resource;
 use Filament\Actions\Action;
@@ -122,6 +122,18 @@ class ResultResource extends Resource
                     ->url(fn ($record) => url('/d/' . $record->qr_token))
                     ->openUrlInNewTab(),
             ]);
+    }
+
+    public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
+    {
+        $query = parent::getEloquentQuery();
+        if ($cafeId = auth()->user()?->cafe_id) {
+            $query->whereHas('session', fn ($sq) => 
+                $sq->where('cafe_id', $cafeId)
+                   ->orWhereHas('event', fn ($eq) => $eq->where('cafe_id', $cafeId))
+            );
+        }
+        return $query;
     }
 
     public static function getPages(): array

@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ErrorLog extends Model
 {
     protected $fillable = [
+        'cafe_id',
         'device_id',
         'event_id',
         'category',
@@ -23,8 +24,18 @@ class ErrorLog extends Model
         'context' => 'array',
     ];
 
+    public function cafe(): BelongsTo
+    {
+        return $this->belongsTo(Cafe::class);
+    }
+
     public function event(): BelongsTo
     {
         return $this->belongsTo(Event::class);
+    }
+
+    public function device(): BelongsTo
+    {
+        return $this->belongsTo(Device::class);
     }
 }
