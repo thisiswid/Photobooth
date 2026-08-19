@@ -1,3 +1,6 @@
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
+
 /// Application-wide constants for Fakultas Kopi Photobooth.
 /// All magic numbers and configuration values live here.
 abstract final class AppConstants {
@@ -9,11 +12,24 @@ abstract final class AppConstants {
 
   // ── API Configuration ─────────────────────────────────────────────────────
   /// Dev base URL:
-  /// - Android Emulator → 10.0.2.2 (alias localhost di dalam emulator)
-  /// - Device fisik / Web → IP lokal PC di jaringan WiFi
+  /// - Windows / Desktop / Web → 127.0.0.1 (localhost)
+  /// - Android Device / Emulator → IP lokal PC di WiFi (192.168.1.4) atau 10.0.2.2
+  /// - Bisa di-override via: --dart-define=API_BASE_URL=http://...
   static String get apiBaseUrlDev {
-    // IP Laptop di jaringan lokal WiFi saat ini: 192.168.1.12
-    return 'http://192.168.1.12:8000/api';
+    const envUrl = String.fromEnvironment('API_BASE_URL');
+    if (envUrl.isNotEmpty) return envUrl;
+
+    if (kIsWeb) {
+      return 'http://127.0.0.1:8000/api';
+    }
+
+    if (Platform.isAndroid) {
+      // Menggunakan IP lokal WiFi PC saat ini (192.168.1.4)
+      return 'http://192.168.1.4:8000/api';
+    }
+
+    // Windows Desktop, macOS, Linux
+    return 'http://127.0.0.1:8000/api';
   }
 
   static const String apiBaseUrlProd = 'https://api.fakultaskopi.com/api';

@@ -30,6 +30,15 @@ class CreateFrame extends CreateRecord
             default    => (int)($data['pose_count'] ?? 4),
         };
 
+        // Auto-assign event_id if empty and user belongs to a cafe
+        if (empty($data['event_id']) && ($cafeId = auth()->user()?->cafe_id)) {
+            $event = \App\Models\Event::where('cafe_id', $cafeId)->where('active', true)->first()
+                ?? \App\Models\Event::where('cafe_id', $cafeId)->latest()->first();
+            if ($event) {
+                $data['event_id'] = $event->id;
+            }
+        }
+
         // Auto-detect transparent slots and punch transparency if needed
         $detectedSlots = [];
         if (!empty($data['asset_url'])) {
@@ -38,7 +47,16 @@ class CreateFrame extends CreateRecord
             if (!empty($analysis['punched']) && !empty($analysis['relative_path'])) {
                 $data['asset_url'] = $analysis['relative_path'];
             }
-            $detectedSlots = $analysis['slots'] ?? [];
+            
+            // Only use auto-detected slots if their layout type matches user's chosen layoutType
+            if (!empty($analysis['slots']) && ($analysis['layout_type'] ?? '') === $layoutType) {
+                $detectedSlots = $analysis['slots'];
+            } else {
+                $imageInfo = @getimagesize($pngPath);
+                $w = $imageInfo[0] ?? 1200;
+                $h = $imageInfo[1] ?? 1800;
+                $detectedSlots = FrameSlotDetector::generateStandardSlots($w, $h, $layoutType, (int)($data['pose_count'] ?? 4));
+            }
         }
 
         $data['layout_config'] = [

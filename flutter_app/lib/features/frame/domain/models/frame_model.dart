@@ -65,6 +65,11 @@ class FrameModel {
           .map((e) => (e as num).toInt())
           .toList();
     }
+    if (json['slots'] != null && json['slots'] is List) {
+      parsedSlots = (json['slots'] as List)
+          .map((s) => FrameSlot.fromJson(s as Map<String, dynamic>))
+          .toList();
+    }
 
     // 2. Fallback: read from nested layout_config (backward compat)
     if (json['layout_config'] != null && json['layout_config'] is Map) {

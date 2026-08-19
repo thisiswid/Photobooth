@@ -48,12 +48,6 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     });
   }
 
-  String get _timeoutText {
-    final m = (_timeoutLeft ~/ 60).toString().padLeft(2, '0');
-    final s = (_timeoutLeft % 60).toString().padLeft(2, '0');
-    return '$m:$s';
-  }
-
   Future<void> _handlePayment(String result) async {
     Navigator.pop(context);
     setState(() => _isProcessing = true);
@@ -112,7 +106,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   @override
   Widget build(BuildContext context) {
     return PhotoboothLayout(
-      header: CustomerHeader(trailing: TimerChip(text: _timeoutText)),
+      header: const CustomerHeader(),
       child: _isProcessing
           ? const Center(child: CircularProgressIndicator(color: AppColors.darkBrown))
           : Padding(
@@ -165,12 +159,12 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                         SizedBox(height: 4.h),
                         Text(_price, style: AppTextStyles.priceText).animate().fadeIn(delay: 300.ms),
                         SizedBox(height: 8.h),
-                        Divider(color: AppColors.borderWarm),
+                        const Divider(color: AppColors.borderWarm),
                         SizedBox(height: 16.h),
                         Row(
                           children: [
                             SizedBox(width: 14.r, height: 14.r,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.brown)),
+                              child: const CircularProgressIndicator(strokeWidth: 2, color: AppColors.brown)),
                             SizedBox(width: 8.w),
                             Text('Menunggu pembayaran...',
                                 style: AppTextStyles.bodySmall.copyWith(color: AppColors.brown)),

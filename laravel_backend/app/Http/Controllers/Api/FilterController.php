@@ -15,6 +15,12 @@ class FilterController extends Controller
             ->orderBy('sort_order')
             ->get(['id', 'name', 'thumbnail_url', 'parameters']);
 
+        if ($filters->isEmpty()) {
+            $filters = \App\Models\Filter::where('active', true)
+                ->orderBy('sort_order')
+                ->get(['id', 'name', 'thumbnail_url', 'parameters']);
+        }
+
         return response()->json(['success' => true, 'data' => $filters, 'message' => 'OK']);
     }
 }

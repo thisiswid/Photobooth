@@ -16,7 +16,7 @@ class SessionState {
     this.selectedFilter,
     this.currentPoseIndex = 0,
     this.isMirrorEnabled = false,
-    this.remainingSeconds = 300,
+    this.remainingSeconds = 0,
     this.isLoading = false,
     this.error,
   });

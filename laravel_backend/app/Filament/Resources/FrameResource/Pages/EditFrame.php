@@ -46,7 +46,16 @@ class EditFrame extends EditRecord
             if (!empty($analysis['punched']) && !empty($analysis['relative_path'])) {
                 $data['asset_url'] = $analysis['relative_path'];
             }
-            $detectedSlots = $analysis['slots'] ?? [];
+            
+            // Only use auto-detected slots if their layout type matches user's chosen layoutType
+            if (!empty($analysis['slots']) && ($analysis['layout_type'] ?? '') === $layoutType) {
+                $detectedSlots = $analysis['slots'];
+            } else {
+                $imageInfo = @getimagesize($pngPath);
+                $w = $imageInfo[0] ?? 1200;
+                $h = $imageInfo[1] ?? 1800;
+                $detectedSlots = FrameSlotDetector::generateStandardSlots($w, $h, $layoutType, (int)($data['pose_count'] ?? 4));
+            }
         }
 
         $data['layout_config'] = [

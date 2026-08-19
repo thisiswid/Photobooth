@@ -44,7 +44,7 @@ class FrameResource extends Resource
                 ->relationship(
                     name: 'event',
                     titleAttribute: 'name',
-                    modifyQueryUsing: fn ($query) => auth()->user()?->cafe_id ? $query->where('cafe_id', auth()->user()->cafe_id) : $query
+                    modifyQueryUsing: fn ($query) => auth()->user()?->cafe_id ? $query->where('cafe_id', auth()->user()->cafe_id)->orWhereNull('cafe_id') : $query
                 )
                 ->searchable()
                 ->preload(),
@@ -256,7 +256,11 @@ class FrameResource extends Resource
     {
         $query = parent::getEloquentQuery();
         if ($cafeId = auth()->user()?->cafe_id) {
-            $query->whereHas('event', fn ($q) => $q->where('cafe_id', $cafeId));
+            $query->where(function ($q) use ($cafeId) {
+                $q->whereHas('event', fn ($eq) => $eq->where('cafe_id', $cafeId))
+                  ->orWhereHas('event', fn ($eq) => $eq->whereNull('cafe_id'))
+                  ->orWhereNull('event_id');
+            });
         }
         return $query;
     }

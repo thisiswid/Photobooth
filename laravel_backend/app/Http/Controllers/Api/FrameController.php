@@ -11,16 +11,24 @@ class FrameController extends Controller
 {
     public function index(Event $event): JsonResponse
     {
-        $frames = $event->frames()
-            ->where('active', true)
-            ->with('event:id,name')
-            ->get(['id', 'event_id', 'name', 'asset_url', 'pose_count', 'layout_config']);
-
-        // Fallback if no frames linked directly to this specific event ID
-        if ($frames->isEmpty()) {
+        if ($event->id == 1) {
             $frames = Frame::where('active', true)
                 ->with('event:id,name')
+                ->latest()
                 ->get(['id', 'event_id', 'name', 'asset_url', 'pose_count', 'layout_config']);
+        } else {
+            $frames = $event->frames()
+                ->where('active', true)
+                ->with('event:id,name')
+                ->latest()
+                ->get(['id', 'event_id', 'name', 'asset_url', 'pose_count', 'layout_config']);
+
+            if ($frames->isEmpty()) {
+                $frames = Frame::where('active', true)
+                    ->with('event:id,name')
+                    ->latest()
+                    ->get(['id', 'event_id', 'name', 'asset_url', 'pose_count', 'layout_config']);
+            }
         }
 
         // Flatten layout_config fields to top-level for Flutter client
@@ -40,6 +48,7 @@ class FrameController extends Controller
                 'layout_type'         => $layoutType,
                 'slot_count'          => $slotCount,
                 'right_column_order'  => $rightColumnOrder,
+                'slots'               => $slots,
                 'layout_config'       => $frame->layout_config, // keep for backward compat
                 'event'               => $frame->event ? ['id' => $frame->event->id, 'name' => $frame->event->name] : null,
             ];

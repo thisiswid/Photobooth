@@ -87,7 +87,7 @@ class FrameSlotDetector
             }
         }
 
-        // 3. Secondary method: OpenAgentic AI Vision (Claude Sonnet 4.6, etc.) or Gemini AI Vision
+        // 3. Secondary method: OpenAgentic AI Vision (Claude Sonnet 4.6, etc.) with Gemini fallback
         $oaKey = config('services.openagentic.key') ?? env('OPENAGENTIC_API_KEY');
         $oaBaseUrl = config('services.openagentic.base_url') ?? env('OPENAGENTIC_BASE_URL', 'https://openagentic.id/api/v1');
         $oaModel = config('services.openagentic.model') ?? env('OPENAGENTIC_MODEL', 'claude-sonnet-4.6');
@@ -101,12 +101,20 @@ class FrameSlotDetector
             if (!empty($aiResult['ai_feedback'])) {
                 $aiFeedback = $aiResult['ai_feedback'];
             }
-        } elseif (!empty($aiKey)) {
-            $aiResult = self::detectWithGeminiAi($realPath, $aiKey, $w, $h);
-            if (!empty($aiResult['ai_feedback'])) {
-                $aiFeedback = $aiResult['ai_feedback'];
+        }
+
+        // If OpenAgentic was not configured or failed/timed out, try Gemini AI Vision as fallback
+        if ((!$aiResult || empty($aiResult['slots'])) && !empty($aiKey)) {
+            $geminiResult = self::detectWithGeminiAi($realPath, $aiKey, $w, $h);
+            if ($geminiResult && !empty($geminiResult['slots'])) {
+                $aiResult = $geminiResult;
+                $aiFeedback = $geminiResult['ai_feedback'] ?? null;
+            } elseif (empty($aiFeedback) && !empty($geminiResult['ai_feedback'])) {
+                $aiFeedback = $geminiResult['ai_feedback'];
             }
-        } else {
+        }
+
+        if (empty($aiFeedback) && empty($oaKey) && empty($aiKey)) {
             $aiFeedback = [
                 'attempted' => false,
                 'success'   => false,
@@ -434,13 +442,78 @@ class FrameSlotDetector
     }
 
     /**
+     * Prepare optimized (compressed & scaled down to max 1024px) base64 image for AI API requests.
+     * Dramatically reduces payload size from megabytes to ~100KB, preventing network timeouts.
+     */
+    private static function prepareOptimizedAiImage(string $imagePath, int $maxDim = 1024): array
+    {
+        $imageInfo = @getimagesize($imagePath);
+        if (!$imageInfo) {
+            $raw = @file_get_contents($imagePath);
+            return [
+                'data' => base64_encode($raw ?: ''),
+                'mime' => 'image/png',
+            ];
+        }
+
+        $origW = $imageInfo[0];
+        $origH = $imageInfo[1];
+        $type  = $imageInfo[2];
+
+        // If image is already small enough, return directly
+        if ($origW <= $maxDim && $origH <= $maxDim) {
+            return [
+                'data' => base64_encode(file_get_contents($imagePath)),
+                'mime' => $imageInfo['mime'] ?? 'image/png',
+            ];
+        }
+
+        // Downscale image using GD
+        $src = match ($type) {
+            IMAGETYPE_PNG  => @imagecreatefrompng($imagePath),
+            IMAGETYPE_JPEG => @imagecreatefromjpeg($imagePath),
+            IMAGETYPE_WEBP => @imagecreatefromwebp($imagePath),
+            default        => null,
+        };
+
+        if (!$src) {
+            return [
+                'data' => base64_encode(file_get_contents($imagePath)),
+                'mime' => $imageInfo['mime'] ?? 'image/png',
+            ];
+        }
+
+        $scale = min($maxDim / $origW, $maxDim / $origH);
+        $newW = (int) round($origW * $scale);
+        $newH = (int) round($origH * $scale);
+
+        $dest = imagecreatetruecolor($newW, $newH);
+        $white = imagecolorallocate($dest, 255, 255, 255);
+        imagefill($dest, 0, 0, $white);
+        imagecopyresampled($dest, $src, 0, 0, 0, 0, $newW, $newH, $origW, $origH);
+
+        ob_start();
+        imagejpeg($dest, null, 85);
+        $jpegData = ob_get_clean();
+
+        imagedestroy($src);
+        imagedestroy($dest);
+
+        return [
+            'data' => base64_encode($jpegData),
+            'mime' => 'image/jpeg',
+        ];
+    }
+
+    /**
      * Gemini AI Vision detection for non-transparent or complex mockups.
      */
     private static function detectWithGeminiAi(string $imagePath, string $apiKey, int $w, int $h): ?array
     {
         try {
-            $imageData = base64_encode(file_get_contents($imagePath));
-            $mimeType = mime_content_type($imagePath) ?: 'image/png';
+            $optimized = self::prepareOptimizedAiImage($imagePath, 1024);
+            $imageData = $optimized['data'];
+            $mimeType  = $optimized['mime'];
 
             $prompt = <<<PROMPT
 You are a Computer Vision expert for Photobooth software. Analyze this photobooth frame template.
@@ -470,7 +543,7 @@ Return ONLY valid JSON matching this exact structure:
 PROMPT;
 
             $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$apiKey}";
-            $response = Http::timeout(12)->post($endpoint, [
+            $response = Http::timeout(25)->post($endpoint, [
                 'contents' => [
                     [
                         'parts' => [
@@ -605,8 +678,9 @@ PROMPT;
     private static function detectWithOpenAgenticAi(string $imagePath, string $apiKey, string $baseUrl, string $model, int $w, int $h): ?array
     {
         try {
-            $imageData = base64_encode(file_get_contents($imagePath));
-            $mimeType = mime_content_type($imagePath) ?: 'image/png';
+            $optimized = self::prepareOptimizedAiImage($imagePath, 1024);
+            $imageData = $optimized['data'];
+            $mimeType  = $optimized['mime'];
 
             $prompt = <<<PROMPT
 You are a Computer Vision expert for Photobooth templates.
@@ -629,7 +703,7 @@ Output ONLY a single JSON object with this format:
 PROMPT;
 
             $endpoint = rtrim($baseUrl, '/') . '/chat/completions';
-            $response = Http::withToken($apiKey)->timeout(30)->post($endpoint, [
+            $response = Http::withToken($apiKey)->timeout(45)->post($endpoint, [
                 'model'       => $model,
                 'messages'    => [
                     [

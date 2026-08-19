@@ -66,12 +66,43 @@ class MasterFrameResource extends Resource
                     Select::make('layout_type')
                         ->label('Tipe Layout Cetak')
                         ->options([
-                            'single'   => 'Single Strip (1 Kolom)',
-                            'double_6' => 'Double Strip (6 Foto)',
-                            'double_8' => 'Double Strip (8 Foto)',
+                            'single'   => 'Single Strip / Standar (1 Kolom)',
+                            'double_6' => 'Double Strip 6 Foto (2 Kolom: Kiri 3, Kanan 3 — Ambil 3 Pose)',
+                            'double_8' => 'Double Strip 8 Foto (2 Kolom: Kiri 4, Kanan 4 — Ambil 4 Pose)',
                         ])
                         ->default('single')
+                        ->live()
+                        ->afterStateUpdated(function ($state, callable $set) {
+                            if ($state === 'double_6') {
+                                $set('pose_count', 3);
+                            } elseif ($state === 'double_8') {
+                                $set('pose_count', 4);
+                            }
+                        })
+                        ->afterStateHydrated(function ($component, $state, $record) {
+                            if ($record) {
+                                $type = $record->layout_config['layout_type'] ?? $record->layout_type ?? 'single';
+                                $component->state($type);
+                            }
+                        })
                         ->required(),
+
+                    Select::make('right_column_order')
+                        ->label('Urutan Pose Kolom Kanan')
+                        ->options([
+                            'scrambled_1' => 'Pose 3, Pose 1, Pose 2 (Acak 1)',
+                            'scrambled_2' => 'Pose 2, Pose 3, Pose 1 (Acak 2)',
+                            'reversed'    => 'Pose 3, Pose 2, Pose 1 (Terbalik)',
+                            'identical'   => 'Pose 1, Pose 2, Pose 3 (Identik / Kembar)',
+                        ])
+                        ->default('scrambled_1')
+                        ->visible(fn ($get) => in_array($get('layout_type'), ['double_6', 'double_8']))
+                        ->afterStateHydrated(function ($component, $state, $record) {
+                            if ($record && !empty($record->layout_config['right_column_order_key'])) {
+                                $component->state($record->layout_config['right_column_order_key']);
+                            }
+                        }),
+
                     TextInput::make('pose_count')
                         ->label('Jumlah Pose Foto')
                         ->numeric()

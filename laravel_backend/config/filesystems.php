@@ -33,7 +33,7 @@ return [
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app/private'),
-            'serve' => true,
+            'serve' => false,
             'throw' => false,
             'report' => false,
         ],
@@ -43,8 +43,17 @@ return [
             'root' => storage_path('app/public'),
             'url' => '/storage',
             'visibility' => 'public',
+            'serve' => true,
             'throw' => false,
             'report' => false,
+        ],
+
+        // Livewire temporary file uploads disk
+        'livewire-tmp' => [
+            'driver' => 'local',
+            'root' => storage_path('app/livewire-tmp'),
+            'visibility' => 'private',
+            'throw' => false,
         ],
 
         's3' => [
