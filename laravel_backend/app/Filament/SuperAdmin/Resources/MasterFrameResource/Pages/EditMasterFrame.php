@@ -23,6 +23,8 @@ class EditMasterFrame extends EditRecord
     {
         $layoutType = $data['layout_type'] ?? 'single';
         $rightKey = $data['right_column_order'] ?? 'scrambled_1';
+        $poseCount = (int)($data['pose_count'] ?? ($layoutType === 'double_8' ? 4 : ($layoutType === 'double_6' ? 3 : 4)));
+        $useAi = !isset($data['use_ai_detection']) || (bool)$data['use_ai_detection'];
 
         $rightOrder = match($rightKey) {
             'scrambled_1' => ($layoutType === 'double_8') ? [3, 0, 1, 2] : [2, 0, 1],
@@ -35,35 +37,54 @@ class EditMasterFrame extends EditRecord
         $slotCount = match($layoutType) {
             'double_6' => 6,
             'double_8' => 8,
-            default    => (int)($data['pose_count'] ?? 4),
+            default    => $poseCount,
         };
 
         $detectedSlots = [];
+        $w = 1200;
+        $h = 1800;
+
         if (!empty($data['asset_url'])) {
             $pngPath = Storage::disk('public')->path($data['asset_url']);
-            $analysis = FrameSlotDetector::analyze($pngPath, autoPunchTransparency: true);
-            if (!empty($analysis['punched']) && !empty($analysis['relative_path'])) {
-                $data['asset_url'] = $analysis['relative_path'];
+            $imageInfo = @getimagesize($pngPath);
+            if ($imageInfo) {
+                $w = $imageInfo[0];
+                $h = $imageInfo[1];
+            }
+
+            if ($useAi) {
+                $analysis = FrameSlotDetector::analyze($pngPath, autoPunchTransparency: true);
+                if (!empty($analysis['punched']) && !empty($analysis['relative_path'])) {
+                    $data['asset_url'] = $analysis['relative_path'];
+                }
+
+                // Accept slots from AI/alpha detection even if layout_type differs —
+                // the detected slot count is more trustworthy than the user's manual selection.
+                if (!empty($analysis['slots'])) {
+                    $detectedSlots = $analysis['slots'];
+                    if (!empty($analysis['layout_type']) && !empty($analysis['slot_count'])) {
+                        $layoutType = $analysis['layout_type'];
+                        $poseCount  = $analysis['pose_count'] ?? $poseCount;
+                    }
+                }
             }
             
-            // Only use auto-detected slots if their layout type matches user's chosen layoutType
-            if (!empty($analysis['slots']) && ($analysis['layout_type'] ?? '') === $layoutType) {
-                $detectedSlots = $analysis['slots'];
-            } else {
-                $imageInfo = @getimagesize($pngPath);
-                $w = $imageInfo[0] ?? 1200;
-                $h = $imageInfo[1] ?? 1800;
-                $detectedSlots = FrameSlotDetector::generateStandardSlots($w, $h, $layoutType, (int)($data['pose_count'] ?? 4));
+            if (empty($detectedSlots)) {
+                $detectedSlots = FrameSlotDetector::generateStandardSlots($w, $h, $layoutType, $poseCount, $rightOrder);
             }
         }
+
+        // Ensure pose_index in slots accurately aligns with chosen rightOrder
+        $finalSlots = FrameSlotDetector::assignSlotPoses($detectedSlots, $layoutType, $rightOrder, $poseCount);
 
         $data['layout_type'] = $layoutType;
         $data['layout_config'] = [
             'layout_type'            => $layoutType,
-            'slot_count'             => count($detectedSlots) ?: $slotCount,
+            'slot_count'             => count($finalSlots) ?: $slotCount,
             'right_column_order_key' => $rightKey,
             'right_column_order'     => $rightOrder,
-            'slots'                  => $detectedSlots,
+            'slots'                  => $finalSlots,
+            'dimensions'             => ['w' => $w, 'h' => $h],
         ];
 
         return $data;

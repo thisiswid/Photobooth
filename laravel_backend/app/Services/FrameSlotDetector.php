@@ -78,9 +78,22 @@ class FrameSlotDetector
         $isPng = ($imageInfo[2] ?? 0) === IMAGETYPE_PNG;
 
         // 2. Primary method: Alpha Channel Masking (If already transparent PNG)
+        // Only trust alpha detection if it finds multiple distinct slots with reasonable sizing.
+        // A single giant cluster (e.g. frame_klasik: 92% of frame) means detection failed.
         if ($isPng) {
             $alphaResult = self::detectAlphaCutouts($realPath, $w, $h);
-            if ($alphaResult['success'] && $alphaResult['slot_count'] > 0) {
+            $alphaSlots = $alphaResult['slots'] ?? [];
+            $alphaSlotCount = $alphaResult['slot_count'] ?? 0;
+
+            // Validate: each slot must be <50% of frame height and we need >=2 slots
+            $validSlots = array_filter($alphaSlots, function($slot) use ($h) {
+                $slotH = ($slot['h'] ?? ($slot['height'] ?? 0));
+                return $slotH < ($h * 0.5) && $slotH > ($h * 0.05);
+            });
+
+            if ($alphaResult['success'] && count($validSlots) >= 2) {
+                $alphaResult['slots'] = array_values($validSlots);
+                $alphaResult['slot_count'] = count($validSlots);
                 $alphaResult['punched'] = false;
                 $alphaResult['relative_path'] = null;
                 return $alphaResult;
@@ -162,9 +175,76 @@ class FrameSlotDetector
     }
 
     /**
+     * Accurately partitions and assigns pose indices to slots based on layout type and right column order.
+     * Guarantees left column is ordered top-to-bottom (0..N) and right column is mapped to rightOrder top-to-bottom.
+     */
+    public static function assignSlotPoses(array $slots, string $layoutType, ?array $rightOrder = null, int $poseCount = 4): array
+    {
+        if (empty($slots)) {
+            return [];
+        }
+
+        if ($layoutType === 'double_6' || $layoutType === 'double_8' || count($slots) >= 6) {
+            $expectedRows = ($layoutType === 'double_8' || count($slots) === 8) ? 4 : 3;
+            $defaultRight = ($expectedRows === 4) ? [3, 0, 1, 2] : [2, 0, 1];
+            $rightOrder = $rightOrder ?: $defaultRight;
+
+            // Find median X coordinate to partition left and right columns
+            $xCoords = array_map(fn($s) => $s['x'] + ($s['w'] / 2), $slots);
+            sort($xCoords);
+            $midX = $xCoords[(int) floor(count($xCoords) / 2)];
+
+            $leftSlots = [];
+            $rightSlots = [];
+
+            foreach ($slots as $s) {
+                $centerX = $s['x'] + ($s['w'] / 2);
+                if ($centerX < $midX) {
+                    $leftSlots[] = $s;
+                } else {
+                    $rightSlots[] = $s;
+                }
+            }
+
+            // Fallback if partition was unbalanced
+            if (empty($leftSlots) || empty($rightSlots)) {
+                $half = (int) ceil(count($slots) / 2);
+                $leftSlots = array_slice($slots, 0, $half);
+                $rightSlots = array_slice($slots, $half);
+            }
+
+            // Sort top to bottom (Y ascending)
+            usort($leftSlots, fn($a, $b) => $a['y'] <=> $b['y']);
+            usort($rightSlots, fn($a, $b) => $a['y'] <=> $b['y']);
+
+            $result = [];
+            foreach ($leftSlots as $idx => $s) {
+                $s['pose_index'] = $idx;
+                $result[] = $s;
+            }
+
+            foreach ($rightSlots as $idx => $s) {
+                $s['pose_index'] = $rightOrder[$idx] ?? ($idx % max(1, $poseCount));
+                $result[] = $s;
+            }
+
+            return $result;
+        }
+
+        // Single Column: Sort top to bottom (Y ascending)
+        usort($slots, fn($a, $b) => $a['y'] <=> $b['y']);
+        foreach ($slots as $idx => &$s) {
+            $s['pose_index'] = $idx % max(1, $poseCount);
+        }
+        unset($s);
+
+        return $slots;
+    }
+
+    /**
      * Generates standard photobooth slot coordinates based on canvas resolution.
      */
-    public static function generateStandardSlots(int $w, int $h, string $layoutType, int $poseCount): array
+    public static function generateStandardSlots(int $w, int $h, string $layoutType, int $poseCount, ?array $rightOrder = null): array
     {
         $slots = [];
         if ($layoutType === 'double_6' || $layoutType === 'double_8') {
@@ -173,8 +253,11 @@ class FrameSlotDetector
             $slotH = (int) round($h * ($rows === 4 ? 0.20 : 0.265));
             $leftColX = (int) round($w * 0.055);
             $rightColX = (int) round($w * 0.525);
-            $topPad = (int) round($h * 0.04);
+            $topPad = (int) round($h * ($rows === 4 ? 0.035 : 0.04));
             $gapY = (int) round($h * ($rows === 4 ? 0.025 : 0.035));
+
+            $defaultRight = ($rows === 4) ? [3, 0, 1, 2] : [2, 0, 1];
+            $rightOrder = $rightOrder ?: $defaultRight;
 
             // Left Column
             for ($r = 0; $r < $rows; $r++) {
@@ -182,10 +265,9 @@ class FrameSlotDetector
                 $slots[] = ['x' => $leftColX, 'y' => $top, 'w' => $colW, 'h' => $slotH, 'pose_index' => $r];
             }
             // Right Column
-            $rightOrder = ($rows === 4) ? [3, 0, 1, 2] : [2, 0, 1];
             for ($r = 0; $r < $rows; $r++) {
                 $top = $topPad + ($r * ($slotH + $gapY));
-                $slots[] = ['x' => $rightColX, 'y' => $top, 'w' => $colW, 'h' => $slotH, 'pose_index' => $rightOrder[$r] ?? $r];
+                $slots[] = ['x' => $rightColX, 'y' => $top, 'w' => $colW, 'h' => $slotH, 'pose_index' => $rightOrder[$r] ?? ($r % $poseCount)];
             }
         } else {
             // Single Column
@@ -385,16 +467,9 @@ class FrameSlotDetector
                 $label = "Double Strip ({$leftCount}+{$rightCount} Slot)";
             }
 
-            $combinedSlots = [];
-            foreach ($leftSlots as $idx => $s) {
-                $s['pose_index'] = $idx;
-                $combinedSlots[] = $s;
-            }
             $rightOrder = ($poseCount === 4) ? [3, 0, 1, 2] : [2, 0, 1];
-            foreach ($rightSlots as $idx => $s) {
-                $s['pose_index'] = $rightOrder[$idx] ?? $idx;
-                $combinedSlots[] = $s;
-            }
+            $allSlots = array_merge($leftSlots, $rightSlots);
+            $combinedSlots = self::assignSlotPoses($allSlots, $layoutType, $rightOrder, $poseCount);
 
             return [
                 'success'      => true,

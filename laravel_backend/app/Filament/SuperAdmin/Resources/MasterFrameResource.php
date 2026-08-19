@@ -115,6 +115,30 @@ class MasterFrameResource extends Resource
 
             Section::make('File Aset & Layout Koordinat')
                 ->schema([
+                    Toggle::make('use_ai_detection')
+                        ->label('Mode AI (Auto-Detect Layout & Auto-Punch Transparan)')
+                        ->helperText('Aktifkan agar AI otomatis mendeteksi posisi kotak foto dan melubangi transparansi saat upload. Matikan jika ingin menggunakan file frame original tanpa perubahan AI.')
+                        ->default(true)
+                        ->live()
+                        ->afterStateUpdated(function ($state, callable $set, callable $get) {
+                            if (!$state) {
+                                $set('ai_status_text', '<span style="color:#64748b; font-weight:600;">ℹ️ Mode AI Dinonaktifkan:</span> File frame akan diunggah sesuai aslinya tanpa deteksi/pelubangan AI.');
+                            } else {
+                                $file = $get('asset_url');
+                                if ($file) {
+                                    $analysis = \App\Services\FrameSlotDetector::analyze($file, autoPunchTransparency: true);
+                                    if ($analysis['success']) {
+                                        $set('layout_type', $analysis['layout_type']);
+                                        $set('pose_count', $analysis['pose_count']);
+                                        $set('ai_status_text', '<span style="color:#10b981; font-weight:600;">✨ Mode AI Aktif:</span> ' . e($analysis['layout_label']));
+                                    }
+                                } else {
+                                    $set('ai_status_text', null);
+                                }
+                            }
+                        })
+                        ->columnSpanFull(),
+
                     Hidden::make('ai_status_text')->dehydrated(false),
 
                     FileUpload::make('asset_url')
@@ -128,12 +152,21 @@ class MasterFrameResource extends Resource
                             if ($status) {
                                 return new \Illuminate\Support\HtmlString($status);
                             }
-                            return '✨ Upload file frame (PNG/JPG). Sistem AI akan otomatis mendeteksi layout & melubangi kotak foto.';
+                            $isAi = $get('use_ai_detection') ?? true;
+                            if ($isAi) {
+                                return '✨ Mode AI Aktif: Upload file frame (PNG/JPG). Sistem AI akan otomatis mendeteksi layout & melubangi kotak foto.';
+                            }
+                            return '📁 Mode AI Nonaktif: File frame akan diunggah original tanpa modifikasi AI.';
                         })
                         ->live()
                         ->afterStateUpdated(function ($state, callable $set, callable $get) {
                             if (!$state) {
                                 $set('ai_status_text', null);
+                                return;
+                            }
+                            $isAi = $get('use_ai_detection') ?? true;
+                            if (!$isAi) {
+                                $set('ai_status_text', '<span style="color:#64748b; font-weight:600;">📁 Mode AI Nonaktif:</span> Frame diunggah tanpa analisis AI & pelubangan otomatis.');
                                 return;
                             }
                             $analysis = \App\Services\FrameSlotDetector::analyze($state, autoPunchTransparency: true);

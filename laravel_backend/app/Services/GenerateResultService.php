@@ -284,8 +284,10 @@ class GenerateResultService
                 $maxRight = max($maxRight, $s['x'] + $s['w']);
                 $maxBottom = max($maxBottom, $s['y'] + $s['h']);
             }
-            $refW = $maxRight > 500 ? 1200.0 : $canvasW;
-            $refH = $maxBottom > 800 ? 1800.0 : $canvasH;
+            $isNormalized = ($maxRight <= 1.05 && $maxBottom <= 1.05);
+
+            $refW = $isNormalized ? 1.0 : ($layoutConfig['dimensions']['w'] ?? ($maxRight > 500 ? $maxRight : $canvasW));
+            $refH = $isNormalized ? 1.0 : ($layoutConfig['dimensions']['h'] ?? ($maxBottom > 800 ? $maxBottom : $canvasH));
 
             $slots = [];
             foreach ($dbSlots as $i => $s) {
@@ -294,7 +296,7 @@ class GenerateResultService
                     'y'          => (int) round(($s['y'] / $refH) * $canvasH),
                     'w'          => (int) round(($s['w'] / $refW) * $canvasW),
                     'h'          => (int) round(($s['h'] / $refH) * $canvasH),
-                    'pose_index' => $s['pose_index'] ?? ($i % $poseCount),
+                    'pose_index' => $s['pose_index'] ?? ($i % max(1, $poseCount)),
                 ];
             }
             return $slots;
@@ -319,7 +321,7 @@ class GenerateResultService
             // Right Column (Mapped Poses e.g. 2, 0, 1)
             for ($r = 0; $r < 3; $r++) {
                 $top = $topPadding + ($r * ($slotH + $gapY));
-                $pIndex = isset($rightOrder[$r]) ? $rightOrder[$r] : ($r % $poseCount);
+                $pIndex = isset($rightOrder[$r]) ? $rightOrder[$r] : ($r % max(1, $poseCount));
                 $slots[] = ['x' => $rightColX, 'y' => $top, 'w' => $colW, 'h' => $slotH, 'pose_index' => $pIndex];
             }
             return $slots;
@@ -329,11 +331,11 @@ class GenerateResultService
         if ($layoutType === 'double_8' || ($poseCount === 4 && ($canvasW / $canvasH) >= 0.55)) {
             $rightOrder = $rightOrder ?: [3, 0, 1, 2]; // Pose 4, Pose 1, Pose 2, Pose 3
             $colW = (int) round($canvasW * 0.42);
-            $slotH = (int) round($canvasH * 0.205);
+            $slotH = (int) round($canvasH * 0.20);
             $leftColX = (int) round($canvasW * 0.055);
             $rightColX = (int) round($canvasW * 0.525);
             $topPadding = (int) round($canvasH * 0.035);
-            $gapY = (int) round($canvasH * 0.022);
+            $gapY = (int) round($canvasH * 0.025);
 
             $slots = [];
             // Left Column (Poses 0, 1, 2, 3)
@@ -344,7 +346,7 @@ class GenerateResultService
             // Right Column (Mapped Poses)
             for ($r = 0; $r < 4; $r++) {
                 $top = $topPadding + ($r * ($slotH + $gapY));
-                $pIndex = isset($rightOrder[$r]) ? $rightOrder[$r] : ($r % $poseCount);
+                $pIndex = isset($rightOrder[$r]) ? $rightOrder[$r] : ($r % max(1, $poseCount));
                 $slots[] = ['x' => $rightColX, 'y' => $top, 'w' => $colW, 'h' => $slotH, 'pose_index' => $pIndex];
             }
             return $slots;

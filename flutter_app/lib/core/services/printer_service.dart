@@ -1,9 +1,23 @@
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'error_logger.dart';
+
+/// Result status of a print job
+class PrintJobResult {
+  final bool isSuccess;
+  final String message;
+  final String? printerName;
+  final bool isDirect;
+
+  const PrintJobResult({
+    required this.isSuccess,
+    required this.message,
+    this.printerName,
+    this.isDirect = false,
+  });
+}
 
 /// PrinterService untuk mengelola pencetakan hasil foto ke Printer Epson L8050
 /// (melalui Wi-Fi / Android Print Service / Network).
@@ -13,7 +27,12 @@ class PrinterService {
   /// Mendapatkan daftar semua printer yang terdeteksi di jaringan / sistem
   static Future<List<Printer>> getAvailablePrinters() async {
     try {
-      return await Printing.listPrinters();
+      final printers = await Printing.listPrinters();
+      debugPrint('🖨️ Printer terdeteksi (${printers.length}):');
+      for (final p in printers) {
+        debugPrint(' - ${p.name} (url: ${p.url}, default: ${p.isDefault}, available: ${p.isAvailable})');
+      }
+      return printers;
     } catch (e, stack) {
       ErrorLogger.instance.logHardwareError(
         message: 'Gagal mengambil daftar printer: $e',
@@ -29,19 +48,19 @@ class PrinterService {
       final printers = await getAvailablePrinters();
       if (printers.isEmpty) return null;
 
-      // Prioritaskan L8050
+      // 1. Prioritaskan L8050
       final l8050 = printers.where(
         (p) => p.name.toLowerCase().contains('l8050'),
       );
       if (l8050.isNotEmpty) return l8050.first;
 
-      // Cari printer merk Epson apapun
+      // 2. Cari printer merk Epson apapun
       final epson = printers.where(
         (p) => p.name.toLowerCase().contains('epson'),
       );
       if (epson.isNotEmpty) return epson.first;
 
-      // Fallback ke printer default / pertama
+      // 3. Fallback ke printer default / pertama
       return printers.firstWhere(
         (p) => p.isDefault,
         orElse: () => printers.first,
@@ -53,7 +72,7 @@ class PrinterService {
   }
 
   /// Mencetak gambar dari byte buffer (Uint8List) ke ukuran kertas foto 4R (4 x 6 inch)
-  static Future<bool> printPhotoBytes({
+  static Future<PrintJobResult> printPhotoBytes({
     required Uint8List imageBytes,
     String jobName = 'Photobooth_Print',
     int copies = 1,
@@ -86,25 +105,59 @@ class PrinterService {
 
       final targetPrinter = await findEpsonPrinter();
       if (targetPrinter != null) {
-        debugPrint('🖨️ Mencetak langsung ke: ${targetPrinter.name}');
-        return await Printing.directPrintPdf(
+        debugPrint('🖨️ Mengirim job cetak langsung ke: ${targetPrinter.name}');
+        final printed = await Printing.directPrintPdf(
           printer: targetPrinter,
           onLayout: (PdfPageFormat format) async => doc.save(),
           name: jobName,
         );
+
+        if (printed) {
+          return PrintJobResult(
+            isSuccess: true,
+            message: 'Berhasil dikirim ke printer ${targetPrinter.name}',
+            printerName: targetPrinter.name,
+            isDirect: true,
+          );
+        } else {
+          ErrorLogger.instance.logHardwareError(
+            message: 'Printer ${targetPrinter.name} menolak atau membatalkan job cetak.',
+          );
+          return PrintJobResult(
+            isSuccess: false,
+            message: 'Gagal mencetak: Printer tidak merespons job.',
+            printerName: targetPrinter.name,
+          );
+        }
       } else {
         debugPrint('⚠️ Printer Epson tidak ditemukan secara langsung, membuka dialog cetak sistem');
-        return await Printing.layoutPdf(
+        final printed = await Printing.layoutPdf(
           onLayout: (PdfPageFormat format) async => doc.save(),
           name: jobName,
         );
+
+        if (printed) {
+          return const PrintJobResult(
+            isSuccess: true,
+            message: 'Dokumen dikirim melalui dialog cetak sistem.',
+            isDirect: false,
+          );
+        } else {
+          return const PrintJobResult(
+            isSuccess: false,
+            message: 'Pencetakan dibatalkan atau printer tidak terhubung.',
+          );
+        }
       }
     } catch (e, stack) {
       ErrorLogger.instance.logHardwareError(
-        message: 'Gagal mencetak foto ke printer: $e',
+        message: 'Gagal memproses dokumen cetak: $e',
         stackTrace: stack,
       );
-      return false;
+      return PrintJobResult(
+        isSuccess: false,
+        message: 'Terjadi kesalahan sistem print: $e',
+      );
     }
   }
 }

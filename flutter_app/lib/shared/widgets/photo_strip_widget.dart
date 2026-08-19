@@ -132,18 +132,30 @@ class _PhotoStripWidgetState extends State<PhotoStripWidget> {
     // 1. If explicit slots are configured in database
     if (frame?.slots != null && frame!.slots!.isNotEmpty) {
       final dbSlots = frame.slots!;
-      final refW = _canvasW > 0 ? _canvasW : 1200.0;
-      final refH = _canvasH > 0 ? _canvasH : 1800.0;
+      double maxRight = 0;
+      double maxBottom = 0;
+      for (final s in dbSlots) {
+        if (s.x + s.w > maxRight) maxRight = s.x + s.w;
+        if (s.y + s.h > maxBottom) maxBottom = s.y + s.h;
+      }
+      final bool isNormalized = maxRight <= 1.05 && maxBottom <= 1.05;
+
+      final double refW = isNormalized
+          ? 1.0
+          : (_canvasW > 0 ? _canvasW : (maxRight > 500 ? 1200.0 : maxRight));
+      final double refH = isNormalized
+          ? 1.0
+          : (_canvasH > 0 ? _canvasH : (maxBottom > 800 ? 1800.0 : maxBottom));
 
       return List.generate(dbSlots.length, (i) {
         final s = dbSlots[i];
         final pIndex = s.poseIndex ?? (i % poseCount);
         return _ResolvedSlot(
           rect: Rect.fromLTWH(
-            s.x / refW,
-            s.y / refH,
-            s.w / refW,
-            s.h / refH,
+            (s.x / refW).clamp(0.0, 1.0),
+            (s.y / refH).clamp(0.0, 1.0),
+            (s.w / refW).clamp(0.0, 1.0),
+            (s.h / refH).clamp(0.0, 1.0),
           ),
           poseIndex: pIndex,
         );
@@ -155,12 +167,12 @@ class _PhotoStripWidgetState extends State<PhotoStripWidget> {
       final rightOrder = frame?.rightColumnOrder ?? [2, 0, 1]; // Default: Pose 3, Pose 1, Pose 2
       final List<_ResolvedSlot> slots = [];
 
-      const double colW = 0.385;
-      const double slotH = 0.172;
-      const double leftColX = 0.062;
-      const double rightColX = 0.553;
-      const double topPadding = 0.120;
-      const double gapY = 0.038;
+      const double colW = 0.42;
+      const double slotH = 0.265;
+      const double leftColX = 0.055;
+      const double rightColX = 0.525;
+      const double topPadding = 0.04;
+      const double gapY = 0.035;
 
       // Left Column: Pose 1, 2, 3 (index 0, 1, 2)
       for (int r = 0; r < 3; r++) {
@@ -188,12 +200,12 @@ class _PhotoStripWidgetState extends State<PhotoStripWidget> {
       final rightOrder = frame?.rightColumnOrder ?? [3, 0, 1, 2]; // Default: Pose 4, 1, 2, 3
       final List<_ResolvedSlot> slots = [];
 
-      const double colW = 0.385;
-      const double slotH = 0.138;
-      const double leftColX = 0.062;
-      const double rightColX = 0.553;
-      const double topPadding = 0.110;
-      const double gapY = 0.024;
+      const double colW = 0.42;
+      const double slotH = 0.20;
+      const double leftColX = 0.055;
+      const double rightColX = 0.525;
+      const double topPadding = 0.035;
+      const double gapY = 0.025;
 
       // Left Column: Pose 1, 2, 3, 4 (index 0, 1, 2, 3)
       for (int r = 0; r < 4; r++) {

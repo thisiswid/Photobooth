@@ -65,6 +65,15 @@ class MasterFrame extends Model
         $layoutConfig['right_column_order_key'] = $rightKey;
         $layoutConfig['right_column_order'] = $rightOrder;
 
+        if (!empty($layoutConfig['slots'])) {
+            $layoutConfig['slots'] = \App\Services\FrameSlotDetector::assignSlotPoses(
+                $layoutConfig['slots'],
+                $layoutType,
+                $rightOrder,
+                $this->pose_count ?? 4
+            );
+        }
+
         $frame = Frame::updateOrCreate(
             [
                 'event_id' => $event->id,
@@ -104,6 +113,15 @@ class MasterFrame extends Model
 
         $layoutConfig['right_column_order_key'] = $rightKey;
         $layoutConfig['right_column_order'] = $rightOrder;
+
+        if (!empty($layoutConfig['slots'])) {
+            $layoutConfig['slots'] = \App\Services\FrameSlotDetector::assignSlotPoses(
+                $layoutConfig['slots'],
+                $layoutType,
+                $rightOrder,
+                $this->pose_count ?? 4
+            );
+        }
 
         // Update frames matched by master_frame_id or name
         Frame::where('master_frame_id', $this->id)

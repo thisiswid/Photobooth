@@ -72,6 +72,22 @@ class ErrorLogger {
     );
   }
 
+  /// Log hardware & printer failures.
+  Future<void> logHardwareError({
+    required String message,
+    StackTrace? stackTrace,
+    Map<String, dynamic>? extra,
+  }) async {
+    await _reportLog(
+      category: 'hardware',
+      level: 'critical',
+      title: 'Masalah Hardware / Printer',
+      message: message,
+      context: extra,
+      stackTrace: stackTrace?.toString(),
+    );
+  }
+
   /// Log failed data fetching (frames, filters, screen configs).
   Future<void> logDataFetchError({
     required String resource,

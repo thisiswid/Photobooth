@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io' as dart_io;
+import 'dart:typed_data';
 import 'package:dio/dio.dart' as dio_pkg;
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -10,6 +11,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/router/app_router.dart';
+import '../../../core/services/error_logger.dart';
 import '../../../core/services/printer_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -18,6 +20,14 @@ import '../../../shared/widgets/customer_header.dart';
 import '../../../shared/widgets/photobooth_layout.dart';
 import '../../../shared/widgets/photo_strip_widget.dart';
 import '../../../shared/widgets/responsive_button.dart';
+
+enum PrintUiStatus {
+  idle,
+  preparing,
+  printing,
+  success,
+  failed,
+}
 
 /// Final Result Screen — header transparan centered 2x.
 /// "Hasil Foto" di bawah header.
@@ -34,17 +44,42 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
   Timer? _autoResetTimer;
   int _autoResetCountdown = _autoResetSeconds;
 
+  PrintUiStatus _printStatus = PrintUiStatus.idle;
+  String _printStatusMessage = '';
+  String? _connectedPrinterName;
+  int _printRetryCount = 0;
+  bool _hasAutoPrinted = false;
+
   @override
   void initState() {
     super.initState();
     _startAutoResetCountdown();
-    _triggerBackendGeneration();
+    _triggerBackendGenerationAndAutoPrint();
   }
 
-  Future<void> _triggerBackendGeneration() async {
+  /// URL helper for backend storage
+  String _getStorageUrl(String relativePath) {
+    if (relativePath.startsWith('http://') || relativePath.startsWith('https://')) {
+      return relativePath;
+    }
+    String clean = relativePath;
+    if (clean.startsWith('/')) clean = clean.substring(1);
+    if (clean.startsWith('storage/')) clean = clean.substring('storage/'.length);
+    final storageBase = AppConstants.apiBaseUrlDev.replaceAll('/api', '/storage');
+    return '$storageBase/$clean';
+  }
+
+  Future<void> _triggerBackendGenerationAndAutoPrint() async {
     final sessionState = ref.read(sessionNotifierProvider);
     final session = sessionState.session;
     if (session == null) return;
+
+    setState(() {
+      _printStatus = PrintUiStatus.preparing;
+      _printStatusMessage = 'Menyiapkan hasil foto HD...';
+    });
+
+    String? generatedFinalUrl;
 
     try {
       final dio_pkg.FormData formData = dio_pkg.FormData();
@@ -83,8 +118,9 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
 
       if (response.data['success'] == true && response.data['data'] != null) {
         final data = response.data['data'];
+        generatedFinalUrl = data['final_url'] ?? '';
         ref.read(sessionNotifierProvider.notifier).setResult(
-          finalUrl: data['final_url'] ?? '',
+          finalUrl: generatedFinalUrl ?? '',
           gifUrl:   data['gif_url'] ?? '',
           qrToken:  data['qr_token'] ?? '',
         );
@@ -92,6 +128,108 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
     } catch (e) {
       debugPrint('Backend result generation note: $e');
     }
+
+    // Auto-Print langsung setelah foto & template siap
+    if (!_hasAutoPrinted && mounted) {
+      _hasAutoPrinted = true;
+      await _executePrint(finalUrl: generatedFinalUrl);
+    }
+  }
+
+  /// Eksekusi pengiriman print ke Epson L8050
+  Future<void> _executePrint({String? finalUrl}) async {
+    if (!mounted) return;
+
+    setState(() {
+      _printStatus = PrintUiStatus.printing;
+      _printStatusMessage = 'Mengirim data ke printer Epson L8050...';
+    });
+
+    try {
+      Uint8List? imageBytes;
+
+      // 1. Coba ambil dari final_url backend (hasil render lengkap frame + filter)
+      if (finalUrl != null && finalUrl.isNotEmpty) {
+        try {
+          final fullUrl = _getStorageUrl(finalUrl);
+          debugPrint('📥 Mengunduh hasil render HD untuk dicetak: $fullUrl');
+          final response = await DioClient.instance.dio.get<List<int>>(
+            fullUrl,
+            options: dio_pkg.Options(responseType: dio_pkg.ResponseType.bytes),
+          );
+          if (response.data != null) {
+            imageBytes = Uint8List.fromList(response.data!);
+          }
+        } catch (e) {
+          debugPrint('Download final photo bytes failed, falling back to local files: $e');
+        }
+      }
+
+      // 2. Fallback ke file foto lokal jika unduhan backend belum ada
+      if (imageBytes == null) {
+        final sessionState = ref.read(sessionNotifierProvider);
+        final session = sessionState.session;
+        if (session != null && session.photos.isNotEmpty) {
+          final firstPhotoPath = session.photos.first.fileUrl;
+          final file = dart_io.File(firstPhotoPath);
+          if (await file.exists()) {
+            imageBytes = await file.readAsBytes();
+          }
+        }
+      }
+
+      if (imageBytes == null || imageBytes.isEmpty) {
+        setState(() {
+          _printStatus = PrintUiStatus.failed;
+          _printStatusMessage = 'File foto tidak ditemukan untuk dicetak.';
+        });
+        return;
+      }
+
+      // 3. Kirim ke PrinterService
+      final result = await PrinterService.printPhotoBytes(imageBytes: imageBytes);
+
+      if (!mounted) return;
+
+      if (result.isSuccess) {
+        setState(() {
+          _printStatus = PrintUiStatus.success;
+          _connectedPrinterName = result.printerName ?? 'Epson L8050';
+          _printStatusMessage = result.message;
+        });
+      } else {
+        setState(() {
+          _printStatus = PrintUiStatus.failed;
+          _printStatusMessage = result.message;
+        });
+      }
+    } catch (e, stack) {
+      debugPrint('Print error: $e');
+      ErrorLogger.instance.logHardwareError(
+        message: 'Gagal menjalankan proses cetak otomatis: $e',
+        stackTrace: stack,
+      );
+      if (mounted) {
+        setState(() {
+          _printStatus = PrintUiStatus.failed;
+          _printStatusMessage = 'Gagal mencetak: $e';
+        });
+      }
+    }
+  }
+
+  Future<void> _handleManualPrintRetry() async {
+    if (_printStatus == PrintUiStatus.printing || _printStatus == PrintUiStatus.preparing) return;
+
+    _printRetryCount++;
+    ErrorLogger.instance.logRetryAttempt(
+      action: 'Print Photo',
+      attempt: _printRetryCount,
+      reason: _printStatusMessage,
+    );
+
+    final sessionState = ref.read(sessionNotifierProvider);
+    await _executePrint(finalUrl: sessionState.session?.finalUrl);
   }
 
   @override
@@ -112,39 +250,6 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
     _autoResetTimer?.cancel();
     ref.read(sessionNotifierProvider.notifier).resetSession();
     if (mounted) context.go(AppRoutes.welcome);
-  }
-
-  bool _isPrinting = false;
-
-  Future<void> _handlePrint() async {
-    if (_isPrinting) return;
-    setState(() => _isPrinting = true);
-
-    try {
-      final sessionState = ref.read(sessionNotifierProvider);
-      final session = sessionState.session;
-
-      if (session != null && session.photos.isNotEmpty) {
-        final firstPhotoPath = session.photos.first.fileUrl;
-        final file = dart_io.File(firstPhotoPath);
-        if (await file.exists()) {
-          final bytes = await file.readAsBytes();
-          await PrinterService.printPhotoBytes(imageBytes: bytes);
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('🖨️ Mengirim foto ke Printer Epson L8050...'),
-                duration: Duration(seconds: 3),
-              ),
-            );
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('Print error: $e');
-    } finally {
-      if (mounted) setState(() => _isPrinting = false);
-    }
   }
 
   @override
@@ -172,7 +277,7 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
           SizedBox(height: 4.h),
           Padding(
             padding: EdgeInsets.symmetric(horizontal: 32.w),
-            child: Text('Cetak atau download via QR di samping',
+            child: Text('Foto sedang diproses & dicetak otomatis',
                 style: AppTextStyles.caption).animate().fadeIn(delay: 100.ms),
           ),
           SizedBox(height: 12.h),
@@ -196,29 +301,50 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
 
                   SizedBox(width: 24.w),
 
-                  // ── QR + Selesai — lebih sempit (flex: 2) ─────────────
+                  // ── QR + Status Print + Selesai (flex: 2) ─────────────
                   Expanded(
                     flex: 2,
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         _QrCard(qrUrl: qrUrl),
-                        SizedBox(height: 14.h),
-                        ResponsiveButton(
-                          label: _isPrinting ? 'MENCETAK...' : 'CETAK FOTO',
-                          icon: Icons.print_rounded,
-                          variant: ButtonVariant.outlined,
-                          onPressed: _isPrinting ? null : _handlePrint,
-                          width: double.infinity,
-                          height: 48.h,
-                        ).animate().fadeIn(delay: 400.ms),
+                        SizedBox(height: 12.h),
+
+                        // ── UI Status Cetak (Loading / Berhasil / Gagal) ──
+                        _buildPrintStatusWidget(),
+                        SizedBox(height: 10.h),
+
+                        // ── Tombol Manual / Retry ───────────────────────
+                        if (_printStatus == PrintUiStatus.failed)
+                          ResponsiveButton(
+                            label: 'COBA CETAK ULANG',
+                            icon: Icons.refresh_rounded,
+                            variant: ButtonVariant.primary,
+                            onPressed: _handleManualPrintRetry,
+                            width: double.infinity,
+                            height: 46.h,
+                          ).animate().fadeIn()
+                        else
+                          ResponsiveButton(
+                            label: (_printStatus == PrintUiStatus.printing || _printStatus == PrintUiStatus.preparing)
+                                ? 'SEDANG MENCETAK...'
+                                : 'CETAK ULANG',
+                            icon: Icons.print_rounded,
+                            variant: ButtonVariant.outlined,
+                            onPressed: (_printStatus == PrintUiStatus.printing || _printStatus == PrintUiStatus.preparing)
+                                ? null
+                                : _handleManualPrintRetry,
+                            width: double.infinity,
+                            height: 46.h,
+                          ).animate().fadeIn(delay: 400.ms),
+
                         SizedBox(height: 10.h),
                         ResponsiveButton(
                           label: 'SELESAI',
                           icon: Icons.check_rounded,
                           onPressed: _finishSession,
                           width: double.infinity,
-                          height: 48.h,
+                          height: 46.h,
                         ).animate().fadeIn(delay: 500.ms),
                         SizedBox(height: 8.h),
                         Text('Kembali otomatis dalam $_autoResetCountdown detik',
@@ -236,6 +362,99 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
       ),
     );
   }
+
+  /// Widget Indikator Status Cetak Real-Time
+  Widget _buildPrintStatusWidget() {
+    switch (_printStatus) {
+      case PrintUiStatus.preparing:
+      case PrintUiStatus.printing:
+        return Container(
+          padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
+          decoration: BoxDecoration(
+            color: AppColors.gold.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(10.r),
+            border: Border.all(color: AppColors.gold.withValues(alpha: 0.8), width: 1.2),
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 18.r,
+                height: 18.r,
+                child: const CircularProgressIndicator(
+                  strokeWidth: 2.2,
+                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.darkBrown),
+                ),
+              ),
+              SizedBox(width: 10.w),
+              Expanded(
+                child: Text(
+                  _printStatusMessage.isNotEmpty ? _printStatusMessage : 'Sedang memproses & mencetak foto...',
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.darkBrown,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ).animate().fadeIn();
+
+      case PrintUiStatus.success:
+        return Container(
+          padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
+          decoration: BoxDecoration(
+            color: const Color(0xFFE8F5E9),
+            borderRadius: BorderRadius.circular(10.r),
+            border: Border.all(color: const Color(0xFF4CAF50), width: 1.2),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.check_circle_rounded, color: const Color(0xFF2E7D32), size: 20.r),
+              SizedBox(width: 10.w),
+              Expanded(
+                child: Text(
+                  'Foto berhasil dikirim ke printer! Silakan ambil di ${_connectedPrinterName ?? "printer"}.',
+                  style: AppTextStyles.caption.copyWith(
+                    color: const Color(0xFF1B5E20),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ).animate().fadeIn();
+
+      case PrintUiStatus.failed:
+        return Container(
+          padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFEBEE),
+            borderRadius: BorderRadius.circular(10.r),
+            border: Border.all(color: const Color(0xFFEF5350), width: 1.2),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: const Color(0xFFC62828), size: 20.r),
+              SizedBox(width: 10.w),
+              Expanded(
+                child: Text(
+                  _printStatusMessage.isNotEmpty
+                      ? _printStatusMessage
+                      : 'Gagal terhubung ke printer Epson L8050.',
+                  style: AppTextStyles.caption.copyWith(
+                    color: const Color(0xFFB71C1C),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ).animate().fadeIn();
+
+      case PrintUiStatus.idle:
+        return const SizedBox.shrink();
+    }
+  }
 }
 
 class _QrCard extends StatelessWidget {
@@ -245,7 +464,7 @@ class _QrCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.all(16.r),
+      padding: EdgeInsets.all(14.r),
       decoration: BoxDecoration(
         color: AppColors.creamWhite,
         borderRadius: BorderRadius.circular(12.r),
@@ -258,19 +477,19 @@ class _QrCard extends StatelessWidget {
         children: [
           Text('Scan untuk Download', style: AppTextStyles.titleSmall)
               .animate().fadeIn(delay: 300.ms),
-          SizedBox(height: 12.h),
+          SizedBox(height: 10.h),
           Container(
             padding: EdgeInsets.all(8.r),
             decoration: BoxDecoration(color: AppColors.white,
                 borderRadius: BorderRadius.circular(8.r)),
             child: QrImageView(
               data: qrUrl, version: QrVersions.auto,
-              size: 140.r, backgroundColor: Colors.white,
+              size: 130.r, backgroundColor: Colors.white,
               foregroundColor: Colors.black,
             ),
           ).animate().scale(begin: const Offset(0.9, 0.9),
               duration: 400.ms, delay: 300.ms),
-          SizedBox(height: 8.h),
+          SizedBox(height: 6.h),
           Text('GIF  •  Final  •  Foto', style: AppTextStyles.caption,
               textAlign: TextAlign.center).animate().fadeIn(delay: 450.ms),
         ],
