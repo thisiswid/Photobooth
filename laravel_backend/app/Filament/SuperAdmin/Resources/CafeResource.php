@@ -61,6 +61,10 @@ class CafeResource extends Resource
                         ])
                         ->default('active')
                         ->required(),
+                    \Filament\Forms\Components\Toggle::make('is_ai_enabled')
+                        ->label('Izinkan Fitur AI (AI Vision & Enhancer)')
+                        ->helperText('Aktifkan izin akses fitur kecerdasan buatan untuk booth milik cafe ini')
+                        ->default(true),
                 ])->columns(2),
 
             Section::make('Kontak & PIC')
@@ -158,6 +162,13 @@ class CafeResource extends Resource
                         'suspended' => 'warning',
                         default     => 'gray',
                     }),
+                IconColumn::make('is_ai_enabled')
+                    ->label('Akses AI')
+                    ->boolean()
+                    ->trueIcon('heroicon-o-check-circle')
+                    ->falseIcon('heroicon-o-x-circle')
+                    ->trueColor('success')
+                    ->falseColor('danger'),
                 TextColumn::make('subscription_end_at')
                     ->label('Masa Aktif')
                     ->dateTime('d M Y')

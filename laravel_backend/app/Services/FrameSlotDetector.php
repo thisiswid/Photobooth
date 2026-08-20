@@ -100,40 +100,47 @@ class FrameSlotDetector
             }
         }
 
-        // 3. Secondary method: OpenAgentic AI Vision (Claude Sonnet 4.6, etc.) with Gemini fallback
-        $oaKey = config('services.openagentic.key') ?? env('OPENAGENTIC_API_KEY');
+        // 3. Secondary method: AI Vision (Gemini / OpenAgentic / OpenAI) based on Super Admin config
+        $aiSetting = \App\Models\AiSetting::getGlobal();
+        $isAiEnabled = $aiSetting->is_enabled && $aiSetting->enable_frame_detection;
+
+        $oaKey = ($aiSetting->provider === 'openagentic' && !empty($aiSetting->api_key))
+            ? $aiSetting->api_key 
+            : (config('services.openagentic.key') ?? env('OPENAGENTIC_API_KEY'));
         $oaBaseUrl = config('services.openagentic.base_url') ?? env('OPENAGENTIC_BASE_URL', 'https://openagentic.id/api/v1');
-        $oaModel = config('services.openagentic.model') ?? env('OPENAGENTIC_MODEL', 'claude-sonnet-4.6');
-        $aiKey = config('services.gemini.key') ?? env('GEMINI_API_KEY');
+        $oaModel = !empty($aiSetting->model) ? $aiSetting->model : (config('services.openagentic.model') ?? env('OPENAGENTIC_MODEL', 'claude-sonnet-4.6'));
+
+        $aiKey = ($aiSetting->provider === 'gemini' && !empty($aiSetting->api_key))
+            ? $aiSetting->api_key
+            : (config('services.gemini.key') ?? env('GEMINI_API_KEY'));
+        $aiModel = !empty($aiSetting->model) ? $aiSetting->model : 'gemini-1.5-flash';
 
         $aiResult = null;
         $aiFeedback = null;
 
-        if (!empty($oaKey)) {
-            $aiResult = self::detectWithOpenAgenticAi($realPath, $oaKey, $oaBaseUrl, $oaModel, $w, $h);
-            if (!empty($aiResult['ai_feedback'])) {
-                $aiFeedback = $aiResult['ai_feedback'];
+        if ($isAiEnabled) {
+            if ($aiSetting->provider === 'gemini' && !empty($aiKey)) {
+                $aiResult = self::detectWithGeminiAi($realPath, $aiKey, $w, $h);
+                $aiFeedback = $aiResult['ai_feedback'] ?? null;
+            } elseif ($aiSetting->provider === 'openagentic' && !empty($oaKey)) {
+                $aiResult = self::detectWithOpenAgenticAi($realPath, $oaKey, $oaBaseUrl, $oaModel, $w, $h);
+                $aiFeedback = $aiResult['ai_feedback'] ?? null;
+            } else {
+                if (!empty($aiKey)) {
+                    $aiResult = self::detectWithGeminiAi($realPath, $aiKey, $w, $h);
+                    $aiFeedback = $aiResult['ai_feedback'] ?? null;
+                } elseif (!empty($oaKey)) {
+                    $aiResult = self::detectWithOpenAgenticAi($realPath, $oaKey, $oaBaseUrl, $oaModel, $w, $h);
+                    $aiFeedback = $aiResult['ai_feedback'] ?? null;
+                }
             }
-        }
-
-        // If OpenAgentic was not configured or failed/timed out, try Gemini AI Vision as fallback
-        if ((!$aiResult || empty($aiResult['slots'])) && !empty($aiKey)) {
-            $geminiResult = self::detectWithGeminiAi($realPath, $aiKey, $w, $h);
-            if ($geminiResult && !empty($geminiResult['slots'])) {
-                $aiResult = $geminiResult;
-                $aiFeedback = $geminiResult['ai_feedback'] ?? null;
-            } elseif (empty($aiFeedback) && !empty($geminiResult['ai_feedback'])) {
-                $aiFeedback = $geminiResult['ai_feedback'];
-            }
-        }
-
-        if (empty($aiFeedback) && empty($oaKey) && empty($aiKey)) {
+        } else {
             $aiFeedback = [
                 'attempted' => false,
                 'success'   => false,
-                'status'    => 'info',
-                'title'     => 'ℹ️ AI Key Belum Diatur',
-                'message'   => 'OPENAGENTIC_API_KEY tidak ditemukan di .env. Menggunakan analisis Computer Vision lokal.',
+                'status'    => 'warning',
+                'title'     => '⚠️ AI Platform Dinonaktifkan',
+                'message'   => 'Fitur AI dinonaktifkan di Pengaturan Super Admin. Menggunakan analisis Computer Vision lokal.',
             ];
         }
 
