@@ -130,22 +130,29 @@ class _PhotoStripWidgetState extends State<PhotoStripWidget> {
     final String layoutType = frame?.layoutType ?? 'single';
 
     // 1. If explicit slots are configured in database
-    if (frame?.slots != null && frame!.slots!.isNotEmpty) {
-      final dbSlots = frame.slots!;
-      double maxRight = 0;
-      double maxBottom = 0;
-      for (final s in dbSlots) {
-        if (s.x + s.w > maxRight) maxRight = s.x + s.w;
-        if (s.y + s.h > maxBottom) maxBottom = s.y + s.h;
-      }
-      final bool isNormalized = maxRight <= 1.05 && maxBottom <= 1.05;
+      if (frame?.slots != null && frame!.slots!.isNotEmpty) {
+        final dbSlots = frame.slots!;
+        double maxRight = 0;
+        double maxBottom = 0;
+        for (final s in dbSlots) {
+          if (s.x + s.w > maxRight) maxRight = s.x + s.w;
+          if (s.y + s.h > maxBottom) maxBottom = s.y + s.h;
+        }
+        final bool isNormalized = maxRight <= 1.05 && maxBottom <= 1.05;
 
-      final double refW = isNormalized
-          ? 1.0
-          : (_canvasW > 0 ? _canvasW : (maxRight > 500 ? 1200.0 : maxRight));
-      final double refH = isNormalized
-          ? 1.0
-          : (_canvasH > 0 ? _canvasH : (maxBottom > 800 ? 1800.0 : maxBottom));
+        // Gunakan dimensi asli frame PNG sebagai pembagi.
+        // Kalau _frameAspectRatio masih null (async belum selesai), pakai maxRight/maxBottom
+        // supaya tidak salah bagi — widget akan rebuild otomatis setelah _loadFrameSize selesai.
+        final double refW = isNormalized
+            ? 1.0
+            : (_frameAspectRatio != null && _canvasW > 0
+                ? _canvasW
+                : (maxRight > 500 ? 1200.0 : maxRight));
+        final double refH = isNormalized
+            ? 1.0
+            : (_frameAspectRatio != null && _canvasH > 0
+                ? _canvasH
+                : (maxBottom > 800 ? 1800.0 : maxBottom));
 
       return List.generate(dbSlots.length, (i) {
         final s = dbSlots[i];
