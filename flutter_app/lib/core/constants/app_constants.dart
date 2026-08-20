@@ -1,6 +1,3 @@
-import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
-
 /// Application-wide constants for Fakultas Kopi Photobooth.
 /// All magic numbers and configuration values live here.
 abstract final class AppConstants {
@@ -11,45 +8,39 @@ abstract final class AppConstants {
   static const String tagline = 'Capture Your Moment';
 
   // ── API Configuration ─────────────────────────────────────────────────────
-  /// Dev base URL:
-  /// - Windows / Desktop / Web → 127.0.0.1 (localhost)
-  /// - Android Device / Emulator → IP lokal PC di WiFi (192.168.1.4) atau 10.0.2.2
-  /// - Bisa di-override via: --dart-define=API_BASE_URL=http://...
-  static String get apiBaseUrlDev {
+  /// Production VPS base URL:
+  /// Defaults to production domain `https://snaptechbooth.my.id/api`
+  /// Can be overridden via --dart-define=API_BASE_URL=http://...
+  static String get apiBaseUrl {
     const envUrl = String.fromEnvironment('API_BASE_URL');
     if (envUrl.isNotEmpty) return envUrl;
 
-    if (kIsWeb) {
-      return 'http://127.0.0.1:8000/api';
-    }
-
-    if (Platform.isAndroid) {
-      // 127.0.0.1 terhubung langsung ke PC via USB menggunakan `adb reverse tcp:8000 tcp:8000`
-      return 'http://127.0.0.1:8000/api';
-    }
-
-    // Windows Desktop, macOS, Linux, Web
-    return 'http://127.0.0.1:8000/api';
+    return 'https://snaptechbooth.my.id/api';
   }
 
+  static String get apiBaseUrlDev => apiBaseUrl;
   static const String apiBaseUrlProd = 'https://snaptechbooth.my.id/api';
   static const String galleryBaseUrl = 'https://snaptechbooth.my.id';
   static const Duration apiConnectTimeout = Duration(seconds: 15);
   static const Duration apiReceiveTimeout = Duration(seconds: 30);
   static const int apiMaxRetries = 3;
 
+  // ── Storage & Result QR URLs ──────────────────────────────────────────────
+  /// Storage Base URL for loading frames, filters, and uploaded images:
+  static String get storageBaseUrl {
+    return apiBaseUrl.replaceAll('/api', '/storage');
+  }
+
+  /// Base URL for customer result QR code: GET /d/{token}
+  static String get resultBaseUrl {
+    return apiBaseUrl.replaceAll('/api', '/d');
+  }
+
   // ── Session ───────────────────────────────────────────────────────────────
-  /// 6-minute session timer — starts dynamically after payment PAID.
-  /// Timer is NOT active during Welcome, Tutorial, or Payment screens.
   static const Duration sessionDuration = Duration(minutes: 6);
   static const Duration sessionWarningThreshold = Duration(minutes: 1);
   static const Duration qrExpiryDuration = Duration(days: 30);
   static const Duration sessionTransitionDelay = Duration(seconds: 3);
-
-  /// Base URL for customer result QR code: GET /d/{token}
-  static String get resultBaseUrl {
-    return apiBaseUrlDev.replaceAll('/api', '/d');
-  }
   static const int sessionCodeLength = 8;
 
   // ── Camera ────────────────────────────────────────────────────────────────
