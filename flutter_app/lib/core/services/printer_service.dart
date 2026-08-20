@@ -42,33 +42,44 @@ class PrinterService {
     }
   }
 
-  /// Mencari printer Epson L8050 di jaringan Wi-Fi atau printer default
-  static Future<Printer?> findEpsonPrinter() async {
-    try {
-      final printers = await getAvailablePrinters();
-      if (printers.isEmpty) return null;
+  /// Mencari printer Epson L8050 — retry 3x dengan jeda 1 detik
+  /// (USB enumerate di Android kadang butuh beberapa momen setelah app buka)
+  static Future<Printer?> findEpsonPrinter({int maxRetries = 3}) async {
+    for (int attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        final printers = await getAvailablePrinters();
 
-      // 1. Prioritaskan L8050
-      final l8050 = printers.where(
-        (p) => p.name.toLowerCase().contains('l8050'),
-      );
-      if (l8050.isNotEmpty) return l8050.first;
+        if (printers.isNotEmpty) {
+          // 1. Prioritaskan L8050
+          final l8050 = printers.where(
+            (p) => p.name.toLowerCase().contains('l8050'),
+          );
+          if (l8050.isNotEmpty) return l8050.first;
 
-      // 2. Cari printer merk Epson apapun
-      final epson = printers.where(
-        (p) => p.name.toLowerCase().contains('epson'),
-      );
-      if (epson.isNotEmpty) return epson.first;
+          // 2. Cari printer merk Epson apapun
+          final epson = printers.where(
+            (p) => p.name.toLowerCase().contains('epson'),
+          );
+          if (epson.isNotEmpty) return epson.first;
 
-      // 3. Fallback ke printer default / pertama
-      return printers.firstWhere(
-        (p) => p.isDefault,
-        orElse: () => printers.first,
-      );
-    } catch (e) {
-      debugPrint('Error finding Epson printer: $e');
-      return null;
+          // 3. Fallback ke printer default / pertama yang tersedia
+          final available = printers.where((p) => p.isAvailable);
+          if (available.isNotEmpty) return available.first;
+
+          return printers.first;
+        }
+      } catch (e) {
+        debugPrint('Error finding Epson printer (attempt $attempt): $e');
+      }
+
+      if (attempt < maxRetries) {
+        debugPrint('⏳ Printer belum terdeteksi, coba lagi dalam 1 detik... ($attempt/$maxRetries)');
+        await Future.delayed(const Duration(seconds: 1));
+      }
     }
+
+    debugPrint('❌ Printer tidak ditemukan setelah $maxRetries percobaan.');
+    return null;
   }
 
   /// Mencetak gambar dari byte buffer (Uint8List) ke ukuran kertas foto 4R (4 x 6 inch)
@@ -130,24 +141,11 @@ class PrinterService {
           );
         }
       } else {
-        debugPrint('⚠️ Printer Epson tidak ditemukan secara langsung, membuka dialog cetak sistem');
-        final printed = await Printing.layoutPdf(
-          onLayout: (PdfPageFormat format) async => doc.save(),
-          name: jobName,
+        debugPrint('❌ Printer tidak ditemukan — cetak dibatalkan (tidak buka dialog).');
+        return const PrintJobResult(
+          isSuccess: false,
+          message: 'Printer tidak terdeteksi. Pastikan printer menyala dan terhubung via USB.',
         );
-
-        if (printed) {
-          return const PrintJobResult(
-            isSuccess: true,
-            message: 'Dokumen dikirim melalui dialog cetak sistem.',
-            isDirect: false,
-          );
-        } else {
-          return const PrintJobResult(
-            isSuccess: false,
-            message: 'Pencetakan dibatalkan atau printer tidak terhubung.',
-          );
-        }
       }
     } catch (e, stack) {
       ErrorLogger.instance.logHardwareError(

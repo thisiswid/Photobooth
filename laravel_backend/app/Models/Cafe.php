@@ -20,6 +20,7 @@ class Cafe extends Model
         'pic_email',
         'address',
         'status',
+        'is_ai_enabled',
         'subscription_end_at',
         'revenue_share_percentage',
         'logo_path',
@@ -27,7 +28,8 @@ class Cafe extends Model
     ];
 
     protected $casts = [
-        'subscription_end_at' => 'datetime',
+        'is_ai_enabled'            => 'boolean',
+        'subscription_end_at'      => 'datetime',
         'revenue_share_percentage' => 'decimal:2',
     ];
 

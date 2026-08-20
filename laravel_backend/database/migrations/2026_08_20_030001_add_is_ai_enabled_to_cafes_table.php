@@ -1,0 +1,22 @@
+﻿<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('cafes', function (Blueprint ) {
+            ->boolean('is_ai_enabled')->default(true)->after('status');
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('cafes', function (Blueprint ) {
+            ->dropColumn('is_ai_enabled');
+        });
+    }
+};
