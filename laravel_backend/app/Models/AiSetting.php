@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 namespace App\Models;
 
@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class AiSetting extends Model
 {
-    protected  = [
+    protected $fillable = [
         'is_enabled',
         'provider',
         'api_key',
@@ -19,7 +19,7 @@ class AiSetting extends Model
         'notes',
     ];
 
-    protected  = [
+    protected $casts = [
         'is_enabled'             => 'boolean',
         'enable_frame_detection' => 'boolean',
         'enable_auto_punch'      => 'boolean',
@@ -53,16 +53,16 @@ class AiSetting extends Model
     /**
      * Helper to check if AI features are enabled globally and for a specific cafe.
      */
-    public static function isAiAvailable(?int  = null): bool
+    public static function isAiAvailable(?int $cafeId = null): bool
     {
-         = static::getGlobal();
-        if (!->is_enabled) {
+        $global = static::getGlobal();
+        if (!$global->is_enabled) {
             return false;
         }
 
-        if () {
-             = Cafe::find();
-            if ( && !->is_ai_enabled) {
+        if ($cafeId) {
+            $cafe = Cafe::find($cafeId);
+            if ($cafe && !$cafe->is_ai_enabled) {
                 return false;
             }
         }
