@@ -43,6 +43,16 @@ class SessionController extends Controller
             'expires_at' => now()->addSeconds($durationSeconds),
         ]);
 
+        \App\Models\Payment::firstOrCreate(
+            ['session_id' => $session->id],
+            [
+                'amount'            => 48000,
+                'status'            => 'paid',
+                'paid_at'           => now(),
+                'xendit_payment_id' => 'PAY-' . strtoupper(\Illuminate\Support\Str::random(10)),
+            ]
+        );
+
         return response()->json([
             'success' => true,
             'data'    => [
