@@ -28,12 +28,14 @@ class SessionController extends Controller
         $frameId = $request->input('frame_id');
 
         $event = Event::find($eventId);
+        $cafeId = $event?->cafe_id ?? \App\Models\Cafe::first()?->id;
         $timerSetting = TimerSetting::where('event_id', $eventId)->where('is_active', true)->first()
-            ?? TimerSetting::resolveForCafe($event?->cafe_id);
+            ?? TimerSetting::resolveForCafe($cafeId);
 
         $durationSeconds = $timerSetting->session_timeout_seconds ?? 360;
 
         $session = Session::create([
+            'cafe_id'    => $cafeId,
             'event_id'   => $eventId,
             'frame_id'   => $frameId,
             'status'     => 'active',
@@ -62,13 +64,15 @@ class SessionController extends Controller
     {
         $eventId = (int)$request->input('event_id', 1);
         $event = Event::find($eventId);
+        $cafeId = $event?->cafe_id ?? \App\Models\Cafe::first()?->id;
         $timerSetting = TimerSetting::where('event_id', $eventId)->where('is_active', true)->first()
-            ?? TimerSetting::resolveForCafe($event?->cafe_id);
+            ?? TimerSetting::resolveForCafe($cafeId);
         $durationSeconds = $timerSetting->session_timeout_seconds ?? 360;
 
         $sessionModel = is_numeric($session) ? Session::find((int)$session) : ($session instanceof Session ? $session : null);
         if (!$sessionModel) {
             $sessionModel = Session::create([
+                'cafe_id'    => $cafeId,
                 'event_id'   => $eventId,
                 'frame_id'   => $request->input('frame_id'),
                 'status'     => 'active',
@@ -76,7 +80,10 @@ class SessionController extends Controller
                 'expires_at' => now()->addSeconds($durationSeconds),
             ]);
         } else {
-            $sessionModel->update(['frame_id' => $request->input('frame_id')]);
+            $sessionModel->update([
+                'frame_id' => $request->input('frame_id'),
+                'cafe_id'  => $sessionModel->cafe_id ?? $cafeId,
+            ]);
         }
 
         return response()->json([
@@ -94,8 +101,12 @@ class SessionController extends Controller
     {
         $sessionModel = is_numeric($session) ? Session::find((int)$session) : ($session instanceof Session ? $session : null);
         if (!$sessionModel) {
+            $eventId = (int)$request->input('event_id', 1);
+            $event = Event::find($eventId);
+            $cafeId = $event?->cafe_id ?? \App\Models\Cafe::first()?->id;
             $sessionModel = Session::create([
-                'event_id'   => $request->input('event_id', 1),
+                'cafe_id'    => $cafeId,
+                'event_id'   => $eventId,
                 'status'     => 'processing',
                 'started_at' => now(),
                 'expires_at' => now()->addMinutes(5),
@@ -146,14 +157,18 @@ class SessionController extends Controller
     {
         $sessionModel = is_numeric($session) ? Session::find((int)$session) : ($session instanceof Session ? $session : null);
         if (!$sessionModel) {
+            $eventId = (int)$request->input('event_id', 1);
+            $event = Event::find($eventId);
+            $cafeId = $event?->cafe_id ?? \App\Models\Cafe::first()?->id;
             $sessionModel = Session::create([
-                'event_id'   => $request->input('event_id', 1),
-                'frame_id'   => $request->input('frame_id'),
-                'filter_id'  => $request->input('filter_id'),
+                'cafe_id'         => $cafeId,
+                'event_id'        => $eventId,
+                'frame_id'        => $request->input('frame_id'),
+                'filter_id'       => $request->input('filter_id'),
                 'selected_filter' => $request->input('selected_filter'),
-                'status'     => 'processing',
-                'started_at' => now()->subMinutes(2),
-                'expires_at' => now()->addMinutes(3),
+                'status'          => 'processing',
+                'started_at'      => now()->subMinutes(2),
+                'expires_at'      => now()->addMinutes(3),
             ]);
         }
 
