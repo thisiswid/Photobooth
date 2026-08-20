@@ -59,8 +59,10 @@ class CreateFrame extends CreateRecord
                 if (!empty($analysis['punched']) && !empty($analysis['relative_path'])) {
                     $data['asset_url'] = $analysis['relative_path'];
                 }
-                
-                if (!empty($analysis['slots']) && ($analysis['layout_type'] ?? '') === $layoutType) {
+               
+                 // Pakai slots dari AI selama tidak kosong — tidak perlu cocokkan layout_type
+                 // karena AI bisa detect berbeda tapi koordinat lubangnya tetap akurat
+                 if (!empty($analysis['slots'])) {
                     $detectedSlots = $analysis['slots'];
                 }
             }
