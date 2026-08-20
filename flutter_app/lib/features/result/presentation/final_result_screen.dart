@@ -261,9 +261,11 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
     final photos = session?.photos ?? [];
     final frame = sessionState.selectedFrame;
 
-    final qrUrl = session?.qrToken != null
-        ? '${AppConstants.resultBaseUrl}/${session!.qrToken}'
-        : AppConstants.resultBaseUrl;
+    final qrToken = session?.qrToken;
+    final hasQrToken = qrToken != null && qrToken.trim().isNotEmpty;
+    final qrUrl = hasQrToken
+        ? '${AppConstants.resultBaseUrl}/$qrToken'
+        : null;
 
     final isMobile = context.isMobile;
     final isPortrait = context.isPortrait;
@@ -521,8 +523,8 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
 }
 
 class _QrCard extends StatelessWidget {
-  const _QrCard({required this.qrUrl});
-  final String qrUrl;
+  const _QrCard({this.qrUrl});
+  final String? qrUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -542,18 +544,36 @@ class _QrCard extends StatelessWidget {
               .animate().fadeIn(delay: 300.ms),
           SizedBox(height: 10.h),
           Container(
+            width: 146.r,
+            height: 146.r,
             padding: EdgeInsets.all(8.r),
-            decoration: BoxDecoration(color: AppColors.white,
-                borderRadius: BorderRadius.circular(8.r)),
-            child: QrImageView(
-              data: qrUrl, version: QrVersions.auto,
-              size: 130.r, backgroundColor: Colors.white,
-              foregroundColor: Colors.black,
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(8.r),
             ),
+            child: qrUrl != null && qrUrl!.isNotEmpty
+                ? QrImageView(
+                    data: qrUrl!,
+                    version: QrVersions.auto,
+                    size: 130.r,
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.black,
+                  )
+                : const Center(
+                    child: SizedBox(
+                      width: 32,
+                      height: 32,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ),
           ).animate().scale(begin: const Offset(0.9, 0.9),
               duration: 400.ms, delay: 300.ms),
           SizedBox(height: 6.h),
-          Text('GIF  •  Final  •  Foto', style: AppTextStyles.caption,
+          Text(qrUrl != null ? 'GIF  •  Final  •  Foto' : 'Menyiapkan QR...',
+              style: AppTextStyles.caption,
               textAlign: TextAlign.center).animate().fadeIn(delay: 450.ms),
         ],
       ),
