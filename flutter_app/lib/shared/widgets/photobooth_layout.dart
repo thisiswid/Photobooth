@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../core/theme/app_colors.dart';
+import '../../features/session/providers/session_provider.dart';
 import 'customer_header.dart';
 import 'corner_decorations.dart';
 import 'responsive_layout_builder.dart';
 
 /// Layout frame for internal customer screens with authentic vintage coffeehouse styling.
-/// Adapts cleanly across Mobile, Tablet, and Desktop resolutions.
-class PhotoboothLayout extends StatelessWidget {
+/// Session timer is always shown at screen top-right as a Positioned overlay — never inside the header.
+class PhotoboothLayout extends ConsumerWidget {
   const PhotoboothLayout({
     super.key,
     required this.child,
-    this.showTimer = false,
-    this.timerText,
+    this.showTimer = false,   // kept for API compat — timer is auto-shown from session state
+    this.timerText,           // kept for API compat — ignored
     this.showDecorations = true,
     this.header,
     this.currentStep,
@@ -25,8 +28,10 @@ class PhotoboothLayout extends StatelessWidget {
   final int? currentStep;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isMobile = context.isMobile;
+    final sessionState = ref.watch(sessionNotifierProvider);
+    final hasTimer = sessionState.hasActiveSession || sessionState.remainingSeconds > 0;
 
     return Scaffold(
       backgroundColor: AppColors.cream,
@@ -77,17 +82,26 @@ class PhotoboothLayout extends StatelessWidget {
           SafeArea(
             child: Column(
               children: [
-                header ??
-                    CustomerHeader(
-                      currentStep: currentStep,
-                      trailing: showTimer && timerText != null
-                          ? TimerChip(text: timerText!)
-                          : null,
-                    ),
+                header ?? CustomerHeader(currentStep: currentStep),
                 Expanded(child: child),
               ],
             ),
           ),
+
+          // ── Session Timer — pojok kanan atas layar ────────────────────
+          // Di luar SafeArea Column agar tidak bertabrakan dengan header
+          if (hasTimer)
+            Positioned(
+              top: isMobile ? 12.h : 16.h,
+              right: isMobile ? 12.w : 20.w,
+              child: SafeArea(
+                child: TimerChip(
+                  text: sessionState.formattedRemainingTime,
+                  isWarning: sessionState.isTimerWarning,
+                  isMobile: isMobile,
+                ),
+              ),
+            ),
         ],
       ),
     );

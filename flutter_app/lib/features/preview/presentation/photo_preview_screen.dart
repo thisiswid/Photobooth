@@ -26,14 +26,7 @@ class PhotoPreviewScreen extends ConsumerWidget {
         '${(remaining.inSeconds % 60).toString().padLeft(2, '0')}';
 
     return PhotoboothLayout(
-      currentStep: 3,
-      header: CustomerHeader(
-        currentStep: 3,
-        trailing: TimerChip(
-          text: timerText,
-          isWarning: remaining.inSeconds < 60,
-        ),
-      ),
+      header: const CustomerHeader(),
       child: Column(
         children: [
           // ── Header row ───────────────────────────────────────────────

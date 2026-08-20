@@ -20,7 +20,6 @@ import '../../../features/session/providers/session_provider.dart';
 import '../../../shared/widgets/customer_header.dart';
 import '../../../shared/widgets/photobooth_layout.dart';
 import '../../../shared/widgets/photo_strip_widget.dart';
-import '../../../shared/widgets/responsive_button.dart';
 import '../../../shared/widgets/responsive_layout_builder.dart';
 
 enum PrintUiStatus {
@@ -42,10 +41,6 @@ class FinalResultScreen extends ConsumerStatefulWidget {
 }
 
 class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
-  static const int _autoResetSeconds = 60;
-  Timer? _autoResetTimer;
-  int _autoResetCountdown = _autoResetSeconds;
-
   PrintUiStatus _printStatus = PrintUiStatus.idle;
   String _printStatusMessage = '';
   String? _connectedPrinterName;
@@ -55,7 +50,6 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
   @override
   void initState() {
     super.initState();
-    _startAutoResetCountdown();
     _triggerBackendGenerationAndAutoPrint();
   }
 
@@ -236,20 +230,10 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
 
   @override
   void dispose() {
-    _autoResetTimer?.cancel();
     super.dispose();
   }
 
-  void _startAutoResetCountdown() {
-    _autoResetTimer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (!mounted) { t.cancel(); return; }
-      setState(() => _autoResetCountdown--);
-      if (_autoResetCountdown <= 0) { t.cancel(); _finishSession(); }
-    });
-  }
-
   void _finishSession() {
-    _autoResetTimer?.cancel();
     ref.read(sessionNotifierProvider.notifier).resetSession();
     if (mounted) context.go(AppRoutes.welcome);
   }
@@ -278,99 +262,85 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
 
         // ── UI Status Cetak (Loading / Berhasil / Gagal) ──
         _buildPrintStatusWidget(),
-        SizedBox(height: isMobile ? 8.h : 10.h),
+        SizedBox(height: isMobile ? 6.h : 8.h),
 
-        // ── Tombol Manual / Retry ───────────────────────
-        if (_printStatus == PrintUiStatus.failed)
-          ResponsiveButton(
-            label: 'COBA CETAK ULANG',
-            icon: Icons.refresh_rounded,
-            variant: ButtonVariant.primary,
-            onPressed: _handleManualPrintRetry,
-            width: double.infinity,
-            height: isMobile ? 44.h : 48.h,
-          ).animate().fadeIn()
-        else
-          ResponsiveButton(
-            label: (_printStatus == PrintUiStatus.printing || _printStatus == PrintUiStatus.preparing)
-                ? 'SEDANG MENCETAK...'
-                : 'CETAK ULANG FOTO',
-            icon: Icons.print_rounded,
-            variant: ButtonVariant.outlined,
+        // ── Tombol Cetak / Cetak Ulang ───────────────────
+        SizedBox(
+          width: double.infinity,
+          height: isMobile ? 42.h : 46.h,
+          child: OutlinedButton(
             onPressed: (_printStatus == PrintUiStatus.printing || _printStatus == PrintUiStatus.preparing)
                 ? null
                 : _handleManualPrintRetry,
-            width: double.infinity,
-            height: isMobile ? 44.h : 48.h,
-          ).animate().fadeIn(delay: 400.ms),
+            style: OutlinedButton.styleFrom(
+              backgroundColor: AppColors.creamWhite,
+              foregroundColor: AppColors.darkBrown,
+              side: const BorderSide(color: AppColors.darkBrown, width: 1.4),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10.r),
+              ),
+            ),
+            child: Text(
+              (_printStatus == PrintUiStatus.printing || _printStatus == PrintUiStatus.preparing)
+                  ? 'Sedang mencetak...'
+                  : 'Cetak',
+              style: GoogleFonts.montserrat(
+                fontSize: isMobile ? 12.5.sp : 14.sp,
+                fontWeight: FontWeight.w600,
+                color: AppColors.darkBrown,
+              ),
+            ),
+          ),
+        ).animate().fadeIn(delay: 200.ms),
 
         SizedBox(height: isMobile ? 8.h : 10.h),
-        ResponsiveButton(
-          label: 'SELESAI & KEMBALI KE AWAL',
-          icon: Icons.check_circle_rounded,
-          onPressed: _finishSession,
+
+        // ── Tombol Selesai (Tanpa Tulisan di Bawahnya) ──
+        SizedBox(
           width: double.infinity,
-          height: isMobile ? 44.h : 48.h,
-        ).animate().fadeIn(delay: 500.ms),
-        SizedBox(height: 6.h),
-        Text(
-          'Sesi akan selesai otomatis dalam $_autoResetCountdown detik',
-          style: AppTextStyles.caption.copyWith(fontSize: isMobile ? 10.sp : 11.5.sp),
-          textAlign: TextAlign.center,
-        ).animate().fadeIn(delay: 600.ms),
+          height: isMobile ? 42.h : 46.h,
+          child: ElevatedButton(
+            onPressed: _finishSession,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.buttonBrown,
+              foregroundColor: AppColors.creamWhite,
+              elevation: 3,
+              shadowColor: AppColors.darkBrown.withValues(alpha: 0.3),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10.r),
+                side: const BorderSide(color: AppColors.gold, width: 1.0),
+              ),
+            ),
+            child: Text(
+              'Selesai',
+              style: GoogleFonts.montserrat(
+                fontSize: isMobile ? 13.sp : 14.5.sp,
+                fontWeight: FontWeight.w700,
+                color: AppColors.creamWhite,
+                letterSpacing: 0.3,
+              ),
+            ),
+          ),
+        ).animate().fadeIn(delay: 300.ms),
       ],
     ).animate().slideX(begin: 0.05, delay: 200.ms);
 
     return PhotoboothLayout(
-      currentStep: 5,
-      header: const CustomerHeader(currentStep: 5),
+      header: const CustomerHeader(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // "Hasil Foto & Cetak" di bawah header
+          // "Hasil Foto" di bawah header
           Padding(
             padding: EdgeInsets.fromLTRB(isMobile ? 14.w : 32.w, 4.h, isMobile ? 14.w : 32.w, 0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Hasil Foto & Cetak Instan', style: GoogleFonts.cormorantGaramond(fontSize: isMobile ? 22.sp : 30.sp, fontWeight: FontWeight.w800, color: AppColors.darkBrown))
-                        .animate().fadeIn(),
-                    SizedBox(height: 2.h),
-                    Text('Foto sedang diproses & dicetak otomatis',
-                        style: AppTextStyles.caption.copyWith(fontSize: isMobile ? 10.sp : 12.sp, color: AppColors.brown)).animate().fadeIn(delay: 100.ms),
-                  ],
-                ),
-                // Vintage Stamp Badge
-                if (!isMobile)
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
-                    decoration: BoxDecoration(
-                      color: AppColors.creamWhite,
-                      borderRadius: BorderRadius.circular(20.r),
-                      border: Border.all(color: AppColors.gold, width: 1.2),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.verified_rounded, size: 16.sp, color: AppColors.gold),
-                        SizedBox(width: 6.w),
-                        Text(
-                          'FAKULTAS KOPI EDITION',
-                          style: GoogleFonts.montserrat(
-                            fontSize: 10.5.sp,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.darkBrown,
-                            letterSpacing: 0.8,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
+            child: Text(
+              'Hasil Foto',
+              style: GoogleFonts.cormorantGaramond(
+                fontSize: isMobile ? 22.sp : 30.sp,
+                fontWeight: FontWeight.w700,
+                color: AppColors.darkBrown,
+              ),
+            ).animate().fadeIn(),
           ),
           SizedBox(height: isMobile ? 6.h : 10.h),
 
@@ -534,18 +504,28 @@ class _QrCard extends StatelessWidget {
         color: AppColors.creamWhite,
         borderRadius: BorderRadius.circular(12.r),
         border: Border.all(color: AppColors.darkBrown, width: 1.5),
-        boxShadow: [BoxShadow(
-          color: AppColors.darkBrown.withValues(alpha: 0.08),
-          blurRadius: 12, offset: const Offset(2, 3))],
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.darkBrown.withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: const Offset(2, 3),
+          ),
+        ],
       ),
       child: Column(
         children: [
-          Text('Scan untuk Download', style: AppTextStyles.titleSmall)
-              .animate().fadeIn(delay: 300.ms),
-          SizedBox(height: 10.h),
+          Text(
+            'Download Foto',
+            style: GoogleFonts.cormorantGaramond(
+              fontSize: 18.sp,
+              fontWeight: FontWeight.w700,
+              color: AppColors.darkBrown,
+            ),
+          ).animate().fadeIn(delay: 200.ms),
+          SizedBox(height: 8.h),
           Container(
-            width: 146.r,
-            height: 146.r,
+            width: 140.r,
+            height: 140.r,
             padding: EdgeInsets.all(8.r),
             decoration: BoxDecoration(
               color: AppColors.white,
@@ -555,26 +535,25 @@ class _QrCard extends StatelessWidget {
                 ? QrImageView(
                     data: qrUrl!,
                     version: QrVersions.auto,
-                    size: 130.r,
+                    size: 124.r,
                     backgroundColor: Colors.white,
                     foregroundColor: Colors.black,
                   )
                 : const Center(
                     child: SizedBox(
-                      width: 32,
-                      height: 32,
+                      width: 28,
+                      height: 28,
                       child: CircularProgressIndicator(
                         strokeWidth: 2.5,
                         color: AppColors.darkBrown,
                       ),
                     ),
                   ),
-          ).animate().scale(begin: const Offset(0.9, 0.9),
-              duration: 400.ms, delay: 300.ms),
-          SizedBox(height: 6.h),
-          Text(qrUrl != null ? 'GIF  •  Final  •  Foto' : 'Menyiapkan QR...',
-              style: AppTextStyles.caption,
-              textAlign: TextAlign.center).animate().fadeIn(delay: 450.ms),
+          ).animate().scale(
+                begin: const Offset(0.9, 0.9),
+                duration: 400.ms,
+                delay: 200.ms,
+              ),
         ],
       ),
     );

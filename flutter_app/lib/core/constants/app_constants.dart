@@ -37,7 +37,7 @@ abstract final class AppConstants {
   }
 
   // ── Session ───────────────────────────────────────────────────────────────
-  static const Duration sessionDuration = Duration(minutes: 6);
+  static const Duration sessionDuration = Duration(minutes: 10);
   static const Duration sessionWarningThreshold = Duration(minutes: 1);
   static const Duration qrExpiryDuration = Duration(days: 30);
   static const Duration sessionTransitionDelay = Duration(seconds: 3);

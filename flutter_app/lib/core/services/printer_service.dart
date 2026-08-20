@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -26,6 +27,11 @@ class PrinterService {
 
   /// Mendapatkan daftar semua printer yang terdeteksi di jaringan / sistem
   static Future<List<Printer>> getAvailablePrinters() async {
+    // Pada Android, Printing.listPrinters tidak didukung oleh native OS tanpa print dialog
+    if (!kIsWeb && Platform.isAndroid) {
+      return [];
+    }
+
     try {
       final printers = await Printing.listPrinters();
       debugPrint('🖨️ Printer terdeteksi (${printers.length}):');
@@ -34,10 +40,7 @@ class PrinterService {
       }
       return printers;
     } catch (e, stack) {
-      ErrorLogger.instance.logHardwareError(
-        message: 'Gagal mengambil daftar printer: $e',
-        stackTrace: stack,
-      );
+      debugPrint('Info listPrinters: $e');
       return [];
     }
   }
@@ -48,7 +51,6 @@ class PrinterService {
     for (int attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         final printers = await getAvailablePrinters();
-
         if (printers.isNotEmpty) {
           // 1. Prioritaskan L8050
           final l8050 = printers.where(

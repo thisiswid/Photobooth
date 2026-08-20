@@ -14,10 +14,9 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../features/session/providers/session_provider.dart';
 import '../../../shared/widgets/customer_header.dart';
 import '../../../shared/widgets/photobooth_layout.dart';
-import '../../../shared/widgets/responsive_button.dart';
 import '../../../shared/widgets/responsive_layout_builder.dart';
 
-/// Payment Screen — Vintage Receipt & QRIS Payment Card (Step 1).
+/// Payment Screen — 1 card QRIS di tengah, layout minimal, tanpa step/receipt berlebihan.
 class PaymentScreen extends ConsumerStatefulWidget {
   const PaymentScreen({super.key});
 
@@ -96,7 +95,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           amount: 48000,
         );
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Pembayaran gagal. Silakan coba lagi.', style: AppTextStyles.bodySmall.copyWith(color: AppColors.creamWhite)),
+          content: Text('Pembayaran gagal. Silakan coba lagi.',
+              style: AppTextStyles.bodySmall.copyWith(color: AppColors.creamWhite)),
           backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
         ));
@@ -107,7 +107,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           amount: 48000,
         );
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Menunggu konfirmasi...', style: AppTextStyles.bodySmall.copyWith(color: AppColors.creamWhite)),
+          content: Text('Menunggu konfirmasi...',
+              style: AppTextStyles.bodySmall.copyWith(color: AppColors.creamWhite)),
           backgroundColor: AppColors.darkBrown,
           behavior: SnackBarBehavior.floating,
         ));
@@ -126,288 +127,190 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   @override
   Widget build(BuildContext context) {
     final isMobile = context.isMobile;
-    final isPortrait = context.isPortrait;
 
-    final qrisCard = Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: isMobile ? 14.w : 20.w,
-        vertical: isMobile ? 12.h : 16.h,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.creamWhite,
-        borderRadius: BorderRadius.circular(16.r),
-        border: Border.all(color: AppColors.borderWarm, width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.darkBrown.withValues(alpha: 0.08),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Judul Pembayaran & Badge QRIS
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+    if (_isProcessing) {
+      return PhotoboothLayout(
+        header: const CustomerHeader(),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
-                decoration: BoxDecoration(
-                  color: AppColors.buttonBrown,
-                  borderRadius: BorderRadius.circular(6.r),
-                ),
-                child: Text(
-                  'QRIS RESMI',
-                  style: GoogleFonts.montserrat(
-                    fontSize: isMobile ? 8.5.sp : 10.sp,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.gold,
-                    letterSpacing: 1.0,
-                  ),
-                ),
-              ),
-              SizedBox(width: 8.w),
+              const CircularProgressIndicator(color: AppColors.darkBrown, strokeWidth: 3),
+              SizedBox(height: 16.h),
               Text(
-                'Scan untuk Membayar',
+                'Memverifikasi Pembayaran...',
                 style: GoogleFonts.cormorantGaramond(
                   fontSize: isMobile ? 18.sp : 22.sp,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
                   color: AppColors.darkBrown,
                 ),
               ),
             ],
-          ).animate().fadeIn(),
+          ),
+        ),
+      );
+    }
 
-          SizedBox(height: isMobile ? 10.h : 14.h),
+    return PhotoboothLayout(
+      header: const CustomerHeader(),
+      child: Center(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.symmetric(
+            horizontal: isMobile ? 20.w : 60.w,
+            vertical: isMobile ? 12.h : 20.h,
+          ),
+          child: _QrisMainCard(
+            price: _price,
+            isMobile: isMobile,
+            onSimulator: _showSimulator,
+          ).animate().fadeIn(duration: 350.ms).slideY(begin: 0.04),
+        ),
+      ),
+    );
+  }
+}
 
-          // Frame QRIS Vintage
+// ── 1 Card Utama QRIS ────────────────────────────────────────────────────────
+
+class _QrisMainCard extends StatelessWidget {
+  const _QrisMainCard({
+    required this.price,
+    required this.isMobile,
+    required this.onSimulator,
+  });
+
+  final String price;
+  final bool isMobile;
+  final VoidCallback onSimulator;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 24.w : 40.w,
+        vertical: isMobile ? 24.h : 36.h,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.creamWhite,
+        borderRadius: BorderRadius.circular(20.r),
+        border: Border.all(color: AppColors.borderWarm, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.darkBrown.withValues(alpha: 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Judul
+          Text(
+            'Scan untuk Membayar',
+            style: GoogleFonts.cormorantGaramond(
+              fontSize: isMobile ? 22.sp : 28.sp,
+              fontWeight: FontWeight.w700,
+              color: AppColors.darkBrown,
+            ),
+          ),
+
+          SizedBox(height: 4.h),
           Container(
-            padding: EdgeInsets.all(isMobile ? 8.r : 12.r),
+            width: 36.w,
+            height: 1.2,
+            color: AppColors.gold.withValues(alpha: 0.55),
+          ),
+          SizedBox(height: isMobile ? 16.h : 22.h),
+
+          // QRIS placeholder (ganti dengan Image.asset saat QRIS real tersedia)
+          Container(
+            padding: EdgeInsets.all(isMobile ? 10.r : 14.r),
             decoration: BoxDecoration(
               color: AppColors.white,
               borderRadius: BorderRadius.circular(14.r),
               border: Border.all(color: AppColors.darkBrown, width: 2),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.darkBrown.withValues(alpha: 0.12),
-                  blurRadius: 14,
+                  color: AppColors.darkBrown.withValues(alpha: 0.10),
+                  blurRadius: 12,
                   offset: const Offset(2, 4),
                 ),
               ],
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.qr_code_2_rounded,
-                  size: isMobile ? 120.sp : 160.sp,
-                  color: Colors.black87,
-                ),
-              ],
+            child: Icon(
+              Icons.qr_code_2_rounded,
+              size: isMobile ? 130.sp : 180.sp,
+              color: Colors.black87,
             ),
-          ).animate().scale(delay: 200.ms, begin: const Offset(0.95, 0.95)),
+          ).animate().scale(delay: 150.ms, begin: const Offset(0.95, 0.95)),
 
-          SizedBox(height: isMobile ? 8.h : 12.h),
+          SizedBox(height: isMobile ? 16.h : 22.h),
 
-          // Panduan E-Wallet
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
-            decoration: BoxDecoration(
-              color: AppColors.paper.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(8.r),
-            ),
-            child: Text(
-              'BCA • GoPay • OVO • DANA • ShopeePay • LinkAja',
-              style: GoogleFonts.montserrat(
-                fontSize: isMobile ? 9.sp : 10.5.sp,
-                fontWeight: FontWeight.w600,
-                color: AppColors.darkBrown,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ],
-      ),
-    );
-
-    final receiptCard = Container(
-      padding: EdgeInsets.all(isMobile ? 14.r : 20.r),
-      decoration: BoxDecoration(
-        color: AppColors.creamWhite,
-        borderRadius: BorderRadius.circular(16.r),
-        border: Border.all(color: AppColors.gold, width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.darkBrown.withValues(alpha: 0.08),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Header Nota
-          Center(
-            child: Text(
-              'RINCIAN SESI',
-              style: GoogleFonts.cormorantGaramond(
-                fontSize: isMobile ? 14.sp : 16.sp,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 2.0,
-                color: AppColors.vintageRust,
-              ),
+          // Total pembayaran
+          Text(
+            'Total',
+            style: GoogleFonts.montserrat(
+              fontSize: isMobile ? 10.sp : 12.sp,
+              color: AppColors.brown,
+              fontWeight: FontWeight.w500,
             ),
           ),
           SizedBox(height: 2.h),
-          Center(
-            child: Text(
-              'Fakultas Kopi Photobooth',
-              style: GoogleFonts.montserrat(
-                fontSize: isMobile ? 9.5.sp : 11.sp,
-                fontWeight: FontWeight.w500,
-                color: AppColors.brown,
+          Text(
+            price,
+            style: GoogleFonts.cormorantGaramond(
+              fontSize: isMobile ? 28.sp : 36.sp,
+              fontWeight: FontWeight.w800,
+              color: AppColors.darkBrown,
+            ),
+          ),
+
+          SizedBox(height: isMobile ? 12.h : 16.h),
+
+          // E-wallet hint
+          Text(
+            'BCA · GoPay · OVO · DANA · ShopeePay',
+            style: GoogleFonts.montserrat(
+              fontSize: isMobile ? 9.sp : 10.sp,
+              color: AppColors.brown.withValues(alpha: 0.75),
+              fontWeight: FontWeight.w500,
+            ),
+            textAlign: TextAlign.center,
+          ),
+
+          SizedBox(height: isMobile ? 20.h : 28.h),
+
+          // Tombol simulator
+          GestureDetector(
+            onTap: onSimulator,
+            child: Container(
+              width: double.infinity,
+              padding: EdgeInsets.symmetric(
+                vertical: isMobile ? 11.h : 13.h,
+              ),
+              decoration: BoxDecoration(
+                color: AppColors.buttonBrown,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                'Simulasi Pembayaran (Demo)',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.montserrat(
+                  fontSize: isMobile ? 12.sp : 13.sp,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.creamWhite,
+                ),
               ),
             ),
-          ),
-          SizedBox(height: isMobile ? 6.h : 10.h),
-          const Divider(color: AppColors.borderWarm),
-          SizedBox(height: isMobile ? 6.h : 8.h),
-
-          // Item Nota
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('1x Sesi Foto Photobooth', style: GoogleFonts.montserrat(fontSize: isMobile ? 10.5.sp : 12.sp, color: AppColors.darkBrown)),
-              Text('Termasuk', style: GoogleFonts.montserrat(fontSize: isMobile ? 9.5.sp : 11.sp, fontWeight: FontWeight.w600, color: AppColors.brown)),
-            ],
-          ),
-          SizedBox(height: 3.h),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('1x Cetak Photo Strip Asli', style: GoogleFonts.montserrat(fontSize: isMobile ? 10.5.sp : 12.sp, color: AppColors.darkBrown)),
-              Text('Termasuk', style: GoogleFonts.montserrat(fontSize: isMobile ? 9.5.sp : 11.sp, fontWeight: FontWeight.w600, color: AppColors.brown)),
-            ],
-          ),
-          SizedBox(height: 3.h),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('File Foto HD & GIF Digital', style: GoogleFonts.montserrat(fontSize: isMobile ? 10.5.sp : 12.sp, color: AppColors.darkBrown)),
-              Text('Gratis', style: GoogleFonts.montserrat(fontSize: isMobile ? 9.5.sp : 11.sp, fontWeight: FontWeight.w700, color: AppColors.success)),
-            ],
-          ),
-
-          SizedBox(height: isMobile ? 6.h : 10.h),
-          const Divider(color: AppColors.borderWarm),
-          SizedBox(height: isMobile ? 6.h : 8.h),
-
-          // Total Harga Besar
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text('Total Bayar:', style: GoogleFonts.montserrat(fontSize: isMobile ? 10.5.sp : 12.sp, fontWeight: FontWeight.w600, color: AppColors.brown)),
-              Text(
-                _price,
-                style: GoogleFonts.cormorantGaramond(
-                  fontSize: isMobile ? 22.sp : 28.sp,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.darkBrown,
-                ),
-              ),
-            ],
-          ),
-
-          SizedBox(height: isMobile ? 10.h : 14.h),
-
-          // Indikator Menunggu Pembayaran
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: isMobile ? 6.h : 8.h),
-            decoration: BoxDecoration(
-              color: AppColors.paper.withValues(alpha: 0.4),
-              borderRadius: BorderRadius.circular(8.r),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                SizedBox(
-                  width: 12.r,
-                  height: 12.r,
-                  child: const CircularProgressIndicator(strokeWidth: 2, color: AppColors.brown),
-                ),
-                SizedBox(width: 8.w),
-                Text(
-                  'Menunggu konfirmasi scan...',
-                  style: GoogleFonts.montserrat(
-                    fontSize: isMobile ? 9.5.sp : 11.sp,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.brown,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          SizedBox(height: isMobile ? 10.h : 14.h),
-
-          // Tombol Simulator
-          ResponsiveButton(
-            label: 'Simulasi Pembayaran (Demo)',
-            icon: Icons.payment_rounded,
-            onPressed: _showSimulator,
-            width: double.infinity,
-            height: isMobile ? 42.h : 48.h,
           ),
         ],
       ),
-    ).animate().slideX(begin: 0.05, delay: 300.ms);
-
-    return PhotoboothLayout(
-      currentStep: 1,
-      header: const CustomerHeader(currentStep: 1),
-      child: _isProcessing
-          ? Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const CircularProgressIndicator(color: AppColors.darkBrown, strokeWidth: 3),
-                  SizedBox(height: 16.h),
-                  Text('Memverifikasi Pembayaran...', style: GoogleFonts.cormorantGaramond(fontSize: 20.sp, fontWeight: FontWeight.w700)),
-                ],
-              ),
-            )
-          : Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: isMobile ? 12.w : 28.w,
-                vertical: isMobile ? 6.h : 8.h,
-              ),
-              child: isMobile || isPortrait
-                  ? SingleChildScrollView(
-                      child: Column(
-                        children: [
-                          qrisCard,
-                          SizedBox(height: 12.h),
-                          receiptCard,
-                          SizedBox(height: 12.h),
-                        ],
-                      ),
-                    )
-                  : Row(
-                      children: [
-                        Expanded(flex: 3, child: qrisCard),
-                        SizedBox(width: 24.w),
-                        Expanded(flex: 2, child: receiptCard),
-                      ],
-                    ),
-            ),
     );
   }
 }
+
+// ── Simulator Sheet ───────────────────────────────────────────────────────────
 
 class _SimulatorSheet extends StatelessWidget {
   const _SimulatorSheet({required this.onResult});
@@ -429,37 +332,41 @@ class _SimulatorSheet extends StatelessWidget {
           Container(
             width: 44.w,
             height: 4.h,
-            decoration: BoxDecoration(color: AppColors.borderWarm, borderRadius: BorderRadius.circular(2)),
+            decoration: BoxDecoration(
+                color: AppColors.borderWarm,
+                borderRadius: BorderRadius.circular(2)),
           ),
           SizedBox(height: 16.h),
-          Text('Simulator Pembayaran Kiosk', style: GoogleFonts.cormorantGaramond(fontSize: 22.sp, fontWeight: FontWeight.w800)),
+          Text(
+            'Simulator Pembayaran',
+            style: GoogleFonts.cormorantGaramond(
+                fontSize: 22.sp, fontWeight: FontWeight.w800),
+          ),
           SizedBox(height: 6.h),
-          Text('Pilih status respons pembayaran untuk pengujian flow', style: AppTextStyles.caption),
+          Text('Pilih status untuk pengujian flow',
+              style: AppTextStyles.caption),
           SizedBox(height: 20.h),
           Row(
             children: [
               Expanded(
                 child: _SimBtn(
-                  label: 'BERHASIL',
-                  icon: Icons.check_circle_outline,
+                  label: 'Berhasil',
                   color: AppColors.success,
                   onTap: () => onResult('success'),
                 ),
               ),
-              SizedBox(width: 12.w),
+              SizedBox(width: 10.w),
               Expanded(
                 child: _SimBtn(
-                  label: 'GAGAL',
-                  icon: Icons.cancel_outlined,
+                  label: 'Gagal',
                   color: AppColors.error,
                   onTap: () => onResult('failed'),
                 ),
               ),
-              SizedBox(width: 12.w),
+              SizedBox(width: 10.w),
               Expanded(
                 child: _SimBtn(
-                  label: 'PENDING',
-                  icon: Icons.hourglass_empty_rounded,
+                  label: 'Pending',
                   color: AppColors.warning,
                   onTap: () => onResult('pending'),
                 ),
@@ -473,9 +380,8 @@ class _SimulatorSheet extends StatelessWidget {
 }
 
 class _SimBtn extends StatelessWidget {
-  const _SimBtn({required this.label, required this.icon, required this.color, required this.onTap});
+  const _SimBtn({required this.label, required this.color, required this.onTap});
   final String label;
-  final IconData icon;
   final Color color;
   final VoidCallback onTap;
 
@@ -490,13 +396,11 @@ class _SimBtn extends StatelessWidget {
           borderRadius: BorderRadius.circular(12.r),
           border: Border.all(color: color, width: 1.5),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: color, size: 24.sp),
-            SizedBox(height: 6.h),
-            Text(label, style: GoogleFonts.montserrat(fontSize: 11.5.sp, fontWeight: FontWeight.w800, color: color)),
-          ],
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: GoogleFonts.montserrat(
+              fontSize: 11.5.sp, fontWeight: FontWeight.w700, color: color),
         ),
       ),
     );
