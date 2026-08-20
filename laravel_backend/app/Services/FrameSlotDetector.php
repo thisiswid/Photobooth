@@ -368,7 +368,7 @@ class FrameSlotDetector
     /**
      * Computer vision scanner for transparent bounding boxes in PNG.
      */
-    private static function detectAlphaCutouts(string $pngPath, int $w, int $h): array
+    public static function detectAlphaCutouts(string $pngPath, int $w, int $h): array
     {
         $im = @imagecreatefrompng($pngPath);
         if (!$im) {
