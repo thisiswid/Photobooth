@@ -61,6 +61,11 @@ class Cafe extends Model
         return $this->hasManyThrough(Payment::class, Session::class, 'cafe_id', 'session_id');
     }
 
+    public function timerSettings(): HasMany
+    {
+        return $this->hasMany(TimerSetting::class);
+    }
+
     public function isSubscriptionActive(): bool
     {
         if ($this->status !== 'active') {

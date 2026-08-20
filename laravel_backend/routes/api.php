@@ -27,6 +27,8 @@ Route::post('/devices/heartbeat', [DeviceProvisioningController::class, 'heartbe
 Route::get('/events/{event}/screen-content', [ScreenContentController::class, 'show']);
 Route::get('/events/{event}/frames', [FrameController::class, 'index']);
 Route::get('/events/{event}/filters', [FilterController::class, 'index']);
+Route::get('/events/{event}/timers', [\App\Http\Controllers\Api\TimerController::class, 'show']);
+Route::get('/timers/active', [\App\Http\Controllers\Api\TimerController::class, 'active']);
 
 // ── Client Error Logging & Diagnostics ─────────────────────────────────────────
 Route::post('/logs', [ErrorLogController::class, 'store']);

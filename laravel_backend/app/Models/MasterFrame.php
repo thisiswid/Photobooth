@@ -34,9 +34,35 @@ class MasterFrame extends Model
     }
 
     /**
-     * Copy / Push this MasterFrame into a specific Cafe's active Event.
+     * Get list of Cafe IDs that already have this MasterFrame installed.
      */
-    public function pushToCafe(Cafe $cafe): Frame
+    public function getInstalledCafeIds(): array
+    {
+        return Cafe::whereHas('events.frames', function ($q) {
+            $q->where('master_frame_id', $this->id)
+              ->orWhere('name', $this->name);
+        })->pluck('id')->toArray();
+    }
+
+    /**
+     * Check whether a specific cafe already has this MasterFrame.
+     */
+    public function isInstalledInCafe(int|Cafe $cafe): bool
+    {
+        $cafeId = $cafe instanceof Cafe ? $cafe->id : $cafe;
+        return Frame::whereHas('event', fn ($q) => $q->where('cafe_id', $cafeId))
+            ->where(function ($q) {
+                $q->where('master_frame_id', $this->id)
+                  ->orWhere('name', $this->name);
+            })
+            ->exists();
+    }
+
+    /**
+     * Copy / Push this MasterFrame into a specific Cafe's active Event.
+     * Prevents duplication: returns null if already installed unless $forceUpdate is true.
+     */
+    public function pushToCafe(Cafe $cafe, bool $forceUpdate = false): ?Frame
     {
         // Cari event aktif cafe atau buat event default
         $event = Event::firstOrCreate(
@@ -48,6 +74,22 @@ class MasterFrame extends Model
                 'active'      => true,
             ]
         );
+
+        // Cek apakah cafe sudah memiliki frame ini di event manapun milik cafe
+        $existingFrame = Frame::whereHas('event', fn ($q) => $q->where('cafe_id', $cafe->id))
+            ->where(function ($q) {
+                $q->where('master_frame_id', $this->id)
+                  ->orWhere('name', $this->name);
+            })
+            ->first();
+
+        if ($existingFrame && !$forceUpdate) {
+            // Pastikan master_frame_id terhubung jika sebelumnya null
+            if (!$existingFrame->master_frame_id) {
+                $existingFrame->update(['master_frame_id' => $this->id]);
+            }
+            return null; // Menandakan frame sudah ada (tidak diduplikasi)
+        }
 
         $layoutConfig = $this->layout_config ?? [];
         $layoutType = $this->layout_type ?? ($layoutConfig['layout_type'] ?? 'single');
@@ -74,19 +116,27 @@ class MasterFrame extends Model
             );
         }
 
-        $frame = Frame::updateOrCreate(
-            [
-                'event_id' => $event->id,
-                'name'     => $this->name,
-            ],
-            [
+        if ($existingFrame) {
+            $existingFrame->update([
                 'master_frame_id' => $this->id,
+                'name'            => $this->name,
                 'asset_url'       => $this->asset_url,
                 'pose_count'      => $this->pose_count,
                 'layout_config'   => $layoutConfig,
                 'active'          => $this->is_active,
-            ]
-        );
+            ]);
+            return $existingFrame;
+        }
+
+        $frame = Frame::create([
+            'event_id'        => $event->id,
+            'master_frame_id' => $this->id,
+            'name'            => $this->name,
+            'asset_url'       => $this->asset_url,
+            'pose_count'      => $this->pose_count,
+            'layout_config'   => $layoutConfig,
+            'active'          => $this->is_active,
+        ]);
 
         $this->increment('usage_count');
 
@@ -123,7 +173,6 @@ class MasterFrame extends Model
             );
         }
 
-        // Update frames matched by master_frame_id or name
         Frame::where('master_frame_id', $this->id)
             ->orWhere('name', $this->name)
             ->update([
@@ -136,3 +185,4 @@ class MasterFrame extends Model
             ]);
     }
 }
+

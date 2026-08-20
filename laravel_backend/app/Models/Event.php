@@ -45,4 +45,9 @@ class Event extends Model
     {
         return $this->hasMany(Session::class);
     }
+
+    public function timerSettings(): HasMany
+    {
+        return $this->hasMany(TimerSetting::class);
+    }
 }
