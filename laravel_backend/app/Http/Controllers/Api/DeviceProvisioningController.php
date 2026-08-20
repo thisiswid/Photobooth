@@ -174,6 +174,8 @@ class DeviceProvisioningController extends Controller
             }
         }
 
+        $timerSetting = \App\Models\TimerSetting::resolveForCafe($cafe->id);
+
         return response()->json([
             'success' => true,
             'message' => 'OK',
@@ -194,9 +196,16 @@ class DeviceProvisioningController extends Controller
                     'default_print_copies' => 2,
                 ],
                 'hardware_defaults' => [
-                    'countdown_seconds' => 5,
+                    'countdown_seconds' => $timerSetting->camera_countdown_seconds,
                     'max_retakes'       => 1,
                     'auto_print'        => true,
+                ],
+                'timers' => [
+                    'camera_countdown_seconds'      => $timerSetting->camera_countdown_seconds,
+                    'session_timeout_seconds'       => $timerSetting->session_timeout_seconds,
+                    'payment_timeout_seconds'       => $timerSetting->payment_timeout_seconds,
+                    'result_screen_timeout_seconds' => $timerSetting->result_screen_timeout_seconds,
+                    'retake_timeout_seconds'        => $timerSetting->retake_timeout_seconds,
                 ],
                 'event'   => $event ? ['id' => $event->id, 'name' => $event->name] : null,
                 'frames'  => $frames,

@@ -232,36 +232,102 @@ class MasterFrameResource extends Resource
                         Select::make('target')
                             ->label('Target Distribusi')
                             ->options([
-                                'all'      => '🚀 Bagikan ke SEMUA Cafe Aktif',
+                                'all'      => '🚀 Bagikan ke SEMUA Cafe Aktif (Otomatis lewati yang sudah punya)',
                                 'specific' => '🏢 Pilih Cafe Tertentu',
                             ])
                             ->default('specific')
                             ->live()
                             ->required(),
-                        Select::make('cafe_id')
+                        Select::make('cafe_ids')
                             ->label('Pilih Cafe')
-                            ->options(Cafe::where('status', 'active')->pluck('name', 'id'))
+                            ->multiple()
+                            ->options(function (MasterFrame $record) {
+                                $installedCafeIds = $record->getInstalledCafeIds();
+                                return Cafe::where('status', 'active')
+                                    ->get()
+                                    ->mapWithKeys(function ($cafe) use ($installedCafeIds) {
+                                        $isInstalled = in_array($cafe->id, $installedCafeIds);
+                                        $label = $isInstalled
+                                            ? "{$cafe->name} (✓ Sudah Memiliki Frame Ini)"
+                                            : $cafe->name;
+                                        return [$cafe->id => $label];
+                                    });
+                            })
+                            ->disableOptionWhen(function (string $value, MasterFrame $record) {
+                                return in_array((int)$value, $record->getInstalledCafeIds());
+                            })
                             ->searchable()
+                            ->helperText('Cafe yang sudah memiliki frame ini ditandai "(✓ Sudah Memiliki Frame Ini)" dan tidak dapat dipilih lagi.')
                             ->visible(fn (callable $get) => $get('target') === 'specific')
                             ->required(fn (callable $get) => $get('target') === 'specific'),
                     ])
                     ->action(function (MasterFrame $record, array $data) {
                         if ($data['target'] === 'all') {
                             $cafes = Cafe::where('status', 'active')->get();
+                            $newlyAdded = 0;
+                            $skipped = 0;
+
                             foreach ($cafes as $c) {
-                                $record->pushToCafe($c);
+                                $res = $record->pushToCafe($c);
+                                if ($res !== null) {
+                                    $newlyAdded++;
+                                } else {
+                                    $skipped++;
+                                }
                             }
-                            Notification::make()
-                                ->title("Frame berhasil dibagikan ke {$cafes->count()} cafe!")
-                                ->success()
-                                ->send();
-                        } else {
-                            $cafe = Cafe::find($data['cafe_id']);
-                            if ($cafe) {
-                                $record->pushToCafe($cafe);
+
+                            if ($newlyAdded > 0 && $skipped > 0) {
                                 Notification::make()
-                                    ->title("Frame berhasil ditambahkan ke {$cafe->name}!")
+                                    ->title("Frame berhasil dibagikan ke {$newlyAdded} cafe baru!")
+                                    ->body("{$skipped} cafe dilewati karena sudah memiliki frame ini.")
                                     ->success()
+                                    ->send();
+                            } elseif ($newlyAdded > 0) {
+                                Notification::make()
+                                    ->title("Frame berhasil dibagikan ke {$newlyAdded} cafe!")
+                                    ->success()
+                                    ->send();
+                            } else {
+                                Notification::make()
+                                    ->title("Semua cafe aktif ({$skipped} cafe) sudah memiliki frame ini.")
+                                    ->warning()
+                                    ->send();
+                            }
+                        } else {
+                            $cafeIds = (array) ($data['cafe_ids'] ?? []);
+                            $newlyAdded = 0;
+                            $skipped = 0;
+                            $names = [];
+
+                            foreach ($cafeIds as $cafeId) {
+                                $cafe = Cafe::find($cafeId);
+                                if ($cafe) {
+                                    $res = $record->pushToCafe($cafe);
+                                    if ($res !== null) {
+                                        $newlyAdded++;
+                                        $names[] = $cafe->name;
+                                    } else {
+                                        $skipped++;
+                                    }
+                                }
+                            }
+
+                            if ($newlyAdded > 0) {
+                                $cafeSummary = implode(', ', array_slice($names, 0, 3));
+                                if ($newlyAdded > 3) {
+                                    $cafeSummary .= ' dan ' . ($newlyAdded - 3) . ' lainnya';
+                                }
+                                $notif = Notification::make()
+                                    ->title("Frame berhasil ditambahkan ke {$newlyAdded} cafe ({$cafeSummary})!")
+                                    ->success();
+                                if ($skipped > 0) {
+                                    $notif->body("{$skipped} cafe dilewati karena sudah memiliki frame ini.");
+                                }
+                                $notif->send();
+                            } else {
+                                Notification::make()
+                                    ->title("Tidak ada cafe baru yang ditambahkan karena sudah memiliki frame ini sebelumnya.")
+                                    ->warning()
                                     ->send();
                             }
                         }
