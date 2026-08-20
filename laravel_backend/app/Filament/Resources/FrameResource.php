@@ -57,12 +57,13 @@ class FrameResource extends Resource
             Select::make('layout_type')
                 ->label('Tipe Layout Frame')
                 ->options([
-                    'single'   => 'Single Strip / Standar (1 Kolom)',
-                    'double_6' => 'Double Strip 6 Foto (2 Kolom: Kiri 3, Kanan 3 — Ambil 3 Pose)',
-                    'double_8' => 'Double Strip 8 Foto (2 Kolom: Kiri 4, Kanan 4 — Ambil 4 Pose)',
+                    'single'   => 'Single Strip (1 Kolom memanjang 600×1800 px — 4 Pose)',
+                    'double_6' => 'Double Strip 6 Foto (2 Kolom 1200×1800 px — Ambil 3 Pose)',
+                    'double_8' => 'Double Strip 8 Foto (2 Kolom 1200×1800 px — Ambil 4 Pose)',
                 ])
                 ->default('single')
                 ->live()
+                ->helperText('Ukuran standar cetak 300 DPI: Double Strip (1200×1800 px), Single Strip (600×1800 px).')
                 ->afterStateUpdated(function ($state, callable $set) {
                     if ($state === 'double_6') {
                         $set('pose_count', 3);
@@ -110,15 +111,22 @@ class FrameResource extends Resource
             FileUpload::make('asset_url')
                 ->label('File Frame Template (PNG Transparan / Gambar Frame)')
                 ->helperText(function (callable $get) {
+                    $layout = $get('layout_type') ?? 'single';
+                    $dimGuide = match($layout) {
+                        'double_6' => '📐 Rekomendasi Kanvas: 1200×1800 px (300 DPI 4R). Ukuran kotak foto: ~504×477 px.',
+                        'double_8' => '📐 Rekomendasi Kanvas: 1200×1800 px (300 DPI 4R). Ukuran kotak foto: ~504×360 px.',
+                        default    => '📐 Rekomendasi Kanvas: 600×1800 px (300 DPI 2x6"). Ukuran kotak foto: ~528×360 px.',
+                    };
+
                     $isAiAllowed = \App\Models\AiSetting::isAiAvailable(auth()->user()?->cafe_id);
                     if (!$isAiAllowed) {
-                        return '📁 File frame akan diproses sesuai format dan tipe layout yang Anda pilih di atas.';
+                        return "$dimGuide\n📁 Mode Manual: File frame PNG transparan akan diproses dengan pemetaan slot presisi.";
                     }
                     $isAi = $get('use_ai_detection') ?? true;
                     if ($isAi) {
-                        return '✨ Mode AI Aktif: Sistem AI akan otomatis mendeteksi posisi slot & melubangi kotak foto saat disimpan.';
+                        return "$dimGuide\n✨ Mode AI Aktif: Sistem AI akan otomatis mendeteksi posisi kotak foto & melubangi transparansi saat disimpan.";
                     }
-                    return '📁 Mode Frame Standar: File frame akan diunggah original tanpa modifikasi AI.';
+                    return "$dimGuide\n📁 Mode Frame Manual: File frame PNG transparan Anda akan dibaca langsung tanpa campur tangan AI.";
                 })
                 ->image()
                 ->imagePreviewHeight('300')

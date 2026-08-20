@@ -60,8 +60,17 @@ class EditFrame extends EditRecord
                     $data['asset_url'] = $analysis['relative_path'];
                 }
                 
-                if (!empty($analysis['slots']) && ($analysis['layout_type'] ?? '') === $layoutType) {
+                if (!empty($analysis['slots'])) {
                     $detectedSlots = $analysis['slots'];
+                }
+            } else {
+                // Mode Manual: Cek apakah file PNG sudah memiliki lubang transparan (Alpha Channel)
+                $isPng = ($imageInfo[2] ?? 0) === IMAGETYPE_PNG;
+                if ($isPng) {
+                    $alphaRes = FrameSlotDetector::detectAlphaCutouts($pngPath, $w, $h);
+                    if (!empty($alphaRes['success']) && !empty($alphaRes['slots'])) {
+                        $detectedSlots = $alphaRes['slots'];
+                    }
                 }
             }
             

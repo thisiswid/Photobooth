@@ -61,10 +61,18 @@ class CreateFrame extends CreateRecord
                     $data['asset_url'] = $analysis['relative_path'];
                 }
                
-                 // Pakai slots dari AI selama tidak kosong — tidak perlu cocokkan layout_type
-                 // karena AI bisa detect berbeda tapi koordinat lubangnya tetap akurat
+                 // Pakai slots dari AI selama tidak kosong
                  if (!empty($analysis['slots'])) {
                     $detectedSlots = $analysis['slots'];
+                }
+            } else {
+                // Mode Manual: Cek apakah file PNG sudah memiliki lubang transparan (Alpha Channel)
+                $isPng = ($imageInfo[2] ?? 0) === IMAGETYPE_PNG;
+                if ($isPng) {
+                    $alphaRes = FrameSlotDetector::detectAlphaCutouts($pngPath, $w, $h);
+                    if (!empty($alphaRes['success']) && !empty($alphaRes['slots'])) {
+                        $detectedSlots = $alphaRes['slots'];
+                    }
                 }
             }
             
