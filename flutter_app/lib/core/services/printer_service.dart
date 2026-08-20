@@ -160,4 +160,106 @@ class PrinterService {
       );
     }
   }
+
+  static Printer? _selectedPrinter;
+
+  static Printer? get selectedPrinter => _selectedPrinter;
+
+  static void setSelectedPrinter(Printer? printer) {
+    _selectedPrinter = printer;
+  }
+
+  /// Mencetak lembar uji coba (Test Print) untuk memvalidasi fungsi printer
+  static Future<PrintJobResult> printTestPage() async {
+    try {
+      final doc = pw.Document();
+      const pageFormat = PdfPageFormat(
+        4.0 * PdfPageFormat.inch,
+        6.0 * PdfPageFormat.inch,
+        marginAll: 20,
+      );
+
+      doc.addPage(
+        pw.Page(
+          pageFormat: pageFormat,
+          build: (pw.Context context) => pw.Container(
+            padding: const pw.EdgeInsets.all(16),
+            decoration: pw.BoxDecoration(
+              border: pw.Border.all(color: PdfColors.brown900, width: 2),
+            ),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.center,
+              mainAxisAlignment: pw.MainAxisAlignment.center,
+              children: [
+                pw.Text(
+                  'FAKULTAS KOPI PHOTOBOOTH',
+                  style: pw.TextStyle(
+                    fontSize: 16,
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColors.brown900,
+                  ),
+                ),
+                pw.SizedBox(height: 8),
+                pw.Text(
+                  'HARDWARE DIAGNOSTIC TEST',
+                  style: const pw.TextStyle(fontSize: 12, color: PdfColors.grey700),
+                ),
+                pw.Divider(color: PdfColors.amber800),
+                pw.SizedBox(height: 12),
+                pw.Text('Status: PRINTER CONNECTED & READY', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                pw.SizedBox(height: 6),
+                pw.Text('Timestamp: ${DateTime.now().toIso8601String()}'),
+                pw.SizedBox(height: 6),
+                pw.Text('Paper Size: 4R (4 x 6 inch)'),
+                pw.SizedBox(height: 16),
+                pw.Container(
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: const pw.BoxDecoration(color: PdfColors.amber100),
+                  child: pw.Text('Hardware check passed successfully.', style: const pw.TextStyle(fontSize: 10)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      final targetPrinter = _selectedPrinter ?? await findEpsonPrinter();
+      if (targetPrinter != null) {
+        final printed = await Printing.directPrintPdf(
+          printer: targetPrinter,
+          onLayout: (PdfPageFormat format) async => doc.save(),
+          name: 'Hardware_Test_Print',
+        );
+
+        return PrintJobResult(
+          isSuccess: printed,
+          message: printed
+              ? 'Test print berhasil dikirim ke ${targetPrinter.name}'
+              : 'Gagal mengirim test print.',
+          printerName: targetPrinter.name,
+          isDirect: true,
+        );
+      } else {
+        // Fallback: buka system print dialog jika direct print gagal mendeteksi printer otomatis
+        final printed = await Printing.layoutPdf(
+          onLayout: (PdfPageFormat format) async => doc.save(),
+          name: 'Hardware_Test_Print',
+        );
+        return PrintJobResult(
+          isSuccess: printed,
+          message: printed ? 'Halaman tes dikirim via System Dialog' : 'Cetak dibatalkan',
+        );
+      }
+    } catch (e, stack) {
+      ErrorLogger.instance.logHardwareError(
+        message: 'Gagal menjalankan test print: $e',
+        stackTrace: stack,
+      );
+      return PrintJobResult(
+        isSuccess: false,
+        message: 'Error test print: $e',
+      );
+    }
+  }
 }
+

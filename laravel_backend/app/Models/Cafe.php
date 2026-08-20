@@ -21,6 +21,7 @@ class Cafe extends Model
         'address',
         'status',
         'is_ai_enabled',
+        'show_kiosk_settings',
         'subscription_end_at',
         'revenue_share_percentage',
         'logo_path',
@@ -29,6 +30,7 @@ class Cafe extends Model
 
     protected $casts = [
         'is_ai_enabled'            => 'boolean',
+        'show_kiosk_settings'      => 'boolean',
         'subscription_end_at'      => 'datetime',
         'revenue_share_percentage' => 'decimal:2',
     ];

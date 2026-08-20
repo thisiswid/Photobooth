@@ -181,10 +181,12 @@ class DeviceProvisioningController extends Controller
             'message' => 'OK',
             'data'    => [
                 'cafe' => [
-                    'id'       => $cafe->id,
-                    'name'     => $cafe->name,
-                    'code'     => $cafe->code,
-                    'logo_url' => $cafe->logo_path ? asset('storage/' . $cafe->logo_path) : null,
+                    'id'                  => $cafe->id,
+                    'name'                => $cafe->name,
+                    'code'                => $cafe->code,
+                    'logo_url'            => $cafe->logo_path ? asset('storage/' . $cafe->logo_path) : null,
+                    'is_ai_enabled'       => (bool) ($cafe->is_ai_enabled ?? true),
+                    'show_kiosk_settings' => (bool) ($cafe->show_kiosk_settings ?? true),
                     'theme'    => [
                         'primary_color' => '#D97706',
                         'accent_color'  => '#78350F',
@@ -196,9 +198,10 @@ class DeviceProvisioningController extends Controller
                     'default_print_copies' => 2,
                 ],
                 'hardware_defaults' => [
-                    'countdown_seconds' => $timerSetting->camera_countdown_seconds,
-                    'max_retakes'       => 1,
-                    'auto_print'        => true,
+                    'countdown_seconds'   => $timerSetting->camera_countdown_seconds,
+                    'max_retakes'         => 1,
+                    'auto_print'          => true,
+                    'show_kiosk_settings' => (bool) ($cafe->show_kiosk_settings ?? true),
                 ],
                 'timers' => [
                     'camera_countdown_seconds'      => $timerSetting->camera_countdown_seconds,

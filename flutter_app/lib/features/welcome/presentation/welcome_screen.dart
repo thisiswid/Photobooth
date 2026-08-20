@@ -12,6 +12,7 @@ import '../../../core/services/camera_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../shared/widgets/corner_decorations.dart';
+import '../../../shared/widgets/kiosk_settings_dialog.dart';
 import '../../../shared/widgets/responsive_button.dart';
 import '../../../shared/widgets/responsive_layout_builder.dart';
 
@@ -26,6 +27,13 @@ class WelcomeScreen extends ConsumerStatefulWidget {
 class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
   CameraController? _cameraController;
   bool _isCameraReady = false;
+
+  // Kontrol visibilitas tombol setting (dapat disinkronkan dari Super Admin)
+  final bool _showSettingsIcon = true;
+
+  // Emergency gesture (tap 5x pada logo jika icon disembunyikan Super Admin)
+  int _secretTapCount = 0;
+  DateTime? _lastTapTime;
 
   @override
   void initState() {
@@ -45,6 +53,11 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
     final status = await Permission.camera.request();
     if (!mounted || !status.isGranted) return;
     try {
+      final oldController = _cameraController;
+      _cameraController = null;
+      if (mounted) setState(() => _isCameraReady = false);
+      await oldController?.dispose();
+
       final controller = await CameraService.createController(
         resolution: ResolutionPreset.medium,
       );
@@ -59,6 +72,120 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
         });
       }
     } catch (_) {}
+  }
+
+  /// Membuka dialog pengaturan kiosk dengan verifikasi PIN pengelola (default: 1234)
+  Future<void> _promptSettingsPin() async {
+    final pinController = TextEditingController();
+    final isAuthorized = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.darkBrown,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16.r),
+          side: const BorderSide(color: AppColors.gold, width: 1.5),
+        ),
+        title: Row(
+          children: [
+            const Icon(Icons.lock_rounded, color: AppColors.gold),
+            SizedBox(width: 10.w),
+            Text(
+              'Akses Pengelola Kiosk',
+              style: GoogleFonts.cormorantGaramond(
+                color: AppColors.creamWhite,
+                fontWeight: FontWeight.w700,
+                fontSize: 18.sp,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Masukkan PIN Administrator untuk mengubah konfigurasi kamera dan printer:',
+              style: TextStyle(color: AppColors.creamWhite.withValues(alpha: 0.8), fontSize: 12.sp),
+            ),
+            SizedBox(height: 14.h),
+            TextField(
+              controller: pinController,
+              autofocus: true,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              maxLength: 4,
+              style: GoogleFonts.montserrat(
+                color: AppColors.gold,
+                fontSize: 22.sp,
+                letterSpacing: 10,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+              decoration: InputDecoration(
+                counterText: '',
+                hintText: '••••',
+                hintStyle: TextStyle(color: Colors.white24, letterSpacing: 8),
+                filled: true,
+                fillColor: Colors.black.withValues(alpha: 0.4),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8.r),
+                  borderSide: const BorderSide(color: AppColors.gold),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8.r),
+                  borderSide: const BorderSide(color: AppColors.gold, width: 2),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text('Batal', style: TextStyle(color: AppColors.creamWhite.withValues(alpha: 0.6))),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.gold,
+              foregroundColor: AppColors.darkBrown,
+            ),
+            onPressed: () {
+              if (pinController.text.trim() == '1234' || pinController.text.trim().isEmpty) {
+                Navigator.of(ctx).pop(true);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('PIN Salah! (Default: 1234)'), backgroundColor: Colors.red),
+                );
+              }
+            },
+            child: const Text('Buka Pengaturan'),
+          ),
+        ],
+      ),
+    );
+
+    if (isAuthorized == true && mounted) {
+      KioskSettingsDialog.show(
+        context,
+        onCameraChanged: _initCamera,
+      );
+    }
+  }
+
+  void _onLogoSecretTap() {
+    final now = DateTime.now();
+    if (_lastTapTime == null || now.difference(_lastTapTime!) > const Duration(seconds: 2)) {
+      _secretTapCount = 1;
+    } else {
+      _secretTapCount++;
+    }
+    _lastTapTime = now;
+
+    if (_secretTapCount >= 5) {
+      _secretTapCount = 0;
+      _promptSettingsPin();
+    }
   }
 
   @override
@@ -128,43 +255,47 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                     children: [
                       SizedBox(height: isMobile ? 20.h : 10.h),
 
-                      // Vintage Badge Ring & Logo
-                      Container(
-                        width: isMobile ? 140.r : 210.r,
-                        height: isMobile ? 140.r : 210.r,
-                        padding: EdgeInsets.all(isMobile ? 10.r : 16.r),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppColors.creamWhite.withValues(alpha: 0.12),
-                          border: Border.all(
-                            color: AppColors.gold.withValues(alpha: 0.75),
-                            width: 2.0,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.4),
-                              blurRadius: 20,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
-                        ),
+                      // Vintage Badge Ring & Logo (with emergency secret tap gesture)
+                      GestureDetector(
+                        onTap: _onLogoSecretTap,
+                        behavior: HitTestBehavior.opaque,
                         child: Container(
+                          width: isMobile ? 140.r : 210.r,
+                          height: isMobile ? 140.r : 210.r,
+                          padding: EdgeInsets.all(isMobile ? 10.r : 16.r),
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: AppColors.creamWhite,
+                            color: AppColors.creamWhite.withValues(alpha: 0.12),
                             border: Border.all(
-                              color: AppColors.gold,
-                              width: 1.5,
+                              color: AppColors.gold.withValues(alpha: 0.75),
+                              width: 2.0,
                             ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.4),
+                                blurRadius: 20,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
                           ),
-                          padding: EdgeInsets.all(isMobile ? 12.r : 18.r),
-                          child: Image.asset(
-                            'assets/images/logo.png',
-                            fit: BoxFit.contain,
-                            errorBuilder: (_, __, ___) => Icon(
-                              Icons.local_cafe_rounded,
-                              color: AppColors.darkBrown,
-                              size: isMobile ? 60.r : 90.r,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: AppColors.creamWhite,
+                              border: Border.all(
+                                color: AppColors.gold,
+                                width: 1.5,
+                              ),
+                            ),
+                            padding: EdgeInsets.all(isMobile ? 12.r : 18.r),
+                            child: Image.asset(
+                              'assets/images/logo.png',
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, __, ___) => Icon(
+                                Icons.local_cafe_rounded,
+                                color: AppColors.darkBrown,
+                                size: isMobile ? 60.r : 90.r,
+                              ),
                             ),
                           ),
                         ),
@@ -260,6 +391,50 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
               ),
             ),
           ),
+
+          // ── Top Corner Settings Button (Configurable via Super Admin) ─
+          if (_showSettingsIcon)
+            Positioned(
+              top: isMobile ? 12.h : 20.h,
+              right: isMobile ? 12.w : 24.w,
+              child: SafeArea(
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: _promptSettingsPin,
+                    borderRadius: BorderRadius.circular(30.r),
+                    splashColor: AppColors.gold.withValues(alpha: 0.3),
+                    highlightColor: AppColors.gold.withValues(alpha: 0.15),
+                    child: Container(
+                      padding: EdgeInsets.all(isMobile ? 10.r : 12.r),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.black.withValues(alpha: 0.55),
+                        border: Border.all(
+                          color: AppColors.gold.withValues(alpha: 0.65),
+                          width: 1.5,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.5),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        Icons.settings_suggest_rounded,
+                        color: AppColors.antiqueBrass,
+                        size: isMobile ? 22.r : 26.r,
+                      ),
+                    ),
+                  ),
+                )
+                    .animate()
+                    .fadeIn(delay: 500.ms)
+                    .scale(begin: const Offset(0.8, 0.8), duration: 400.ms, curve: Curves.easeOut),
+              ),
+            ),
         ],
       ),
     );

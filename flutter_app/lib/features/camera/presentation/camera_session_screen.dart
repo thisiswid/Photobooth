@@ -6,6 +6,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/router/app_router.dart';
+import '../../../core/services/camera_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../features/session/providers/session_provider.dart';
 import '../../../shared/widgets/photobooth_layout.dart';
@@ -81,30 +82,19 @@ class _CameraSessionScreenState extends ConsumerState<CameraSessionScreen> {
 
   Future<void> _initCamera() async {
     try {
-      final cameras = await availableCameras();
-      if (!mounted || cameras.isEmpty) return;
-
-      final camera = cameras.firstWhere(
-        (c) => c.lensDirection == CameraLensDirection.front,
-        orElse: () => cameras.first,
+      final controller = await CameraService.createController(
+        resolution: ResolutionPreset.high,
       );
-
-      final controller = CameraController(
-        camera,
-        ResolutionPreset.medium,
-        enableAudio: false,
-        imageFormatGroup: ImageFormatGroup.jpeg,
-      );
-      await controller.initialize();
-
       if (!mounted) {
-        await controller.dispose();
+        await controller?.dispose();
         return;
       }
-      setState(() {
-        _cameraController = controller;
-        _isCameraReady = true;
-      });
+      if (controller != null) {
+        setState(() {
+          _cameraController = controller;
+          _isCameraReady = true;
+        });
+      }
     } catch (_) {
       // Kamera tidak tersedia — panel kamera akan menampilkan fallback.
     }
