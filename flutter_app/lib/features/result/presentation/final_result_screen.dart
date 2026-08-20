@@ -7,6 +7,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/network/dio_client.dart';
@@ -20,6 +21,7 @@ import '../../../shared/widgets/customer_header.dart';
 import '../../../shared/widgets/photobooth_layout.dart';
 import '../../../shared/widgets/photo_strip_widget.dart';
 import '../../../shared/widgets/responsive_button.dart';
+import '../../../shared/widgets/responsive_layout_builder.dart';
 
 enum PrintUiStatus {
   idle,
@@ -263,101 +265,162 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
         ? '${AppConstants.resultBaseUrl}/${session!.qrToken}'
         : AppConstants.resultBaseUrl;
 
+    final isMobile = context.isMobile;
+    final isPortrait = context.isPortrait;
+
+    final actionPanel = Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _QrCard(qrUrl: qrUrl),
+        SizedBox(height: isMobile ? 8.h : 12.h),
+
+        // ── UI Status Cetak (Loading / Berhasil / Gagal) ──
+        _buildPrintStatusWidget(),
+        SizedBox(height: isMobile ? 8.h : 10.h),
+
+        // ── Tombol Manual / Retry ───────────────────────
+        if (_printStatus == PrintUiStatus.failed)
+          ResponsiveButton(
+            label: 'COBA CETAK ULANG',
+            icon: Icons.refresh_rounded,
+            variant: ButtonVariant.primary,
+            onPressed: _handleManualPrintRetry,
+            width: double.infinity,
+            height: isMobile ? 44.h : 48.h,
+          ).animate().fadeIn()
+        else
+          ResponsiveButton(
+            label: (_printStatus == PrintUiStatus.printing || _printStatus == PrintUiStatus.preparing)
+                ? 'SEDANG MENCETAK...'
+                : 'CETAK ULANG FOTO',
+            icon: Icons.print_rounded,
+            variant: ButtonVariant.outlined,
+            onPressed: (_printStatus == PrintUiStatus.printing || _printStatus == PrintUiStatus.preparing)
+                ? null
+                : _handleManualPrintRetry,
+            width: double.infinity,
+            height: isMobile ? 44.h : 48.h,
+          ).animate().fadeIn(delay: 400.ms),
+
+        SizedBox(height: isMobile ? 8.h : 10.h),
+        ResponsiveButton(
+          label: 'SELESAI & KEMBALI KE AWAL',
+          icon: Icons.check_circle_rounded,
+          onPressed: _finishSession,
+          width: double.infinity,
+          height: isMobile ? 44.h : 48.h,
+        ).animate().fadeIn(delay: 500.ms),
+        SizedBox(height: 6.h),
+        Text(
+          'Sesi akan selesai otomatis dalam $_autoResetCountdown detik',
+          style: AppTextStyles.caption.copyWith(fontSize: isMobile ? 10.sp : 11.5.sp),
+          textAlign: TextAlign.center,
+        ).animate().fadeIn(delay: 600.ms),
+      ],
+    ).animate().slideX(begin: 0.05, delay: 200.ms);
+
     return PhotoboothLayout(
-      header: const CustomerHeader(),
+      currentStep: 5,
+      header: const CustomerHeader(currentStep: 5),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // "Hasil Foto" di bawah header
+          // "Hasil Foto & Cetak" di bawah header
           Padding(
-            padding: EdgeInsets.fromLTRB(32.w, 8.h, 32.w, 0),
-            child: Text('Hasil Foto', style: AppTextStyles.headlineLarge)
-                .animate().fadeIn(),
+            padding: EdgeInsets.fromLTRB(isMobile ? 14.w : 32.w, 4.h, isMobile ? 14.w : 32.w, 0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Hasil Foto & Cetak Instan', style: GoogleFonts.cormorantGaramond(fontSize: isMobile ? 22.sp : 30.sp, fontWeight: FontWeight.w800, color: AppColors.darkBrown))
+                        .animate().fadeIn(),
+                    SizedBox(height: 2.h),
+                    Text('Foto sedang diproses & dicetak otomatis',
+                        style: AppTextStyles.caption.copyWith(fontSize: isMobile ? 10.sp : 12.sp, color: AppColors.brown)).animate().fadeIn(delay: 100.ms),
+                  ],
+                ),
+                // Vintage Stamp Badge
+                if (!isMobile)
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+                    decoration: BoxDecoration(
+                      color: AppColors.creamWhite,
+                      borderRadius: BorderRadius.circular(20.r),
+                      border: Border.all(color: AppColors.gold, width: 1.2),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.verified_rounded, size: 16.sp, color: AppColors.gold),
+                        SizedBox(width: 6.w),
+                        Text(
+                          'FAKULTAS KOPI EDITION',
+                          style: GoogleFonts.montserrat(
+                            fontSize: 10.5.sp,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.darkBrown,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
           ),
-          SizedBox(height: 4.h),
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 32.w),
-            child: Text('Foto sedang diproses & dicetak otomatis',
-                style: AppTextStyles.caption).animate().fadeIn(delay: 100.ms),
-          ),
-          SizedBox(height: 12.h),
+          SizedBox(height: isMobile ? 6.h : 10.h),
 
           Expanded(
             child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 32.w),
-              child: Row(
-                children: [
-                  // ── Preview Photo Strip dengan Frame (flex: 3) ─────────
-                  Expanded(
-                    flex: 3,
-                    child: Center(
-                      child: PhotoStripWidget(
-                        photos: photos,
-                        frame: frame,
-                        colorFilter: sessionState.selectedFilter?.colorFilter,
+              padding: EdgeInsets.symmetric(horizontal: isMobile ? 12.w : 32.w),
+              child: isMobile || isPortrait
+                  ? SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          Center(
+                            child: SizedBox(
+                              height: 380.h,
+                              child: PhotoStripWidget(
+                                photos: photos,
+                                frame: frame,
+                                colorFilter: sessionState.selectedFilter?.colorFilter,
+                              ),
+                            ),
+                          ),
+                          SizedBox(height: 14.h),
+                          actionPanel,
+                          SizedBox(height: 16.h),
+                        ],
                       ),
-                    ).animate().scale(begin: const Offset(0.95, 0.95), duration: 500.ms).fadeIn(duration: 500.ms),
-                  ),
-
-                  SizedBox(width: 24.w),
-
-                  // ── QR + Status Print + Selesai (flex: 2) ─────────────
-                  Expanded(
-                    flex: 2,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    )
+                  : Row(
                       children: [
-                        _QrCard(qrUrl: qrUrl),
-                        SizedBox(height: 12.h),
+                        // ── Preview Photo Strip dengan Frame (flex: 3) ─────────
+                        Expanded(
+                          flex: 3,
+                          child: Center(
+                            child: PhotoStripWidget(
+                              photos: photos,
+                              frame: frame,
+                              colorFilter: sessionState.selectedFilter?.colorFilter,
+                            ),
+                          ).animate().scale(begin: const Offset(0.95, 0.95), duration: 500.ms).fadeIn(duration: 500.ms),
+                        ),
 
-                        // ── UI Status Cetak (Loading / Berhasil / Gagal) ──
-                        _buildPrintStatusWidget(),
-                        SizedBox(height: 10.h),
+                        SizedBox(width: 24.w),
 
-                        // ── Tombol Manual / Retry ───────────────────────
-                        if (_printStatus == PrintUiStatus.failed)
-                          ResponsiveButton(
-                            label: 'COBA CETAK ULANG',
-                            icon: Icons.refresh_rounded,
-                            variant: ButtonVariant.primary,
-                            onPressed: _handleManualPrintRetry,
-                            width: double.infinity,
-                            height: 46.h,
-                          ).animate().fadeIn()
-                        else
-                          ResponsiveButton(
-                            label: (_printStatus == PrintUiStatus.printing || _printStatus == PrintUiStatus.preparing)
-                                ? 'SEDANG MENCETAK...'
-                                : 'CETAK ULANG',
-                            icon: Icons.print_rounded,
-                            variant: ButtonVariant.outlined,
-                            onPressed: (_printStatus == PrintUiStatus.printing || _printStatus == PrintUiStatus.preparing)
-                                ? null
-                                : _handleManualPrintRetry,
-                            width: double.infinity,
-                            height: 46.h,
-                          ).animate().fadeIn(delay: 400.ms),
-
-                        SizedBox(height: 10.h),
-                        ResponsiveButton(
-                          label: 'SELESAI',
-                          icon: Icons.check_rounded,
-                          onPressed: _finishSession,
-                          width: double.infinity,
-                          height: 46.h,
-                        ).animate().fadeIn(delay: 500.ms),
-                        SizedBox(height: 8.h),
-                        Text('Kembali otomatis dalam $_autoResetCountdown detik',
-                            style: AppTextStyles.caption, textAlign: TextAlign.center)
-                            .animate().fadeIn(delay: 600.ms),
+                        // ── QR + Status Print + Selesai (flex: 2) ─────────────
+                        Expanded(
+                          flex: 2,
+                          child: actionPanel,
+                        ),
                       ],
-                    ).animate().slideX(begin: 0.05, delay: 200.ms),
-                  ),
-                ],
-              ),
+                    ),
             ),
           ),
-          SizedBox(height: 16.h),
+          SizedBox(height: isMobile ? 6.h : 12.h),
         ],
       ),
     );

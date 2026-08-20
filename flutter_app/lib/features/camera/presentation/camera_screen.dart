@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image/image.dart' as img;
 import 'package:uuid/uuid.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/services/camera_service.dart';
@@ -18,6 +19,7 @@ import '../../../features/session/providers/session_provider.dart';
 import '../../../shared/widgets/customer_header.dart';
 import '../../../shared/widgets/photobooth_layout.dart';
 import '../../../shared/widgets/photo_strip_widget.dart';
+import '../../../shared/widgets/responsive_layout_builder.dart';
 
 // ── Step enum ─────────────────────────────────────────────────────────────────
 
@@ -142,10 +144,15 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
 
     try {
       if (_cameraController != null && _isCameraReady) {
-        final file = await _cameraController!.takePicture();
+        final rawFile = await _cameraController!.takePicture();
+        if (!mounted) return;
+
+        // Process orientation / flipping so output exactly matches preview
+        final processedFile = await _processCapturedPhoto(rawFile, _isMirrorEnabled);
+
         if (!mounted) return;
         setState(() {
-          _lastCaptured = file;
+          _lastCaptured = processedFile;
           _step = _CaptureStep.result;
         });
       } else {
@@ -170,6 +177,37 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
         _lastCaptured = null;
         _step = _CaptureStep.result;
       });
+    }
+  }
+
+  Future<XFile> _processCapturedPhoto(XFile rawFile, bool isMirrored) async {
+    try {
+      final bytes = await rawFile.readAsBytes();
+      final decoded = img.decodeImage(bytes);
+      if (decoded == null) return rawFile;
+
+      final isFrontCam = _cameraController?.description.lensDirection == CameraLensDirection.front;
+
+      img.Image processed = decoded;
+      // When shooting with front camera on Android/tablets, Android HAL defaults to mirrored raw capture.
+      // If user is in NO MIRROR mode (!isMirrored), we flip it horizontally so text & poses are unmirrored.
+      // If user enabled MIRROR mode (isMirrored), we keep the mirrored selfie.
+      if (isFrontCam) {
+        if (!isMirrored) {
+          processed = img.flipHorizontal(processed);
+        }
+      } else {
+        if (isMirrored) {
+          processed = img.flipHorizontal(processed);
+        }
+      }
+
+      final newBytes = img.encodeJpg(processed, quality: 95);
+      final processedFile = dart_io.File(rawFile.path)..writeAsBytesSync(newBytes);
+      return XFile(processedFile.path);
+    } catch (e) {
+      debugPrint('Error processing photo orientation: $e');
+      return rawFile;
     }
   }
 
@@ -235,8 +273,10 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     return PopScope(
       canPop: false,
       child: PhotoboothLayout(
+        currentStep: 3,
         showDecorations: _step != _CaptureStep.countdown,
         header: CustomerHeader(
+          currentStep: 3,
           trailing: TimerChip(text: timerText, isWarning: isTimerWarning),
         ),
         child: Column(
@@ -635,6 +675,168 @@ class _StepFrameAndPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isCamReady = cameraController != null && cameraController!.value.isInitialized;
+    final isMobile = context.isMobile;
+    final isPortrait = context.isPortrait;
+
+    final cameraViewfinder = Container(
+      decoration: BoxDecoration(
+        color: AppColors.darkCoffee,
+        borderRadius: BorderRadius.circular(20.r),
+        border: Border.all(color: AppColors.darkBrown, width: 2.5),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.darkBrown.withValues(alpha: 0.2),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(17.r),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (isCamReady)
+              Center(
+                child: Transform.flip(
+                  flipX: isMirrorEnabled,
+                  child: FittedBox(
+                    fit: BoxFit.cover,
+                    child: SizedBox(
+                      width: cameraController!.value.previewSize?.width ?? 1280,
+                      height: cameraController!.value.previewSize?.height ?? 720,
+                      child: CameraPreview(cameraController!),
+                    ),
+                  ),
+                ),
+              )
+            else
+              Container(
+                color: AppColors.darkCoffee,
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.photo_camera_rounded,
+                        size: isMobile ? 36.sp : 54.sp,
+                        color: AppColors.paper.withValues(alpha: 0.35),
+                      ),
+                      SizedBox(height: 8.h),
+                      Text(
+                        'Menyiapkan Kamera...',
+                        style: GoogleFonts.inter(
+                          fontSize: isMobile ? 11.sp : 13.sp,
+                          color: AppColors.creamWhite.withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+            // Pose Watermark Indicator di pojok kiri atas kamera
+            Positioned(
+              top: isMobile ? 8.h : 14.h,
+              left: isMobile ? 10.w : 16.w,
+              child: Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: isMobile ? 8.w : 10.w,
+                  vertical: isMobile ? 3.h : 5.h,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(12.r),
+                  border: Border.all(color: AppColors.gold.withValues(alpha: 0.4)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.camera_alt_outlined, color: AppColors.gold, size: isMobile ? 10.sp : 12.sp),
+                    SizedBox(width: 4.w),
+                    Text(
+                      'POSE ${currentPose + 1} OF $totalPoses',
+                      style: GoogleFonts.inter(
+                        color: AppColors.creamWhite,
+                        fontSize: isMobile ? 8.5.sp : 10.sp,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final controlsRow = Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        // Sisi Kiri: Cermin Toggle
+        Text(
+          'Cermin',
+          style: GoogleFonts.inter(
+            fontSize: isMobile ? 11.5.sp : 13.sp,
+            fontWeight: FontWeight.w700,
+            color: AppColors.darkBrown,
+          ),
+        ),
+        SizedBox(width: 8.w),
+        _MirrorTogglePill(
+          isMirrored: isMirrorEnabled,
+          onChanged: onMirrorToggle,
+        ),
+
+        const Spacer(),
+
+        // Sisi Kanan: Tombol AMBIL / MULAI FOTO
+        SizedBox(
+          width: isMobile ? 150.w : 210.w,
+          height: isMobile ? 44.h : 52.h,
+          child: ElevatedButton.icon(
+            onPressed: onStartPhoto,
+            icon: Icon(Icons.camera_alt_rounded, size: isMobile ? 16.sp : 20.sp, color: AppColors.creamWhite),
+            label: Text(
+              'MULAI FOTO',
+              style: GoogleFonts.inter(
+                fontSize: isMobile ? 12.sp : 15.sp,
+                fontWeight: FontWeight.w800,
+                letterSpacing: isMobile ? 0.8 : 1.5,
+                color: AppColors.creamWhite,
+              ),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.buttonBrown,
+              foregroundColor: AppColors.creamWhite,
+              elevation: 4,
+              shadowColor: AppColors.darkBrown.withValues(alpha: 0.4),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14.r),
+                side: const BorderSide(color: AppColors.gold, width: 1.2),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+
+    if (isMobile || isPortrait) {
+      return Padding(
+        padding: EdgeInsets.fromLTRB(14.w, 0, 14.w, 8.h),
+        child: Column(
+          children: [
+            Expanded(child: cameraViewfinder),
+            SizedBox(height: 10.h),
+            controlsRow,
+            SizedBox(height: 6.h),
+            _SessionInfoPill(retakeCount: retakeCount, maxRetake: maxRetake),
+          ],
+        ),
+      );
+    }
 
     return Padding(
       padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 8.h),
@@ -668,157 +870,10 @@ class _StepFrameAndPreview extends StatelessWidget {
           Expanded(
             child: Column(
               children: [
-                // Viewfinder Kamera Besar
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.darkCoffee,
-                      borderRadius: BorderRadius.circular(20.r),
-                      border: Border.all(color: AppColors.darkBrown, width: 2.5),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.darkBrown.withValues(alpha: 0.2),
-                          blurRadius: 16,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(17.r),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          if (isCamReady)
-                            Center(
-                              child: Transform.flip(
-                                flipX: isMirrorEnabled,
-                                child: FittedBox(
-                                  fit: BoxFit.cover,
-                                  child: SizedBox(
-                                    width: cameraController!.value.previewSize?.width ?? 1280,
-                                    height: cameraController!.value.previewSize?.height ?? 720,
-                                    child: CameraPreview(cameraController!),
-                                  ),
-                                ),
-                              ),
-                            )
-                          else
-                            Container(
-                              color: AppColors.darkCoffee,
-                              child: Center(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.photo_camera_rounded,
-                                      size: 54.sp,
-                                      color: AppColors.paper.withValues(alpha: 0.35),
-                                    ),
-                                    SizedBox(height: 12.h),
-                                    Text(
-                                      'Menyiapkan Kamera...',
-                                      style: GoogleFonts.inter(
-                                        fontSize: 13.sp,
-                                        color: AppColors.creamWhite.withValues(alpha: 0.7),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-
-                          // Pose Watermark Indicator di pojok kiri atas kamera
-                          Positioned(
-                            top: 14.h,
-                            left: 16.w,
-                            child: Container(
-                              padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.5),
-                                borderRadius: BorderRadius.circular(12.r),
-                                border: Border.all(color: AppColors.gold.withValues(alpha: 0.4)),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.camera_alt_outlined, color: AppColors.gold, size: 12.sp),
-                                  SizedBox(width: 5.w),
-                                  Text(
-                                    'POSE ${currentPose + 1} OF $totalPoses',
-                                    style: GoogleFonts.inter(
-                                      color: AppColors.creamWhite,
-                                      fontSize: 10.sp,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 1,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-
+                Expanded(child: cameraViewfinder),
                 SizedBox(height: 12.h),
-
-                // Baris Kontrol Bawah (Cermin + Mulai Foto)
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    // Sisi Kiri: Cermin Toggle
-                    Text(
-                      'Cermin',
-                      style: GoogleFonts.inter(
-                        fontSize: 13.sp,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.darkBrown,
-                      ),
-                    ),
-                    SizedBox(width: 10.w),
-                    _MirrorTogglePill(
-                      isMirrored: isMirrorEnabled,
-                      onChanged: onMirrorToggle,
-                    ),
-
-                    const Spacer(),
-
-                    // Sisi Kanan: Tombol AMBIL / MULAI FOTO
-                    SizedBox(
-                      width: 210.w,
-                      height: 52.h,
-                      child: ElevatedButton.icon(
-                        onPressed: onStartPhoto,
-                        icon: Icon(Icons.camera_alt_rounded, size: 20.sp, color: AppColors.creamWhite),
-                        label: Text(
-                          'MULAI FOTO',
-                          style: GoogleFonts.inter(
-                            fontSize: 15.sp,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.5,
-                            color: AppColors.creamWhite,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.buttonBrown,
-                          foregroundColor: AppColors.creamWhite,
-                          elevation: 4,
-                          shadowColor: AppColors.darkBrown.withValues(alpha: 0.4),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14.r),
-                            side: const BorderSide(color: AppColors.gold, width: 1.2),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-
+                controlsRow,
                 SizedBox(height: 8.h),
-
-                // Keterangan Sesi di Bagian Bawah
                 _SessionInfoPill(retakeCount: retakeCount, maxRetake: maxRetake),
               ],
             ),

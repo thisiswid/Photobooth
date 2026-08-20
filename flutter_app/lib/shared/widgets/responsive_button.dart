@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_text_styles.dart';
 
-/// Primary action button — vintage pill style.
+/// Primary action button — vintage pill style with tactile feel.
 ///
-/// Primary:  dark brown fill + cream text (--button-brown #4A2915)
-/// Outlined: transparent fill + dark brown border + dark text
+/// Primary:  dark espresso fill + subtle gold rim + cream text
+/// Outlined: parchment fill + dark brown border + dark espresso text
 enum ButtonVariant { primary, outlined }
 
 class ResponsiveButton extends StatelessWidget {
@@ -36,17 +36,15 @@ class ResponsiveButton extends StatelessWidget {
     final isDisabled = onPressed == null;
 
     final bgColor = isPrimary
-        ? (isDisabled ? AppColors.lightBrown.withValues(alpha: 0.4) : AppColors.buttonBrown)
-        : Colors.transparent;
+        ? (isDisabled ? AppColors.brown.withValues(alpha: 0.45) : AppColors.buttonBrown)
+        : (isDisabled ? AppColors.paper.withValues(alpha: 0.5) : AppColors.creamWhite);
 
     final borderColor = isPrimary
-        ? Colors.transparent
-        : (isDisabled
-            ? AppColors.borderLight
-            : AppColors.darkBrown);
+        ? (isDisabled ? Colors.transparent : AppColors.gold.withValues(alpha: 0.8))
+        : (isDisabled ? AppColors.borderLight : AppColors.darkBrown);
 
     final textColor = isPrimary
-        ? AppColors.creamWhite
+        ? (isDisabled ? AppColors.creamWhite.withValues(alpha: 0.7) : AppColors.creamWhite)
         : (isDisabled ? AppColors.textMuted : AppColors.darkBrown);
 
     return SizedBox(
@@ -56,18 +54,24 @@ class ResponsiveButton extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: isLoading ? null : onPressed,
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: BorderRadius.circular(30.r),
+          splashColor: isPrimary
+              ? AppColors.gold.withValues(alpha: 0.3)
+              : AppColors.darkBrown.withValues(alpha: 0.15),
+          highlightColor: isPrimary
+              ? AppColors.darkCoffee
+              : AppColors.paper,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
             decoration: BoxDecoration(
               color: bgColor,
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: borderColor, width: 1.5),
-              boxShadow: isPrimary && !isDisabled
+              borderRadius: BorderRadius.circular(30.r),
+              border: Border.all(color: borderColor, width: isPrimary ? 1.2 : 1.5),
+              boxShadow: !isDisabled
                   ? [
                       BoxShadow(
-                        color: AppColors.darkBrown.withValues(alpha: 0.25),
-                        blurRadius: 8,
+                        color: AppColors.darkBrown.withValues(alpha: isPrimary ? 0.28 : 0.08),
+                        blurRadius: isPrimary ? 8 : 4,
                         offset: const Offset(0, 3),
                       ),
                     ]
@@ -79,24 +83,37 @@ class ResponsiveButton extends StatelessWidget {
                       width: 22.r,
                       height: 22.r,
                       child: CircularProgressIndicator(
-                        strokeWidth: 2,
+                        strokeWidth: 2.2,
                         color: textColor,
                       ),
                     )
-                  : Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (icon != null) ...[
-                          Icon(icon, size: 18.sp, color: textColor),
-                          SizedBox(width: 8.w),
-                        ],
-                        Text(
-                          label,
-                          style: AppTextStyles.buttonText.copyWith(
-                            color: textColor,
+                  : Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 12.w),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (icon != null) ...[
+                            Icon(icon, size: 17.sp, color: isPrimary && !isDisabled ? AppColors.gold : textColor),
+                            SizedBox(width: 6.w),
+                          ],
+                          Flexible(
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                label,
+                                style: GoogleFonts.montserrat(
+                                  fontSize: 13.5.sp,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.6,
+                                  color: textColor,
+                                ),
+                                maxLines: 1,
+                              ),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
             ),
           ),

@@ -5,6 +5,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/services/camera_service.dart';
@@ -12,8 +13,9 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../shared/widgets/corner_decorations.dart';
 import '../../../shared/widgets/responsive_button.dart';
+import '../../../shared/widgets/responsive_layout_builder.dart';
 
-/// Welcome Screen — NO header, logo besar tengah, live camera BG transparan.
+/// Welcome Screen — Retro-Modern Artisan Studio Grand Entrance.
 class WelcomeScreen extends ConsumerStatefulWidget {
   const WelcomeScreen({super.key});
 
@@ -29,10 +31,6 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
   void initState() {
     super.initState();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
     _initCamera();
   }
 
@@ -65,21 +63,41 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = context.isMobile;
+    final isPortrait = context.isPortrait;
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // ── Live camera BG — tanpa overlay cream ───────────────────────
+          // ── Live camera BG ─────────────────────────────────────────────
           if (_isCameraReady && _cameraController != null)
             _CameraBackground(controller: _cameraController!)
           else
-            Container(color: Colors.black),
+            Container(color: AppColors.darkCoffee),
 
-          // ── Subtle dark gradient di bagian bawah agar tombol terbaca ──
+          // ── Atmospheric Vintage Vignette & Gradient Overlay ───────────
+          Container(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: Alignment.center,
+                radius: 1.1,
+                colors: [
+                  Colors.black.withValues(alpha: 0.25),
+                  Colors.black.withValues(alpha: 0.65),
+                  Colors.black.withValues(alpha: 0.88),
+                ],
+              ),
+            ),
+          ),
+
+          // ── Bottom gradient for CTA readability ───────────────────────
           Positioned(
-            bottom: 0, left: 0, right: 0,
-            height: 280.h,
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: isMobile ? 220.h : 300.h,
             child: Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -87,99 +105,158 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                   end: Alignment.bottomCenter,
                   colors: [
                     Colors.transparent,
-                    Colors.black.withValues(alpha: 0.55),
+                    Colors.black.withValues(alpha: 0.8),
                   ],
                 ),
               ),
             ),
           ),
 
-          // ── Botanical corner decorations ─────────────────────────────
-          const CornerDecorations(opacity: 0.4),
+          // ── Botanical vintage corner decorations (non-mobile) ─────────
+          if (!isMobile) const CornerDecorations(opacity: 0.4),
 
-          // ── Central branding ──────────────────────────────────────────
+          // ── Central Vintage Branding ──────────────────────────────────
           SafeArea(
             child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Spacer(flex: 2),
-
-                  // Logo 2x lebih besar dari sebelumnya (300px), transparan
-                  Image.asset(
-                    'assets/images/logo.png',
-                    width: 220.r,
-                    height: 220.r,
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => Icon(
-                      Icons.local_cafe_rounded,
-                      color: Colors.white,
-                      size: 220.r,
-                    ),
-                  )
-                  .animate()
-                  .scale(
-                    begin: const Offset(0.85, 0.85),
-                    duration: 800.ms,
-                    curve: Curves.easeOutBack,
-                  )
-                  .fadeIn(duration: 600.ms),
-
-                  SizedBox(height: 20.h),
-
-                  // FAKULTAS KOPI
-                  Text(
-                    'FAKULTAS KOPI',
-                    style: AppTextStyles.brandNameLarge.copyWith(
-                      color: Colors.white,
-                      fontSize: 36.sp,
-                      shadows: [
-                        const Shadow(color: Colors.black54, blurRadius: 8),
-                      ],
-                    ),
-                  ).animate().fadeIn(delay: 300.ms),
-
-                  SizedBox(height: 4.h),
-
-                  // PHOTObooth
-                  Row(
+              child: SingleChildScrollView(
+                physics: const NeverScrollableScrollPhysics(),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: isMobile ? 16.w : 32.w),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      SizedBox(height: isMobile ? 20.h : 10.h),
+
+                      // Vintage Badge Ring & Logo
                       Container(
-                        width: 24.w, height: 1,
-                        color: Colors.white.withValues(alpha: 0.6),
-                      ),
-                      SizedBox(width: 8.w),
-                      Text(
-                        'PHOTObooth',
-                        style: AppTextStyles.brandSubtitle.copyWith(
-                          color: Colors.white.withValues(alpha: 0.9),
-                          fontSize: 13.sp,
+                        width: isMobile ? 140.r : 210.r,
+                        height: isMobile ? 140.r : 210.r,
+                        padding: EdgeInsets.all(isMobile ? 10.r : 16.r),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppColors.creamWhite.withValues(alpha: 0.12),
+                          border: Border.all(
+                            color: AppColors.gold.withValues(alpha: 0.75),
+                            width: 2.0,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.4),
+                              blurRadius: 20,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
                         ),
-                      ),
-                      SizedBox(width: 8.w),
-                      Container(
-                        width: 24.w, height: 1,
-                        color: Colors.white.withValues(alpha: 0.6),
-                      ),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: AppColors.creamWhite,
+                            border: Border.all(
+                              color: AppColors.gold,
+                              width: 1.5,
+                            ),
+                          ),
+                          padding: EdgeInsets.all(isMobile ? 12.r : 18.r),
+                          child: Image.asset(
+                            'assets/images/logo.png',
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) => Icon(
+                              Icons.local_cafe_rounded,
+                              color: AppColors.darkBrown,
+                              size: isMobile ? 60.r : 90.r,
+                            ),
+                          ),
+                        ),
+                      )
+                          .animate()
+                          .scale(
+                            begin: const Offset(0.88, 0.88),
+                            duration: 800.ms,
+                            curve: Curves.easeOutBack,
+                          )
+                          .fadeIn(duration: 600.ms),
+
+                      SizedBox(height: isMobile ? 12.h : 18.h),
+
+                      // FAKULTAS KOPI Title
+                      Text(
+                        'FAKULTAS KOPI',
+                        style: GoogleFonts.cormorantGaramond(
+                          color: AppColors.creamWhite,
+                          fontSize: isMobile ? 26.sp : 38.sp,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: isMobile ? 2.0 : 3.5,
+                          shadows: const [
+                            Shadow(color: Colors.black87, blurRadius: 12, offset: Offset(0, 3)),
+                          ],
+                        ),
+                      ).animate().fadeIn(delay: 300.ms),
+
+                      SizedBox(height: isMobile ? 4.h : 6.h),
+
+                      // PHOTOBOOTH EXPERIENCE Subtitle with Vintage Brass Lines
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: isMobile ? 16.w : 32.w,
+                            height: 1.2,
+                            color: AppColors.gold.withValues(alpha: 0.8),
+                          ),
+                          SizedBox(width: isMobile ? 6.w : 10.w),
+                          Text(
+                            'SELF-SERVICE PHOTOBOOTH',
+                            style: GoogleFonts.montserrat(
+                              color: AppColors.creamWhite.withValues(alpha: 0.95),
+                              fontSize: isMobile ? 9.5.sp : 12.5.sp,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: isMobile ? 1.5 : 3.0,
+                              shadows: const [
+                                Shadow(color: Colors.black87, blurRadius: 8),
+                              ],
+                            ),
+                          ),
+                          SizedBox(width: isMobile ? 6.w : 10.w),
+                          Container(
+                            width: isMobile ? 16.w : 32.w,
+                            height: 1.2,
+                            color: AppColors.gold.withValues(alpha: 0.8),
+                          ),
+                        ],
+                      ).animate().fadeIn(delay: 450.ms),
+
+                      SizedBox(height: isMobile ? 24.h : 36.h),
+
+                      // Grand CTA Button — MULAI SESI FOTO
+                      SizedBox(
+                        width: isMobile ? (isPortrait ? 260.w : 220.w) : 320.w,
+                        height: isMobile ? 54.h : 68.h,
+                        child: ResponsiveButton(
+                          label: 'MULAI SESI FOTO',
+                          icon: Icons.camera_alt_rounded,
+                          onPressed: () => context.go(AppRoutes.tutorial),
+                        ),
+                      )
+                          .animate(onPlay: (c) => c.repeat(reverse: true))
+                          .scale(begin: const Offset(1.0, 1.0), end: const Offset(1.03, 1.03), duration: 1400.ms)
+                          .animate()
+                          .fadeIn(delay: 600.ms)
+                          .slideY(begin: 0.1, delay: 600.ms),
+
+                      SizedBox(height: isMobile ? 8.h : 12.h),
+                      Text(
+                        'Sentuh layar untuk memulai sesi fotomu',
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.creamWhite.withValues(alpha: 0.75),
+                          fontSize: isMobile ? 11.sp : 13.sp,
+                        ),
+                      ).animate().fadeIn(delay: 750.ms),
+
+                      SizedBox(height: isMobile ? 20.h : 10.h),
                     ],
-                  ).animate().fadeIn(delay: 450.ms),
-
-                  const Spacer(flex: 2),
-
-                  // Tombol MULAI — 1.5x lebih besar (84h vs 56h)
-                  SizedBox(
-                    width: 300.w,
-                    height: 72.h,
-                    child: ResponsiveButton(
-                      label: 'MULAI',
-                      icon: Icons.camera_alt_rounded,
-                      onPressed: () => context.go(AppRoutes.tutorial),
-                    ),
-                  ).animate().fadeIn(delay: 600.ms).slideY(begin: 0.1, delay: 600.ms),
-
-                  const Spacer(flex: 1),
-                ],
+                  ),
+                ),
               ),
             ),
           ),

@@ -10,13 +10,15 @@ import 'core/constants/app_constants.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Lock to landscape orientation for kiosk experience
+  // Allow all orientations for tablets, phones, and windows desktops
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.landscapeLeft,
     DeviceOrientation.landscapeRight,
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
   ]);
 
-  // Full-screen immersive kiosk mode
+  // Full-screen immersive mode
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 
   // Initialize DioClient (dev mode for now)
@@ -37,13 +39,11 @@ class FakultasKopiApp extends ConsumerWidget {
     final router = ref.watch(appRouterProvider);
 
     return ScreenUtilInit(
-      // Design canvas: 1280x800 (landscape tablet reference)
-      designSize: const Size(
-        AppConstants.designWidth,
-        AppConstants.designHeight,
-      ),
+      // Design canvas: adapts to orientation (landscape 1280x800, portrait 800x1280)
+      designSize: const Size(1280, 800),
       minTextAdapt: true,
-      splitScreenMode: false,
+      splitScreenMode: true,
+      useInheritedMediaQuery: true,
       builder: (context, child) {
         return MaterialApp.router(
           title: AppConstants.appName,
@@ -51,8 +51,6 @@ class FakultasKopiApp extends ConsumerWidget {
           theme: AppTheme.dark,
           routerConfig: router,
           builder: (context, child) {
-            // Prevent text scaling from OS accessibility settings
-            // to keep kiosk layout consistent
             return MediaQuery(
               data: MediaQuery.of(context).copyWith(
                 textScaler: TextScaler.noScaling,

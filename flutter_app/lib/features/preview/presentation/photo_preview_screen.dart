@@ -26,7 +26,9 @@ class PhotoPreviewScreen extends ConsumerWidget {
         '${(remaining.inSeconds % 60).toString().padLeft(2, '0')}';
 
     return PhotoboothLayout(
+      currentStep: 3,
       header: CustomerHeader(
+        currentStep: 3,
         trailing: TimerChip(
           text: timerText,
           isWarning: remaining.inSeconds < 60,
@@ -42,10 +44,20 @@ class PhotoPreviewScreen extends ConsumerWidget {
               children: [
                 Text('Hasil Fotomu', style: AppTextStyles.headlineMedium)
                     .animate().fadeIn(duration: 400.ms),
-                Text(
-                  '${photos.length} / ${sessionState.totalPoses} foto',
-                  style: AppTextStyles.titleSmall.copyWith(
-                      color: AppColors.darkBrown),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
+                  decoration: BoxDecoration(
+                    color: AppColors.creamWhite,
+                    borderRadius: BorderRadius.circular(12.r),
+                    border: Border.all(color: AppColors.gold, width: 1.2),
+                  ),
+                  child: Text(
+                    '${photos.length} / ${sessionState.totalPoses} Foto Siap',
+                    style: AppTextStyles.titleSmall.copyWith(
+                      color: AppColors.darkBrown,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -53,10 +65,13 @@ class PhotoPreviewScreen extends ConsumerWidget {
           SizedBox(height: 4.h),
           Padding(
             padding: EdgeInsets.symmetric(horizontal: 24.w),
-            child: Text(
-              'Periksa fotomu di dalam frame sebelum memilih filter',
-              style: AppTextStyles.bodySmall,
-            ).animate().fadeIn(delay: 200.ms),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Periksa hasil fotomu di dalam bingkai sebelum memilih filter efek',
+                style: AppTextStyles.caption.copyWith(color: AppColors.brown),
+              ).animate().fadeIn(delay: 200.ms),
+            ),
           ),
           SizedBox(height: 12.h),
 
@@ -79,7 +94,7 @@ class PhotoPreviewScreen extends ConsumerWidget {
               children: [
                 Expanded(
                   child: ResponsiveButton(
-                    label: 'Ambil Ulang Semua',
+                    label: 'AMBIL ULANG SEMUA',
                     icon: Icons.refresh_rounded,
                     onPressed: () {
                       ref.read(sessionNotifierProvider.notifier).resetSession();
@@ -93,7 +108,7 @@ class PhotoPreviewScreen extends ConsumerWidget {
                 Expanded(
                   flex: 2,
                   child: ResponsiveButton(
-                    label: 'PILIH FILTER',
+                    label: 'LANJUT PILIH FILTER',
                     icon: Icons.tune_rounded,
                     onPressed: sessionState.allPosesDone
                         ? () => context.go(AppRoutes.filter)

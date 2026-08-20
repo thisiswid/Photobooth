@@ -207,9 +207,30 @@ abstract final class AppTextStyles {
         fontFeatures: [const FontFeature.tabularFigures()],
       );
 
+  // ── Vintage Special & Kiosk Badges ─────────────────────────────────────────
+  static TextStyle get vintageStamp => GoogleFonts.cormorantGaramond(
+        fontSize: 13.sp,
+        fontWeight: FontWeight.w700,
+        color: AppColors.vintageRust,
+        letterSpacing: 2.0,
+      );
+
+  static TextStyle get vintageStepNumber => GoogleFonts.cormorantGaramond(
+        fontSize: 18.sp,
+        fontWeight: FontWeight.w700,
+        color: AppColors.creamWhite,
+      );
+
+  static TextStyle get vintagePoseCounter => GoogleFonts.montserrat(
+        fontSize: 12.sp,
+        fontWeight: FontWeight.w800,
+        color: AppColors.creamWhite,
+        letterSpacing: 1.5,
+      );
+
   static TextStyle get caption => GoogleFonts.cormorantGaramond(
-        fontSize: 11.sp,
-        fontWeight: FontWeight.w400,
+        fontSize: 13.sp,
+        fontWeight: FontWeight.w500,
         color: AppColors.textMuted,
         fontStyle: FontStyle.italic,
       );

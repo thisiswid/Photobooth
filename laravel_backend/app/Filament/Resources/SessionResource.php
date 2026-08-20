@@ -36,9 +36,9 @@ class SessionResource extends Resource
         return $schema->components([
             Section::make('Informasi Sesi')->schema([
                 TextEntry::make('id')->label('ID Sesi'),
-                TextEntry::make('event.name')->label('Event')->default('Fakultas Kopi Main Booth'),
-                TextEntry::make('frame.name')->label('Frame Terpilih')->default('-'),
-                TextEntry::make('filter.name')->label('Filter Terpilih')->default(fn ($record) => $record->selected_filter ?? 'Original'),
+                TextEntry::make('event.name')->label('Event')->placeholder('-'),
+                TextEntry::make('frame.name')->label('Frame Terpilih')->placeholder('-'),
+                TextEntry::make('filter.name')->label('Filter Terpilih')->state(fn ($record) => $record->selected_filter ?? 'Original')->placeholder('-'),
                 TextEntry::make('status')->label('Status Sesi')->badge()
                     ->color(fn ($state) => match($state) {
                         'finished'     => 'success',
@@ -52,32 +52,33 @@ class SessionResource extends Resource
             ])->columns(3),
 
             Section::make('Waktu & Durasi')->schema([
-                TextEntry::make('started_at')->label('Waktu Mulai')->dateTime('d M Y H:i:s'),
-                TextEntry::make('expires_at')->label('Batas Timer (5 Menit)')->dateTime('d M Y H:i:s'),
-                TextEntry::make('finished_at')->label('Waktu Selesai')->dateTime('d M Y H:i:s')->default('-'),
+                TextEntry::make('started_at')->label('Waktu Mulai')->dateTime('d M Y H:i:s')->placeholder('-'),
+                TextEntry::make('expires_at')->label('Batas Timer (5 Menit)')->dateTime('d M Y H:i:s')->placeholder('-'),
+                TextEntry::make('finished_at')->label('Waktu Selesai')->dateTime('d M Y H:i:s')->placeholder('-'),
             ])->columns(3),
 
             Section::make('Informasi Pembayaran')->schema([
                 TextEntry::make('payment.status')->label('Status Pembayaran')->badge()
-                    ->state(fn ($record) => $record->payment ? $record->payment->status : 'paid')
+                    ->state(fn ($record) => $record->payment ? $record->payment->status : ($record->status === 'finished' ? 'paid' : 'unpaid'))
                     ->color(fn ($state) => match($state) {
                         'paid'   => 'success',
                         'failed' => 'danger',
                         default  => 'warning',
                     }),
-                TextEntry::make('payment.amount')->label('Nominal')->state(fn ($record) => $record->payment ? $record->payment->amount : 48000)->money('IDR'),
-                TextEntry::make('payment.paid_at')->label('Waktu Bayar')->state(fn ($record) => $record->payment ? $record->payment->paid_at : $record->started_at)->dateTime('d M Y H:i:s'),
+                TextEntry::make('payment.amount')->label('Nominal')->state(fn ($record) => $record->payment?->amount)->money('IDR')->placeholder('-'),
+                TextEntry::make('payment.paid_at')->label('Waktu Bayar')->state(fn ($record) => $record->payment?->paid_at ?? ($record->status === 'finished' ? $record->started_at : null))->dateTime('d M Y H:i:s')->placeholder('-'),
             ])->columns(3),
 
             Section::make('Akses Hasil & Download')->schema([
-                TextEntry::make('result.qr_token')->label('QR Token')->default('-'),
+                TextEntry::make('result.qr_token')->label('QR Token')->placeholder('-'),
                 TextEntry::make('download_url')
                     ->label('🌐 Link Download Customer')
-                    ->state(fn ($record) => $record->result ? url('/d/' . $record->result->qr_token) : '-')
+                    ->state(fn ($record) => $record->result ? url('/d/' . $record->result->qr_token) : null)
                     ->url(fn ($record) => $record->result ? url('/d/' . $record->result->qr_token) : null)
                     ->openUrlInNewTab()
-                    ->copyable(),
-                TextEntry::make('result.expires_at')->label('Masa Aktif 7 Hari')->dateTime('d M Y H:i:s')->default('-'),
+                    ->copyable()
+                    ->placeholder('-'),
+                TextEntry::make('result.expires_at')->label('Masa Aktif 7 Hari')->dateTime('d M Y H:i:s')->placeholder('-'),
             ])->columns(3),
 
             Section::make('Preview Hasil Akhir')->schema([

@@ -3,6 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/router/app_router.dart';
@@ -14,6 +15,7 @@ import '../../../shared/widgets/customer_header.dart';
 import '../../../shared/widgets/photobooth_layout.dart';
 import '../../../shared/widgets/photo_strip_widget.dart';
 import '../../../shared/widgets/responsive_button.dart';
+import '../../../shared/widgets/responsive_layout_builder.dart';
 import '../domain/models/frame_model.dart';
 import '../providers/frame_provider.dart';
 
@@ -71,11 +73,13 @@ class _FrameSelectionScreenState extends ConsumerState<FrameSelectionScreen> {
     final framesAsync = ref.watch(frameListProvider(eventId));
 
     return PhotoboothLayout(
+      currentStep: 2,
       header: CustomerHeader(
+        currentStep: 2,
         trailing: TimerChip(text: timerText, isWarning: remaining.inSeconds < 60),
       ),
       child: framesAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(child: CircularProgressIndicator(color: AppColors.darkBrown)),
         error: (err, _) => Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -111,9 +115,129 @@ class _FrameSelectionScreenState extends ConsumerState<FrameSelectionScreen> {
             });
           }
 
+          final isMobile = context.isMobile;
+          final isPortrait = context.isPortrait;
+
+          if (isMobile || isPortrait) {
+            // ── Mobile / Portrait Layout ────────────────────────────────────
+            return Padding(
+              padding: EdgeInsets.fromLTRB(14.w, 4.h, 14.w, 10.h),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Pilih Desain Bingkai', style: GoogleFonts.cormorantGaramond(fontSize: 22.sp, fontWeight: FontWeight.w800, color: AppColors.darkBrown)),
+                          Text('Sentuh frame yang kamu sukai', style: AppTextStyles.caption.copyWith(fontSize: 10.5.sp)),
+                        ],
+                      ),
+                      Container(
+                        padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                        decoration: BoxDecoration(
+                          color: AppColors.creamWhite,
+                          borderRadius: BorderRadius.circular(16.r),
+                          border: Border.all(color: AppColors.gold, width: 1.0),
+                        ),
+                        child: Text(
+                          _selectedFrame?.eventName ?? 'Fakultas Kopi',
+                          style: GoogleFonts.montserrat(fontSize: 9.5.sp, fontWeight: FontWeight.w700, color: AppColors.darkBrown),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 8.h),
+
+                  // Grid Frame (2 kolom di mobile)
+                  Expanded(
+                    child: GridView.builder(
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: isMobile ? 2 : 3,
+                        crossAxisSpacing: 10.w,
+                        mainAxisSpacing: 10.h,
+                        childAspectRatio: 0.72,
+                      ),
+                      itemCount: frames.length,
+                      itemBuilder: (_, i) {
+                        final frame = frames[i];
+                        final isSelected = _selectedFrame?.id == frame.id;
+                        return _FrameCard(
+                          frame: frame,
+                          isSelected: isSelected,
+                          onTap: () => setState(() => _selectedFrame = frame),
+                        ).animate().fadeIn(delay: (i * 30).ms);
+                      },
+                    ),
+                  ),
+
+                  SizedBox(height: 8.h),
+
+                  // Bottom Action Bar
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
+                    decoration: BoxDecoration(
+                      color: AppColors.creamWhite,
+                      borderRadius: BorderRadius.circular(14.r),
+                      border: Border.all(color: AppColors.gold, width: 1.2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.darkBrown.withValues(alpha: 0.08),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _selectedFrame?.name ?? 'Pilih Frame',
+                                style: GoogleFonts.montserrat(
+                                  fontSize: 12.sp,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.darkBrown,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                _selectedFrame != null
+                                    ? '${_selectedFrame!.poseCount} Pose Foto'
+                                    : 'Belum memilih',
+                                style: AppTextStyles.caption.copyWith(fontSize: 10.sp, color: AppColors.vintageRust),
+                              ),
+                            ],
+                          ),
+                        ),
+                        SizedBox(width: 12.w),
+                        SizedBox(
+                          width: 150.w,
+                          height: 44.h,
+                          child: ResponsiveButton(
+                            label: 'MULAI FOTO',
+                            icon: Icons.camera_alt_rounded,
+                            onPressed: _selectedFrame != null ? _onContinue : null,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          // ── Desktop & Tablet Landscape Layout ───────────────────────────
           return Row(
             children: [
-              // ── Kiri (Flex: 3): Grid Pilihan Frame Berdasarkan Event ────────
+              // ── Kiri (Flex: 3): Grid Katalog Frame Vintage ─────────────────
               Expanded(
                 flex: 3,
                 child: Padding(
@@ -128,36 +252,38 @@ class _FrameSelectionScreenState extends ConsumerState<FrameSelectionScreen> {
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Pilih Frame Favoritmu', style: AppTextStyles.headlineLarge)
+                              Text('Pilih Desain Bingkai', style: AppTextStyles.headlineLarge)
                                   .animate().fadeIn(),
                               SizedBox(height: 2.h),
-                              Text('Pilih desain bingkai untuk sesi fotomu',
-                                  style: AppTextStyles.caption)
+                              Text('Pilih frame favorit untuk sesi pemotretanmu',
+                                  style: AppTextStyles.caption.copyWith(color: AppColors.brown))
                                   .animate().fadeIn(delay: 50.ms),
                             ],
                           ),
-                          // Event Badge Pill
+                          // Vintage Event Badge Seal
                           Container(
-                            padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
+                            padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
                             decoration: BoxDecoration(
                               color: AppColors.creamWhite,
                               borderRadius: BorderRadius.circular(20.r),
-                              border: Border.all(color: AppColors.borderWarm),
+                              border: Border.all(color: AppColors.gold, width: 1.2),
                               boxShadow: [
                                 BoxShadow(
                                   color: AppColors.darkBrown.withValues(alpha: 0.05),
                                   blurRadius: 6,
+                                  offset: const Offset(0, 2),
                                 ),
                               ],
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.event_seat_rounded, size: 14.sp, color: AppColors.darkBrown),
+                                Icon(Icons.stars_rounded, size: 15.sp, color: AppColors.gold),
                                 SizedBox(width: 6.w),
                                 Text(
-                                  _selectedFrame?.eventName ?? 'Fakultas Kopi Booth',
-                                  style: AppTextStyles.caption.copyWith(
+                                  _selectedFrame?.eventName ?? 'Fakultas Kopi Special',
+                                  style: GoogleFonts.montserrat(
+                                    fontSize: 11.sp,
                                     fontWeight: FontWeight.w700,
                                     color: AppColors.darkBrown,
                                   ),
@@ -170,13 +296,13 @@ class _FrameSelectionScreenState extends ConsumerState<FrameSelectionScreen> {
 
                       SizedBox(height: 12.h),
 
-                      // Grid Kartu Frame
+                      // Grid Kartu Frame Vintage
                       Expanded(
                         child: GridView.builder(
                           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: 3,
-                            crossAxisSpacing: 10.w,
-                            mainAxisSpacing: 10.h,
+                            crossAxisSpacing: 12.w,
+                            mainAxisSpacing: 12.h,
                             childAspectRatio: 0.72,
                           ),
                           itemCount: frames.length,
@@ -197,8 +323,22 @@ class _FrameSelectionScreenState extends ConsumerState<FrameSelectionScreen> {
                 ),
               ),
 
-              // Garis Pemisah Vertikal
-              Container(width: 1.w, color: AppColors.borderWarm),
+              // Garis Pemisah Vertikal Vintage
+              Container(
+                width: 1.2.w,
+                margin: EdgeInsets.symmetric(vertical: 12.h),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      AppColors.gold.withValues(alpha: 0.6),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
 
               // ── Kanan (Flex: 2): Live Preview Frame Terpilih & Tombol Mulai ──
               Expanded(
@@ -208,19 +348,20 @@ class _FrameSelectionScreenState extends ConsumerState<FrameSelectionScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Text('Pratinjau Bingkai', style: AppTextStyles.titleMedium)
+                      Text('Pratinjau Hasil', style: AppTextStyles.titleMedium)
                           .animate().fadeIn(),
-                      SizedBox(height: 4.h),
+                      SizedBox(height: 2.h),
                       Text(
-                        _selectedFrame?.name ?? 'Pilih Frame',
-                        style: AppTextStyles.labelMedium.copyWith(
-                          color: AppColors.darkBrown,
-                          fontWeight: FontWeight.w700,
+                        _selectedFrame?.name ?? 'Pilih Salah Satu Frame',
+                        style: GoogleFonts.cormorantGaramond(
+                          fontSize: 18.sp,
+                          color: AppColors.vintageRust,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
                       SizedBox(height: 8.h),
 
-                      // Frame Preview Widget
+                      // Frame Preview Widget dengan bayangan vintage
                       Expanded(
                         child: Center(
                           child: _selectedFrame != null
@@ -247,20 +388,28 @@ class _FrameSelectionScreenState extends ConsumerState<FrameSelectionScreen> {
                       // Detail Pose & Layout Info Badge
                       if (_selectedFrame != null)
                         Container(
-                          padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+                          padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 6.h),
                           decoration: BoxDecoration(
-                            color: AppColors.cream,
+                            color: AppColors.creamWhite,
                             borderRadius: BorderRadius.circular(8.r),
-                            border: Border.all(color: AppColors.borderWarm),
+                            border: Border.all(color: AppColors.gold, width: 1.2),
                           ),
-                          child: Text(
-                            _selectedFrame!.slotCount > _selectedFrame!.poseCount
-                                ? '${_selectedFrame!.poseCount} Pose (${_selectedFrame!.slotCount} Slot Foto)'
-                                : '${_selectedFrame!.poseCount} Pose Foto',
-                            style: AppTextStyles.caption.copyWith(
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.darkBrown,
-                            ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.camera_alt_outlined, size: 14.sp, color: AppColors.darkBrown),
+                              SizedBox(width: 6.w),
+                              Text(
+                                _selectedFrame!.slotCount > _selectedFrame!.poseCount
+                                    ? '${_selectedFrame!.poseCount} Pose Foto (${_selectedFrame!.slotCount} Slot Strip)'
+                                    : '${_selectedFrame!.poseCount} Pose Foto',
+                                style: GoogleFonts.montserrat(
+                                  fontSize: 11.sp,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.darkBrown,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
 
