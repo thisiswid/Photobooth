@@ -141,7 +141,7 @@ class GenerateResultService
     }
 
     /**
-     * Generates a looping animated GIF from the captured session photos.
+     * Generates a looping animated GIF from the captured session photos with Boomerang stop-motion effect.
      */
     public function generateAnimatedGif(Session $session, string $token): string
     {
@@ -152,28 +152,61 @@ class GenerateResultService
             return '';
         }
 
+        $photoList = $photos->values();
+        $count = $photoList->count();
+
+        // 1. Build Boomerang Sequence: e.g. 0 -> 1 -> 2 -> 3 -> 2 -> 1
+        $seq = [];
+        for ($i = 0; $i < $count; $i++) {
+            $seq[] = $i;
+        }
+        if ($count > 2) {
+            for ($i = $count - 2; $i > 0; $i--) {
+                $seq[] = $i; // Boomerang back
+            }
+        }
+
         $targetW = 600;
-        $targetH = 450;
+        $targetH = 800; // 3:4 Portrait Photobooth standard
         $frames = [];
 
-        foreach ($photos as $photoModel) {
+        // Pre-load and apply filter to each distinct photo
+        $cachedPhotos = [];
+        foreach ($photoList as $idx => $photoModel) {
             $photoImg = $this->loadPhotoGd($photoModel->file_url);
             if ($photoImg) {
                 $this->applyFilter($photoImg, $filter);
-
-                $frameCanvas = imagecreatetruecolor($targetW, $targetH);
-                $this->pasteProportional($frameCanvas, $photoImg, 0, 0, $targetW, $targetH);
-
-                $frames[] = $frameCanvas;
-                imagedestroy($photoImg);
+                $cachedPhotos[$idx] = $photoImg;
             }
+        }
+
+        if (empty($cachedPhotos)) {
+            return '';
+        }
+
+        // Render each frame in the sequence
+        foreach ($seq as $pIdx) {
+            if (!isset($cachedPhotos[$pIdx])) continue;
+
+            $frameCanvas = imagecreatetruecolor($targetW, $targetH);
+            $bgColor = imagecolorallocate($frameCanvas, 245, 239, 235); // Soft cream
+            imagefilledrectangle($frameCanvas, 0, 0, $targetW, $targetH, $bgColor);
+
+            $this->pasteProportional($frameCanvas, $cachedPhotos[$pIdx], 0, 0, $targetW, $targetH);
+            $frames[] = $frameCanvas;
+        }
+
+        // Free cached original photos
+        foreach ($cachedPhotos as $img) {
+            imagedestroy($img);
         }
 
         if (empty($frames)) {
             return '';
         }
 
-        $gifEncoder = new GifEncoder($frames, 50, 0); // 500ms per frame, infinite loop
+        // 35 = 350ms per frame (smooth stop-motion), 0 = infinite loop
+        $gifEncoder = new GifEncoder($frames, 35, 0);
         $gifData = $gifEncoder->getAnimation();
 
         foreach ($frames as $f) {
