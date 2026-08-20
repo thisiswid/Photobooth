@@ -128,6 +128,7 @@ class MasterFrameResource extends Resource
                         ->directory('frames')
                         ->disk('public')
                         ->acceptedFileTypes(['image/png', 'image/jpeg', 'image/webp'])
+                        ->maxSize(51200)
                         ->helperText(function (callable $get) {
                             $isAiAllowed = \App\Models\AiSetting::isAiAvailable();
                             if (!$isAiAllowed) {
