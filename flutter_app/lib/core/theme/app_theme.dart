@@ -60,76 +60,76 @@ final class AppTheme {
   );
 
   // ── Text Theme ────────────────────────────────────────────────────────────
-  static TextTheme get _textTheme => GoogleFonts.interTextTheme(
+  static TextTheme get _textTheme => GoogleFonts.montserratTextTheme(
         TextTheme(
-          displayLarge: GoogleFonts.playfairDisplay(
+          displayLarge: GoogleFonts.cormorantGaramond(
             fontSize: 57.sp,
             fontWeight: FontWeight.w700,
             color: AppColors.textPrimary,
           ),
-          displayMedium: GoogleFonts.playfairDisplay(
+          displayMedium: GoogleFonts.cormorantGaramond(
             fontSize: 45.sp,
             fontWeight: FontWeight.w700,
             color: AppColors.textPrimary,
           ),
-          displaySmall: GoogleFonts.playfairDisplay(
+          displaySmall: GoogleFonts.cormorantGaramond(
             fontSize: 36.sp,
             fontWeight: FontWeight.w600,
             color: AppColors.textPrimary,
           ),
-          headlineLarge: GoogleFonts.playfairDisplay(
+          headlineLarge: GoogleFonts.cormorantGaramond(
             fontSize: 32.sp,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
             color: AppColors.textPrimary,
           ),
-          headlineMedium: GoogleFonts.playfairDisplay(
+          headlineMedium: GoogleFonts.cormorantGaramond(
             fontSize: 28.sp,
             fontWeight: FontWeight.w600,
             color: AppColors.textPrimary,
           ),
-          headlineSmall: GoogleFonts.playfairDisplay(
+          headlineSmall: GoogleFonts.cormorantGaramond(
             fontSize: 24.sp,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w600,
             color: AppColors.textPrimary,
           ),
-          titleLarge: GoogleFonts.inter(
+          titleLarge: GoogleFonts.montserrat(
             fontSize: 22.sp,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
             color: AppColors.textPrimary,
           ),
-          titleMedium: GoogleFonts.inter(
+          titleMedium: GoogleFonts.montserrat(
             fontSize: 16.sp,
             fontWeight: FontWeight.w600,
             color: AppColors.textPrimary,
           ),
-          titleSmall: GoogleFonts.inter(
+          titleSmall: GoogleFonts.montserrat(
             fontSize: 14.sp,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w600,
             color: AppColors.textSecondary,
           ),
-          bodyLarge: GoogleFonts.inter(
+          bodyLarge: GoogleFonts.montserrat(
             fontSize: 16.sp,
             color: AppColors.textPrimary,
           ),
-          bodyMedium: GoogleFonts.inter(
+          bodyMedium: GoogleFonts.montserrat(
             fontSize: 14.sp,
             color: AppColors.textPrimary,
           ),
-          bodySmall: GoogleFonts.inter(
+          bodySmall: GoogleFonts.montserrat(
             fontSize: 12.sp,
             color: AppColors.textSecondary,
           ),
-          labelLarge: GoogleFonts.inter(
+          labelLarge: GoogleFonts.montserrat(
             fontSize: 14.sp,
+            fontWeight: FontWeight.w700,
+            color: AppColors.textPrimary,
+          ),
+          labelMedium: GoogleFonts.montserrat(
+            fontSize: 12.sp,
             fontWeight: FontWeight.w600,
-            color: AppColors.textPrimary,
-          ),
-          labelMedium: GoogleFonts.inter(
-            fontSize: 12.sp,
-            fontWeight: FontWeight.w500,
             color: AppColors.textSecondary,
           ),
-          labelSmall: GoogleFonts.inter(
+          labelSmall: GoogleFonts.montserrat(
             fontSize: 11.sp,
             fontWeight: FontWeight.w500,
             color: AppColors.textMuted,

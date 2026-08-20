@@ -24,24 +24,24 @@ abstract final class AppConstants {
     }
 
     if (Platform.isAndroid) {
-      // Menggunakan IP lokal WiFi PC saat ini (192.168.1.4)
-      return 'http://192.168.1.4:8000/api';
+      // 127.0.0.1 terhubung langsung ke PC via USB menggunakan `adb reverse tcp:8000 tcp:8000`
+      return 'http://127.0.0.1:8000/api';
     }
 
-    // Windows Desktop, macOS, Linux
+    // Windows Desktop, macOS, Linux, Web
     return 'http://127.0.0.1:8000/api';
   }
 
-  static const String apiBaseUrlProd = 'https://api.fakultaskopi.com/api';
-  static const String galleryBaseUrl = 'https://gallery.fakultaskopi.com';
+  static const String apiBaseUrlProd = 'https://snaptechbooth.my.id/api';
+  static const String galleryBaseUrl = 'https://snaptechbooth.my.id';
   static const Duration apiConnectTimeout = Duration(seconds: 15);
   static const Duration apiReceiveTimeout = Duration(seconds: 30);
   static const int apiMaxRetries = 3;
 
   // ── Session ───────────────────────────────────────────────────────────────
-  /// 5-minute session timer — starts at Start Session, after payment PAID.
+  /// 6-minute session timer — starts dynamically after payment PAID.
   /// Timer is NOT active during Welcome, Tutorial, or Payment screens.
-  static const Duration sessionDuration = Duration(minutes: 5);
+  static const Duration sessionDuration = Duration(minutes: 6);
   static const Duration sessionWarningThreshold = Duration(minutes: 1);
   static const Duration qrExpiryDuration = Duration(days: 30);
   static const Duration sessionTransitionDelay = Duration(seconds: 3);

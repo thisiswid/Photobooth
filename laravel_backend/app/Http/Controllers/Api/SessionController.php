@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Event;
 use App\Models\Photo;
 use App\Models\Session;
+use App\Models\TimerSetting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -18,28 +20,35 @@ class SessionController extends Controller
 {
     /**
      * Create / start a session after payment is confirmed PAID.
-     * Sets status=active and starts the 5-minute timer.
+     * Sets status=active and starts the session timer dynamically from TimerSetting.
      */
     public function store(Request $request): JsonResponse
     {
-        $eventId = $request->input('event_id', 1);
+        $eventId = (int)$request->input('event_id', 1);
         $frameId = $request->input('frame_id');
+
+        $event = Event::find($eventId);
+        $timerSetting = TimerSetting::where('event_id', $eventId)->where('is_active', true)->first()
+            ?? TimerSetting::resolveForCafe($event?->cafe_id);
+
+        $durationSeconds = $timerSetting->session_timeout_seconds ?? 360;
 
         $session = Session::create([
             'event_id'   => $eventId,
             'frame_id'   => $frameId,
             'status'     => 'active',
             'started_at' => now(),
-            'expires_at' => now()->addMinutes(5),
+            'expires_at' => now()->addSeconds($durationSeconds),
         ]);
 
         return response()->json([
             'success' => true,
             'data'    => [
-                'session_id' => $session->id,
-                'event_id'   => $session->event_id,
-                'started_at' => $session->started_at,
-                'expires_at' => $session->expires_at,
+                'session_id'              => $session->id,
+                'event_id'                => $session->event_id,
+                'session_timeout_seconds' => $durationSeconds,
+                'started_at'              => $session->started_at,
+                'expires_at'              => $session->expires_at,
             ],
             'message' => 'Session dimulai.',
         ], 201);
@@ -51,14 +60,20 @@ class SessionController extends Controller
      */
     public function setFrame(Request $request, $session): JsonResponse
     {
+        $eventId = (int)$request->input('event_id', 1);
+        $event = Event::find($eventId);
+        $timerSetting = TimerSetting::where('event_id', $eventId)->where('is_active', true)->first()
+            ?? TimerSetting::resolveForCafe($event?->cafe_id);
+        $durationSeconds = $timerSetting->session_timeout_seconds ?? 360;
+
         $sessionModel = is_numeric($session) ? Session::find((int)$session) : ($session instanceof Session ? $session : null);
         if (!$sessionModel) {
             $sessionModel = Session::create([
-                'event_id'   => $request->input('event_id', 1),
+                'event_id'   => $eventId,
                 'frame_id'   => $request->input('frame_id'),
                 'status'     => 'active',
                 'started_at' => now(),
-                'expires_at' => now()->addMinutes(5),
+                'expires_at' => now()->addSeconds($durationSeconds),
             ]);
         } else {
             $sessionModel->update(['frame_id' => $request->input('frame_id')]);
