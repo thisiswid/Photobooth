@@ -330,7 +330,7 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
         TextButton.icon(
           onPressed: () => PrinterSettingsModal.show(
             context,
-            onPrinterSelected: (p) => setState(() => _connectedPrinterName = p.name),
+            onPrinterConfigured: () => setState(() => _connectedPrinterName = 'Epson L8050'),
           ),
           icon: Icon(Icons.tune_rounded, size: 15.r, color: AppColors.brown),
           label: Text(
@@ -376,7 +376,7 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
                   ),
                   onPressed: () => PrinterSettingsModal.show(
                     context,
-                    onPrinterSelected: (p) => setState(() => _connectedPrinterName = p.name),
+                    onPrinterConfigured: () => setState(() => _connectedPrinterName = 'Epson L8050'),
                   ),
                   icon: Icon(Icons.print_rounded, size: 16.r, color: AppColors.darkBrown),
                   label: Text(
@@ -548,7 +548,7 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
                     ),
                     onPressed: () => PrinterSettingsModal.show(
                       context,
-                      onPrinterSelected: (p) => setState(() => _connectedPrinterName = p.name),
+                      onPrinterConfigured: () => setState(() => _connectedPrinterName = 'Epson L8050'),
                     ),
                     icon: Icon(Icons.settings_rounded, size: 14.r, color: const Color(0xFFB71C1C)),
                     label: Text(

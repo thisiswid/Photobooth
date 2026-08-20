@@ -1,8 +1,8 @@
 ﻿import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:printing/printing.dart';
 import '../../core/services/camera_service.dart';
 import '../../core/services/printer_service.dart';
 import '../../core/theme/app_colors.dart';
@@ -36,9 +36,10 @@ class _KioskSettingsDialogState extends State<KioskSettingsDialog> with SingleTi
   CameraDescription? _activeCamera;
   bool _isLoadingCameras = true;
 
-  List<Printer> _printers = [];
-  Printer? _activePrinter;
+  String? _printerIp;
   bool _isLoadingPrinters = true;
+  bool _isPrinterReachable = false;
+  final _ipController = TextEditingController();
   bool _isTestingPrint = false;
   String? _printTestMessage;
 
@@ -52,6 +53,7 @@ class _KioskSettingsDialogState extends State<KioskSettingsDialog> with SingleTi
   @override
   void dispose() {
     _tabController.dispose();
+    _ipController.dispose();
     super.dispose();
   }
 
@@ -77,12 +79,13 @@ class _KioskSettingsDialogState extends State<KioskSettingsDialog> with SingleTi
 
   Future<void> _loadPrinters() async {
     setState(() => _isLoadingPrinters = true);
-    final printers = await PrinterService.getAvailablePrinters();
-    final epson = await PrinterService.findEpsonPrinter(maxRetries: 1);
+    final ip = await PrinterService.getIpAddress();
+    final reachable = await PrinterService.isPrinterReachable(ip: ip);
     if (mounted) {
       setState(() {
-        _printers = printers;
-        _activePrinter = PrinterService.selectedPrinter ?? epson;
+        _printerIp = ip;
+        _ipController.text = ip;
+        _isPrinterReachable = reachable;
         _isLoadingPrinters = false;
       });
     }
@@ -417,8 +420,6 @@ class _KioskSettingsDialogState extends State<KioskSettingsDialog> with SingleTi
       );
     }
 
-    final hasPrinter = _printers.isNotEmpty || _activePrinter != null;
-
     return ListView(
       padding: EdgeInsets.all(16.r),
       children: [
@@ -426,17 +427,17 @@ class _KioskSettingsDialogState extends State<KioskSettingsDialog> with SingleTi
         Container(
           padding: EdgeInsets.all(12.r),
           decoration: BoxDecoration(
-            color: (hasPrinter ? Colors.green : Colors.orange).withValues(alpha: 0.15),
+            color: (_isPrinterReachable ? Colors.green : Colors.orange).withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(8.r),
             border: Border.all(
-              color: (hasPrinter ? Colors.green : Colors.orange).withValues(alpha: 0.5),
+              color: (_isPrinterReachable ? Colors.green : Colors.orange).withValues(alpha: 0.5),
             ),
           ),
           child: Row(
             children: [
               Icon(
-                hasPrinter ? Icons.print_rounded : Icons.print_disabled_rounded,
-                color: hasPrinter ? Colors.greenAccent : Colors.orangeAccent,
+                _isPrinterReachable ? Icons.wifi_rounded : Icons.wifi_off_rounded,
+                color: _isPrinterReachable ? Colors.greenAccent : Colors.orangeAccent,
               ),
               SizedBox(width: 10.w),
               Expanded(
@@ -444,17 +445,17 @@ class _KioskSettingsDialogState extends State<KioskSettingsDialog> with SingleTi
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      hasPrinter ? 'Printer Terhubung (Epson L8050 / Print Service)' : 'Mencari Printer...',
+                      _isPrinterReachable
+                          ? 'Printer dapat dijangkau'
+                          : 'Printer tidak merespons',
                       style: GoogleFonts.montserrat(
-                        color: hasPrinter ? Colors.greenAccent : Colors.orangeAccent,
+                        color: _isPrinterReachable ? Colors.greenAccent : Colors.orangeAccent,
                         fontWeight: FontWeight.w600,
                         fontSize: 12.5.sp,
                       ),
                     ),
                     Text(
-                      _activePrinter != null
-                          ? 'Aktif: ${_activePrinter!.name}'
-                          : 'Printer foto siap mencetak format 4R.',
+                      'Epson L8050 — ${_printerIp ?? '-'} (IPP port 631)',
                       style: TextStyle(
                         color: AppColors.creamWhite.withValues(alpha: 0.8),
                         fontSize: 11.sp,
@@ -535,73 +536,102 @@ class _KioskSettingsDialogState extends State<KioskSettingsDialog> with SingleTi
           ),
         ),
 
-        if (_printers.isNotEmpty) ...[
-          SizedBox(height: 14.h),
-          Text(
-            'DAFTAR PRINTER TERDETEKSI:',
-            style: GoogleFonts.montserrat(
-              color: AppColors.gold,
-              fontSize: 11.5.sp,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.0,
-            ),
+        SizedBox(height: 14.h),
+
+        // IP Address Input Section
+        Container(
+          padding: EdgeInsets.all(12.r),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.25),
+            borderRadius: BorderRadius.circular(10.r),
+            border: Border.all(color: AppColors.gold.withValues(alpha: 0.25)),
           ),
-          SizedBox(height: 8.h),
-          ..._printers.map((printer) {
-            final isSelected = _activePrinter?.url == printer.url || _activePrinter?.name == printer.name;
-            return Card(
-              color: isSelected
-                  ? AppColors.gold.withValues(alpha: 0.2)
-                  : Colors.black.withValues(alpha: 0.25),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10.r),
-                side: BorderSide(
-                  color: isSelected ? AppColors.gold : AppColors.gold.withValues(alpha: 0.2),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'IP ADDRESS PRINTER',
+                style: GoogleFonts.montserrat(
+                  color: AppColors.gold,
+                  fontSize: 11.5.sp,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.0,
                 ),
               ),
-              margin: EdgeInsets.only(bottom: 8.h),
-              child: ListTile(
-                leading: Icon(
-                  Icons.print_rounded,
-                  color: isSelected ? AppColors.gold : AppColors.creamWhite,
-                  size: 24.r,
+              SizedBox(height: 4.h),
+              Text(
+                'Cek IP: Menu → Network → Wi-Fi Setup → IP Address',
+                style: AppTextStyles.caption.copyWith(
+                  color: AppColors.creamWhite.withValues(alpha: 0.6),
+                  fontSize: 10.sp,
                 ),
-                title: Text(
-                  printer.name,
-                  style: GoogleFonts.montserrat(
-                    color: AppColors.creamWhite,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12.5.sp,
-                  ),
-                ),
-                subtitle: Text(
-                  'URL: ${printer.url.isNotEmpty ? printer.url : 'Default Local USB/WiFi'}',
-                  style: TextStyle(
-                    color: AppColors.creamWhite.withValues(alpha: 0.65),
-                    fontSize: 11.sp,
-                  ),
-                ),
-                trailing: isSelected
-                    ? Icon(Icons.check_circle_rounded, color: AppColors.gold, size: 20.r)
-                    : TextButton(
-                        onPressed: () {
-                          setState(() {
-                            _activePrinter = printer;
-                            PrinterService.setSelectedPrinter(printer);
-                          });
-                        },
-                        child: Text('Pilih', style: TextStyle(color: AppColors.antiqueBrass)),
+              ),
+              SizedBox(height: 10.h),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _ipController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                      ],
+                      style: GoogleFonts.montserrat(
+                        color: AppColors.creamWhite,
+                        fontSize: 13.sp,
                       ),
-                onTap: () {
-                  setState(() {
-                    _activePrinter = printer;
-                    PrinterService.setSelectedPrinter(printer);
-                  });
-                },
+                      decoration: InputDecoration(
+                        hintText: '192.168.1.14',
+                        hintStyle: GoogleFonts.montserrat(color: Colors.white30, fontSize: 13.sp),
+                        prefixIcon: Icon(Icons.router_rounded, color: AppColors.gold.withValues(alpha: 0.7), size: 18.r),
+                        filled: true,
+                        fillColor: Colors.white.withValues(alpha: 0.07),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8.r),
+                          borderSide: BorderSide(color: AppColors.gold.withValues(alpha: 0.4)),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8.r),
+                          borderSide: BorderSide(color: AppColors.gold.withValues(alpha: 0.4)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8.r),
+                          borderSide: BorderSide(color: AppColors.gold, width: 1.5),
+                        ),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 10.h),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 8.w),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.gold,
+                      foregroundColor: AppColors.darkBrown,
+                      padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 12.h),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
+                    ),
+                    onPressed: () async {
+                      final ip = _ipController.text.trim();
+                      if (ip.isEmpty) return;
+                      await PrinterService.setIpAddress(ip);
+                      final reachable = await PrinterService.isPrinterReachable(ip: ip);
+                      if (mounted) {
+                        setState(() {
+                          _printerIp = ip;
+                          _isPrinterReachable = reachable;
+                        });
+                      }
+                    },
+                    child: Text(
+                      'Simpan',
+                      style: GoogleFonts.montserrat(fontWeight: FontWeight.w700, fontSize: 12.sp),
+                    ),
+                  ),
+                ],
               ),
-            );
-          }),
-        ],
+            ],
+          ),
+        ),
       ],
     );
   }
