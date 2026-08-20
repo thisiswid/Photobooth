@@ -140,7 +140,6 @@ class MasterFrameResource extends Resource
                             return '📁 Mode Frame Standar: File frame akan diunggah original tanpa modifikasi AI.';
                         })
                         ->columnSpanFull(),
-                        ->columnSpanFull(),
                     Textarea::make('description')
                         ->label('Deskripsi Desain')
                         ->rows(3)
