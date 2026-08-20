@@ -254,6 +254,8 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
     if (mounted) context.go(AppRoutes.welcome);
   }
 
+  bool _showMotionPreview = false;
+
   @override
   Widget build(BuildContext context) {
     final sessionState = ref.watch(sessionNotifierProvider);
@@ -270,6 +272,109 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
     final isMobile = context.isMobile;
     final isPortrait = context.isPortrait;
 
+    final previewContent = Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        // ── Segmented Toggle: Strip Foto vs Motion Video ─────────
+        Container(
+          padding: EdgeInsets.all(4.r),
+          decoration: BoxDecoration(
+            color: AppColors.creamWhite,
+            borderRadius: BorderRadius.circular(30.r),
+            border: Border.all(color: AppColors.gold, width: 1.2),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.darkBrown.withValues(alpha: 0.06),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              GestureDetector(
+                onTap: () => setState(() => _showMotionPreview = false),
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 6.h),
+                  decoration: BoxDecoration(
+                    color: !_showMotionPreview ? AppColors.darkBrown : Colors.transparent,
+                    borderRadius: BorderRadius.circular(24.r),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.photo_library_rounded,
+                        size: 15.sp,
+                        color: !_showMotionPreview ? AppColors.creamWhite : AppColors.darkBrown,
+                      ),
+                      SizedBox(width: 6.w),
+                      Text(
+                        'Strip Cetak',
+                        style: GoogleFonts.montserrat(
+                          fontSize: 11.5.sp,
+                          fontWeight: FontWeight.w700,
+                          color: !_showMotionPreview ? AppColors.creamWhite : AppColors.darkBrown,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SizedBox(width: 4.w),
+              GestureDetector(
+                onTap: () => setState(() => _showMotionPreview = true),
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 6.h),
+                  decoration: BoxDecoration(
+                    color: _showMotionPreview ? AppColors.darkBrown : Colors.transparent,
+                    borderRadius: BorderRadius.circular(24.r),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.movie_filter_rounded,
+                        size: 15.sp,
+                        color: _showMotionPreview ? AppColors.creamWhite : AppColors.darkBrown,
+                      ),
+                      SizedBox(width: 6.w),
+                      Text(
+                        'Motion Video / GIF',
+                        style: GoogleFonts.montserrat(
+                          fontSize: 11.5.sp,
+                          fontWeight: FontWeight.w700,
+                          color: _showMotionPreview ? AppColors.creamWhite : AppColors.darkBrown,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ).animate().fadeIn(duration: 300.ms),
+        SizedBox(height: 12.h),
+
+        // ── Display Active Preview ──────────────────────────────
+        Expanded(
+          child: Center(
+            child: !_showMotionPreview
+                ? PhotoStripWidget(
+                    photos: photos,
+                    frame: frame,
+                    colorFilter: sessionState.selectedFilter?.colorFilter,
+                  )
+                : _MotionPlayerWidget(
+                    photos: photos,
+                    colorFilter: sessionState.selectedFilter?.colorFilter,
+                  ),
+          ),
+        ),
+      ],
+    );
+
     final actionPanel = Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -278,31 +383,20 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
 
         // ── UI Status Cetak (Loading / Berhasil / Gagal) ──
         _buildPrintStatusWidget(),
-        SizedBox(height: isMobile ? 8.h : 10.h),
 
-        // ── Tombol Manual / Retry ───────────────────────
-        if (_printStatus == PrintUiStatus.failed)
+        // ── Tombol Retry Cetak Manual jika Gagal ──
+        if (_printStatus == PrintUiStatus.failed) ...[
+          SizedBox(height: 8.h),
           ResponsiveButton(
-            label: 'COBA CETAK ULANG',
+            label: 'Coba Cetak Ulang',
             icon: Icons.refresh_rounded,
-            variant: ButtonVariant.primary,
-            onPressed: _handleManualPrintRetry,
-            width: double.infinity,
-            height: isMobile ? 44.h : 48.h,
-          ).animate().fadeIn()
-        else
-          ResponsiveButton(
-            label: (_printStatus == PrintUiStatus.printing || _printStatus == PrintUiStatus.preparing)
-                ? 'SEDANG MENCETAK...'
-                : 'CETAK ULANG FOTO',
-            icon: Icons.print_rounded,
-            variant: ButtonVariant.outlined,
             onPressed: (_printStatus == PrintUiStatus.printing || _printStatus == PrintUiStatus.preparing)
                 ? null
                 : _handleManualPrintRetry,
             width: double.infinity,
             height: isMobile ? 44.h : 48.h,
           ).animate().fadeIn(delay: 400.ms),
+        ],
 
         SizedBox(height: isMobile ? 8.h : 10.h),
         ResponsiveButton(
@@ -383,12 +477,8 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
                         children: [
                           Center(
                             child: SizedBox(
-                              height: 380.h,
-                              child: PhotoStripWidget(
-                                photos: photos,
-                                frame: frame,
-                                colorFilter: sessionState.selectedFilter?.colorFilter,
-                              ),
+                              height: 400.h,
+                              child: previewContent,
                             ),
                           ),
                           SizedBox(height: 14.h),
@@ -399,16 +489,10 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
                     )
                   : Row(
                       children: [
-                        // ── Preview Photo Strip dengan Frame (flex: 3) ─────────
+                        // ── Preview Photo Strip / Motion Video (flex: 3) ─────────
                         Expanded(
                           flex: 3,
-                          child: Center(
-                            child: PhotoStripWidget(
-                              photos: photos,
-                              frame: frame,
-                              colorFilter: sessionState.selectedFilter?.colorFilter,
-                            ),
-                          ).animate().scale(begin: const Offset(0.95, 0.95), duration: 500.ms).fadeIn(duration: 500.ms),
+                          child: previewContent.animate().scale(begin: const Offset(0.95, 0.95), duration: 500.ms).fadeIn(duration: 500.ms),
                         ),
 
                         SizedBox(width: 24.w),
@@ -575,6 +659,227 @@ class _QrCard extends StatelessWidget {
           Text(qrUrl != null ? 'GIF  •  Final  •  Foto' : 'Menyiapkan QR...',
               style: AppTextStyles.caption,
               textAlign: TextAlign.center).animate().fadeIn(delay: 450.ms),
+        ],
+      ),
+    );
+  }
+}
+
+/// Widget Looping Boomerang Motion Animation untuk Tablet Kiosk
+class _MotionPlayerWidget extends StatefulWidget {
+  const _MotionPlayerWidget({
+    required this.photos,
+    this.colorFilter,
+  });
+
+  final List<dynamic> photos;
+  final ColorFilter? colorFilter;
+
+  @override
+  State<_MotionPlayerWidget> createState() => _MotionPlayerWidgetState();
+}
+
+class _MotionPlayerWidgetState extends State<_MotionPlayerWidget> {
+  Timer? _loopTimer;
+  int _currentSeqIndex = 0;
+  List<int> _sequence = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _buildSequence();
+    _startAnimationLoop();
+  }
+
+  void _buildSequence() {
+    final count = widget.photos.length;
+    if (count == 0) return;
+    _sequence = [];
+    for (int i = 0; i < count; i++) {
+      _sequence.add(i);
+    }
+    if (count > 2) {
+      for (int i = count - 2; i > 0; i--) {
+        _sequence.add(i);
+      }
+    }
+  }
+
+  void _startAnimationLoop() {
+    if (_sequence.isEmpty) return;
+    _loopTimer?.cancel();
+    _loopTimer = Timer.periodic(const Duration(milliseconds: 350), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        _currentSeqIndex = (_currentSeqIndex + 1) % _sequence.length;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _loopTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.photos.isEmpty) {
+      return Container(
+        padding: EdgeInsets.all(24.r),
+        decoration: BoxDecoration(
+          color: AppColors.creamWhite,
+          borderRadius: BorderRadius.circular(16.r),
+          border: Border.all(color: AppColors.gold, width: 1.5),
+        ),
+        child: const Center(
+          child: Text('Foto belum tersedia untuk animasi motion.'),
+        ),
+      );
+    }
+
+    final photoIdx = _sequence.isNotEmpty ? _sequence[_currentSeqIndex] : 0;
+    final photo = widget.photos[photoIdx.clamp(0, widget.photos.length - 1)];
+    final path = (photo is String) ? photo : (photo.fileUrl as String);
+
+    Widget imageWidget;
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      imageWidget = Image.network(
+        path,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+      );
+    } else {
+      final file = dart_io.File(path);
+      imageWidget = file.existsSync()
+          ? Image.file(
+              file,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+            )
+          : Container(
+              color: Colors.grey.shade300,
+              child: const Icon(Icons.broken_image, color: Colors.grey),
+            );
+    }
+
+    if (widget.colorFilter != null) {
+      imageWidget = ColorFiltered(
+        colorFilter: widget.colorFilter!,
+        child: imageWidget,
+      );
+    }
+
+    return Container(
+      width: 280.w,
+      height: 380.h,
+      padding: EdgeInsets.fromLTRB(14.w, 14.h, 14.w, 18.h),
+      decoration: BoxDecoration(
+        color: AppColors.creamWhite,
+        borderRadius: BorderRadius.circular(16.r),
+        border: Border.all(color: AppColors.gold, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.darkBrown.withValues(alpha: 0.12),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Header Badge
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 8.r,
+                    height: 8.r,
+                    decoration: const BoxDecoration(
+                      color: Colors.redAccent,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  SizedBox(width: 6.w),
+                  Text(
+                    'LIVE BOOMERANG',
+                    style: GoogleFonts.montserrat(
+                      fontSize: 9.5.sp,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.darkBrown,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                ],
+              ),
+              Text(
+                'Pose ${photoIdx + 1} / ${widget.photos.length}',
+                style: GoogleFonts.montserrat(
+                  fontSize: 9.5.sp,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.brown,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 8.h),
+
+          // Foto Motion Animation
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10.r),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  imageWidget,
+                  // Film strip perforation overlay
+                  Positioned(
+                    bottom: 8.h,
+                    right: 8.w,
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.6),
+                        borderRadius: BorderRadius.circular(12.r),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.loop_rounded, color: Colors.white, size: 12.sp),
+                          SizedBox(width: 4.w),
+                          Text(
+                            'LOOP',
+                            style: GoogleFonts.montserrat(
+                              fontSize: 9.sp,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          SizedBox(height: 8.h),
+          Text(
+            'Scan QR untuk download Video MP4 & Motion GIF',
+            style: AppTextStyles.caption.copyWith(
+              fontSize: 10.sp,
+              color: AppColors.brown,
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.center,
+          ),
         ],
       ),
     );

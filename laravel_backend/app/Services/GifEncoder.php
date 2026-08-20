@@ -71,10 +71,11 @@ class GifEncoder
 
         // 5. Add Each Frame
         foreach ($this->frames as $idx => $frame) {
-            $delay = $this->delays[$idx] ?? 50;
+            $delay = $this->delays[$idx] ?? 40;
 
-            // Graphic Control Extension (Disposal=1 (leave), UserInput=0, Trans=0, Delay)
-            $this->gif .= "\x21\xF9\x04" . pack('CCCCvC', 0, 0x04, 0, 0, $delay, 0);
+            // Graphic Control Extension (Disposal=2 Restore to BG, UserInput=0, Delay little-endian, TransIdx=0)
+            // Block Size = 4 bytes: [Packed 0x08] [Delay low] [Delay high] [Trans 0x00] + [Terminator 0x00]
+            $this->gif .= "\x21\xF9\x04\x08" . pack('v', $delay) . "\x00\x00";
 
             // Find Image Descriptor (0x2C)
             $imgDescPos = strpos($frame, "\x2C");
