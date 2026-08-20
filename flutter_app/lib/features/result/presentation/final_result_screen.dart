@@ -565,7 +565,7 @@ class _QrCard extends StatelessWidget {
                       height: 32,
                       child: CircularProgressIndicator(
                         strokeWidth: 2.5,
-                        color: AppColors.primary,
+                        color: AppColors.darkBrown,
                       ),
                     ),
                   ),

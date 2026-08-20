@@ -21,6 +21,7 @@ abstract final class AppColors {
   static const Color antiqueBrass     = Color(0xFFD4AF37); // Bright antique brass
 
   // ── Legacy aliases (maintained for backwards compatibility) ───────────────
+  static const Color primary            = darkBrown;
   static const Color coffeeBrown        = darkBrown;
   static const Color darkCoffee         = Color(0xFF201009);
   static const Color white              = Color(0xFFFFFFFF);
