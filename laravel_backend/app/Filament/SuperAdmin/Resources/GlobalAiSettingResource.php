@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 namespace App\Filament\SuperAdmin\Resources;
 
@@ -18,7 +18,7 @@ use Filament\Tables\Table;
 
 class GlobalAiSettingResource extends Resource
 {
-    protected static ?string  = AiSetting::class;
+    protected static ?string $model = AiSetting::class;
 
     public static function getNavigationIcon(): string { return 'heroicon-o-cpu-chip'; }
     public static function getNavigationGroup(): string { return 'Platform & Core Config'; }
@@ -26,9 +26,9 @@ class GlobalAiSettingResource extends Resource
     public static function getModelLabel(): string { return 'Pengaturan AI Platform'; }
     public static function getPluralModelLabel(): string { return 'Pengaturan AI Platform'; }
 
-    public static function form(Schema ): Schema
+    public static function form(Schema $schema): Schema
     {
-        return ->components([
+        return $schema->components([
             Section::make('Master Sakelar AI (Global AI Switch)')
                 ->description('Kontrol utama aktivasi seluruh fitur kecerdasan buatan (AI) di sistem Photobooth')
                 ->schema([
@@ -97,9 +97,9 @@ class GlobalAiSettingResource extends Resource
         ]);
     }
 
-    public static function table(Table ): Table
+    public static function table(Table $table): Table
     {
-        return 
+        return $table
             ->columns([
                 TextColumn::make('id')->label('ID')->sortable(),
                 IconColumn::make('is_enabled')
@@ -112,8 +112,8 @@ class GlobalAiSettingResource extends Resource
                 TextColumn::make('provider')
                     ->label('Provider')
                     ->badge()
-                    ->formatStateUsing(fn () => strtoupper())
-                    ->color(fn () => match() {
+                    ->formatStateUsing(fn ($state) => strtoupper($state))
+                    ->color(fn ($state) => match($state) {
                         'gemini'      => 'info',
                         'openagentic' => 'warning',
                         'openai'      => 'success',
