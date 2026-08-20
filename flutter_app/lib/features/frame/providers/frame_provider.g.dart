@@ -6,7 +6,7 @@ part of 'frame_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$frameListHash() => r'3d28e3b84f2452c2e4f4d0367a4c0ea73e0f9e17';
+String _$frameListHash() => r'53fd4c90138f290003f769ed847e3fc960d199cb';
 
 /// Copied from Dart SDK
 class _SystemHash {

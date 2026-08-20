@@ -43,6 +43,14 @@ class FrameSelectionScreen extends ConsumerStatefulWidget {
 class _FrameSelectionScreenState extends ConsumerState<FrameSelectionScreen> {
   FrameModel? _selectedFrame;
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(sessionNotifierProvider.notifier).ensureSessionStarted();
+    });
+  }
+
   void _onContinue() {
     if (_selectedFrame == null) return;
     final frame = _selectedFrame!;
@@ -66,18 +74,11 @@ class _FrameSelectionScreenState extends ConsumerState<FrameSelectionScreen> {
   @override
   Widget build(BuildContext context) {
     final sessionState = ref.watch(sessionNotifierProvider);
-    final remaining = sessionState.remainingTime;
-    final timerText = '${(remaining.inSeconds ~/ 60).toString().padLeft(2, '0')}:'
-        '${(remaining.inSeconds % 60).toString().padLeft(2, '0')}';
     final eventId = sessionState.session?.eventId ?? 1;
     final framesAsync = ref.watch(frameListProvider(eventId));
 
     return PhotoboothLayout(
-      currentStep: 2,
-      header: CustomerHeader(
-        currentStep: 2,
-        trailing: TimerChip(text: timerText, isWarning: remaining.inSeconds < 60),
-      ),
+      header: const CustomerHeader(),
       child: framesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator(color: AppColors.darkBrown)),
         error: (err, _) => Center(
@@ -91,8 +92,7 @@ class _FrameSelectionScreenState extends ConsumerState<FrameSelectionScreen> {
               Text(err.toString(), style: AppTextStyles.caption, textAlign: TextAlign.center),
               SizedBox(height: 16.h),
               ResponsiveButton(
-                label: 'COBA LAGI',
-                icon: Icons.refresh,
+                label: 'Coba Lagi',
                 onPressed: () {
                   ErrorLogger.instance.logRetryAttempt(
                     action: 'Muat Ulang Frame',
@@ -134,18 +134,6 @@ class _FrameSelectionScreenState extends ConsumerState<FrameSelectionScreen> {
                           Text('Pilih Desain Bingkai', style: GoogleFonts.cormorantGaramond(fontSize: 22.sp, fontWeight: FontWeight.w800, color: AppColors.darkBrown)),
                           Text('Sentuh frame yang kamu sukai', style: AppTextStyles.caption.copyWith(fontSize: 10.5.sp)),
                         ],
-                      ),
-                      Container(
-                        padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-                        decoration: BoxDecoration(
-                          color: AppColors.creamWhite,
-                          borderRadius: BorderRadius.circular(16.r),
-                          border: Border.all(color: AppColors.gold, width: 1.0),
-                        ),
-                        child: Text(
-                          _selectedFrame?.eventName ?? 'Fakultas Kopi',
-                          style: GoogleFonts.montserrat(fontSize: 9.5.sp, fontWeight: FontWeight.w700, color: AppColors.darkBrown),
-                        ),
                       ),
                     ],
                   ),
@@ -192,37 +180,12 @@ class _FrameSelectionScreenState extends ConsumerState<FrameSelectionScreen> {
                     ),
                     child: Row(
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                _selectedFrame?.name ?? 'Pilih Frame',
-                                style: GoogleFonts.montserrat(
-                                  fontSize: 12.sp,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.darkBrown,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              Text(
-                                _selectedFrame != null
-                                    ? '${_selectedFrame!.poseCount} Pose Foto'
-                                    : 'Belum memilih',
-                                style: AppTextStyles.caption.copyWith(fontSize: 10.sp, color: AppColors.vintageRust),
-                              ),
-                            ],
-                          ),
-                        ),
                         SizedBox(width: 12.w),
                         SizedBox(
                           width: 150.w,
                           height: 44.h,
                           child: ResponsiveButton(
-                            label: 'MULAI FOTO',
-                            icon: Icons.camera_alt_rounded,
+                            label: 'Mulai',
                             onPressed: _selectedFrame != null ? _onContinue : null,
                           ),
                         ),
@@ -245,7 +208,7 @@ class _FrameSelectionScreenState extends ConsumerState<FrameSelectionScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Header & Event Badge
+                      // Header
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -259,37 +222,6 @@ class _FrameSelectionScreenState extends ConsumerState<FrameSelectionScreen> {
                                   style: AppTextStyles.caption.copyWith(color: AppColors.brown))
                                   .animate().fadeIn(delay: 50.ms),
                             ],
-                          ),
-                          // Vintage Event Badge Seal
-                          Container(
-                            padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
-                            decoration: BoxDecoration(
-                              color: AppColors.creamWhite,
-                              borderRadius: BorderRadius.circular(20.r),
-                              border: Border.all(color: AppColors.gold, width: 1.2),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppColors.darkBrown.withValues(alpha: 0.05),
-                                  blurRadius: 6,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.stars_rounded, size: 15.sp, color: AppColors.gold),
-                                SizedBox(width: 6.w),
-                                Text(
-                                  _selectedFrame?.eventName ?? 'Fakultas Kopi Special',
-                                  style: GoogleFonts.montserrat(
-                                    fontSize: 11.sp,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.darkBrown,
-                                  ),
-                                ),
-                              ],
-                            ),
                           ),
                         ],
                       ),
@@ -348,20 +280,9 @@ class _FrameSelectionScreenState extends ConsumerState<FrameSelectionScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Text('Pratinjau Hasil', style: AppTextStyles.titleMedium)
-                          .animate().fadeIn(),
-                      SizedBox(height: 2.h),
-                      Text(
-                        _selectedFrame?.name ?? 'Pilih Salah Satu Frame',
-                        style: GoogleFonts.cormorantGaramond(
-                          fontSize: 18.sp,
-                          color: AppColors.vintageRust,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
                       SizedBox(height: 8.h),
 
-                      // Frame Preview Widget dengan bayangan vintage
+                      // Frame Preview Widget
                       Expanded(
                         child: Center(
                           child: _selectedFrame != null
@@ -376,52 +297,21 @@ class _FrameSelectionScreenState extends ConsumerState<FrameSelectionScreen> {
                                     border: Border.all(color: AppColors.borderWarm),
                                   ),
                                   child: Center(
-                                    child: Text('Belum ada frame yang dipilih',
+                                    child: Text('Pilih frame dari kiri',
                                         style: AppTextStyles.caption),
                                   ),
                                 ),
                         ),
                       ),
 
-                      SizedBox(height: 10.h),
-
-                      // Detail Pose & Layout Info Badge
-                      if (_selectedFrame != null)
-                        Container(
-                          padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 6.h),
-                          decoration: BoxDecoration(
-                            color: AppColors.creamWhite,
-                            borderRadius: BorderRadius.circular(8.r),
-                            border: Border.all(color: AppColors.gold, width: 1.2),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.camera_alt_outlined, size: 14.sp, color: AppColors.darkBrown),
-                              SizedBox(width: 6.w),
-                              Text(
-                                _selectedFrame!.slotCount > _selectedFrame!.poseCount
-                                    ? '${_selectedFrame!.poseCount} Pose Foto (${_selectedFrame!.slotCount} Slot Strip)'
-                                    : '${_selectedFrame!.poseCount} Pose Foto',
-                                style: GoogleFonts.montserrat(
-                                  fontSize: 11.sp,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.darkBrown,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
                       SizedBox(height: 12.h),
 
-                      // Tombol Mulai Foto
+                      // Tombol Mulai
                       ResponsiveButton(
-                        label: 'PILIH & MULAI FOTO',
-                        icon: Icons.camera_alt_rounded,
+                        label: 'Mulai',
                         onPressed: _selectedFrame != null ? _onContinue : null,
                         width: double.infinity,
-                        height: 52.h,
+                        height: 48.h,
                       ).animate().fadeIn(delay: 200.ms),
                     ],
                   ),

@@ -50,19 +50,12 @@ class _FilterScreenState extends ConsumerState<FilterScreen> {
   @override
   Widget build(BuildContext context) {
     final sessionState = ref.watch(sessionNotifierProvider);
-    final remaining = sessionState.remainingTime;
-    final timerText = '${(remaining.inSeconds ~/ 60).toString().padLeft(2, '0')}:'
-        '${(remaining.inSeconds % 60).toString().padLeft(2, '0')}';
     final photos = sessionState.session?.photos ?? [];
     final eventId = sessionState.session?.eventId ?? 1;
     final filtersAsync = ref.watch(filterListProvider(eventId));
 
     return PhotoboothLayout(
-      currentStep: 4,
-      header: CustomerHeader(
-        currentStep: 4,
-        trailing: TimerChip(text: timerText, isWarning: remaining.inSeconds < 60),
-      ),
+      header: const CustomerHeader(),
       child: filtersAsync.when(
         loading: () => const Center(child: CircularProgressIndicator(color: AppColors.darkBrown)),
         error: (err, _) => Center(
@@ -76,8 +69,7 @@ class _FilterScreenState extends ConsumerState<FilterScreen> {
               Text(err.toString(), style: AppTextStyles.caption, textAlign: TextAlign.center),
               SizedBox(height: 16.h),
               ResponsiveButton(
-                label: 'COBA LAGI',
-                icon: Icons.refresh,
+                label: 'Coba Lagi',
                 onPressed: () {
                   ErrorLogger.instance.logRetryAttempt(
                     action: 'Muat Ulang Filter',
@@ -109,9 +101,7 @@ class _FilterScreenState extends ConsumerState<FilterScreen> {
               padding: EdgeInsets.fromLTRB(14.w, 4.h, 14.w, 12.h),
               child: Column(
                 children: [
-                  Text('Pratinjau Hasil Foto', style: GoogleFonts.cormorantGaramond(fontSize: 22.sp, fontWeight: FontWeight.w800, color: AppColors.darkBrown)),
-                  Text('Pilih filter film klasik favoritmu', style: AppTextStyles.caption.copyWith(fontSize: 10.5.sp)),
-                  SizedBox(height: 6.h),
+                  SizedBox(height: 2.h),
 
                   // Strip Preview di Tengah
                   Expanded(
@@ -148,8 +138,7 @@ class _FilterScreenState extends ConsumerState<FilterScreen> {
                     width: double.infinity,
                     height: 48.h,
                     child: ResponsiveButton(
-                      label: 'LANJUT KE HASIL & CETAK',
-                      icon: Icons.arrow_forward_rounded,
+                      label: 'Lanjut',
                       onPressed: _selectedFilter != null ? _onContinue : null,
                     ),
                   ),
@@ -169,11 +158,6 @@ class _FilterScreenState extends ConsumerState<FilterScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Text('Pratinjau Hasil Foto', style: AppTextStyles.headlineMedium)
-                          .animate().fadeIn(),
-                      SizedBox(height: 2.h),
-                      Text('Sentuhan warna film klasik untuk sesi fotomu',
-                          style: AppTextStyles.caption.copyWith(color: AppColors.brown)),
                       SizedBox(height: 8.h),
                       Expanded(
                         child: Center(
@@ -182,30 +166,6 @@ class _FilterScreenState extends ConsumerState<FilterScreen> {
                             frame: sessionState.selectedFrame,
                             colorFilter: _selectedFilter?.colorFilter,
                           ),
-                        ),
-                      ),
-                      SizedBox(height: 8.h),
-                      Container(
-                        padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 5.h),
-                        decoration: BoxDecoration(
-                          color: AppColors.creamWhite,
-                          borderRadius: BorderRadius.circular(20.r),
-                          border: Border.all(color: AppColors.gold, width: 1.2),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.auto_awesome_rounded, size: 14.sp, color: AppColors.gold),
-                            SizedBox(width: 6.w),
-                            Text(
-                              'Filter Aktif: ${_selectedFilter?.name ?? 'Normal'}',
-                              style: GoogleFonts.montserrat(
-                                fontSize: 11.5.sp,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.darkBrown,
-                              ),
-                            ),
-                          ],
                         ),
                       ),
                     ],
@@ -238,11 +198,7 @@ class _FilterScreenState extends ConsumerState<FilterScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Pilih Efek Warna', style: AppTextStyles.headlineSmall)
-                          .animate().fadeIn(),
-                      SizedBox(height: 2.h),
-                      Text('Pilih nuansa vintage yang paling pas', style: AppTextStyles.caption),
-                      SizedBox(height: 12.h),
+                      SizedBox(height: 4.h),
 
                       // Daftar Filter Vintage
                       Expanded(
@@ -260,11 +216,10 @@ class _FilterScreenState extends ConsumerState<FilterScreen> {
                       SizedBox(height: 14.h),
 
                       ResponsiveButton(
-                        label: 'LANJUT KE HASIL & CETAK',
-                        icon: Icons.arrow_forward_rounded,
+                        label: 'Lanjut',
                         onPressed: _selectedFilter != null ? _onContinue : null,
                         width: double.infinity,
-                        height: 52.h,
+                        height: 48.h,
                       ),
                     ],
                   ),

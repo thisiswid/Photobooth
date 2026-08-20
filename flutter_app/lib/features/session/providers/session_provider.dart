@@ -223,7 +223,7 @@ class SessionNotifier extends _$SessionNotifier {
     required String gifUrl,
     required String qrToken,
   }) {
-    _tickerTimer?.cancel();
+    // Keep session timer ticking continuously into the result screen
     if (state.session == null) return;
     state = state.copyWith(
       session: state.session!.copyWith(
@@ -236,6 +236,9 @@ class SessionNotifier extends _$SessionNotifier {
 
   // ── UI State ──────────────────────────────────────────────────────────────
 
+  void setMirror(bool isMirror) =>
+      state = state.copyWith(isMirrorEnabled: isMirror);
+
   void toggleMirror() =>
       state = state.copyWith(isMirrorEnabled: !state.isMirrorEnabled);
 
@@ -247,6 +250,18 @@ class SessionNotifier extends _$SessionNotifier {
 
   void clearError() =>
       state = state.copyWith(clearError: true);
+
+  /// Ensures a session is running if user is on Frame Selection or beyond
+  void ensureSessionStarted({int durationMinutes = 5}) {
+    if (state.hasActiveSession && state.remainingSeconds > 0) return;
+    final now = DateTime.now();
+    startSession(
+      sessionId: state.session?.sessionId ?? 1,
+      eventId: state.session?.eventId ?? 1,
+      startedAt: now,
+      expiresAt: now.add(Duration(minutes: durationMinutes)),
+    );
+  }
 
   // ── Session Reset ─────────────────────────────────────────────────────────
 
