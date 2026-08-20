@@ -95,11 +95,22 @@ class FrameResource extends Resource
 
             TextInput::make('pose_count')
                 ->label('Jumlah Pose yang Diambil Kamera')
-                ->helperText('Berapa kali kamera akan menjepret foto untuk frame ini.')
+                ->helperText(function (callable $get) {
+                    $layout = $get('layout_type') ?? 'single';
+                    if ($layout === 'double_6') {
+                        return '🔒 Otomatis dikunci ke 3 pose kamera (menghasilkan 6 slot foto kembar di kanvas 4R).';
+                    }
+                    if ($layout === 'double_8') {
+                        return '🔒 Otomatis dikunci ke 4 pose kamera (menghasilkan 8 slot foto kembar di kanvas 4R).';
+                    }
+                    return 'Berapa kali kamera akan menjepret foto untuk frame single strip ini (standar: 4 pose).';
+                })
                 ->numeric()
                 ->default(4)
                 ->minValue(1)
                 ->maxValue(8)
+                ->disabled(fn ($get) => in_array($get('layout_type'), ['double_6', 'double_8']))
+                ->dehydrated(true)
                 ->required(),
 
             Toggle::make('use_ai_detection')
