@@ -25,13 +25,8 @@ class PrintJobResult {
 class PrinterService {
   PrinterService._();
 
-  /// Mendapatkan daftar semua printer yang terdeteksi di jaringan / sistem
+  /// Mendapatkan daftar semua printer yang terdeteksi di sistem / jaringan / USB
   static Future<List<Printer>> getAvailablePrinters() async {
-    // Pada Android, Printing.listPrinters tidak didukung oleh native OS tanpa print dialog
-    if (!kIsWeb && Platform.isAndroid) {
-      return [];
-    }
-
     try {
       final printers = await Printing.listPrinters();
       debugPrint('🖨️ Printer terdeteksi (${printers.length}):');
@@ -41,13 +36,21 @@ class PrinterService {
       return printers;
     } catch (e, stack) {
       debugPrint('Info listPrinters: $e');
+      ErrorLogger.instance.logHardwareError(
+        message: 'Gagal mendeteksi printer: $e',
+        stackTrace: stack,
+      );
       return [];
     }
   }
 
   /// Mencari printer Epson L8050 — retry 3x dengan jeda 1 detik
-  /// (USB enumerate di Android kadang butuh beberapa momen setelah app buka)
+  /// (USB enumerate di Android kadang butuh beberapa saat setelah device connect)
   static Future<Printer?> findEpsonPrinter({int maxRetries = 3}) async {
+    if (_selectedPrinter != null) {
+      return _selectedPrinter;
+    }
+
     for (int attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         final printers = await getAvailablePrinters();
@@ -116,7 +119,7 @@ class PrinterService {
         );
       }
 
-      final targetPrinter = await findEpsonPrinter();
+      final targetPrinter = _selectedPrinter ?? await findEpsonPrinter();
       if (targetPrinter != null) {
         debugPrint('🖨️ Mengirim job cetak langsung ke: ${targetPrinter.name}');
         final printed = await Printing.directPrintPdf(
@@ -146,7 +149,7 @@ class PrinterService {
         debugPrint('❌ Printer tidak ditemukan — cetak dibatalkan (tidak buka dialog).');
         return const PrintJobResult(
           isSuccess: false,
-          message: 'Printer tidak terdeteksi. Pastikan printer menyala dan terhubung via USB.',
+          message: 'Printer tidak terdeteksi. Pastikan Epson L8050 menyala dan terhubung via USB / Wi-Fi.',
         );
       }
     } catch (e, stack) {
