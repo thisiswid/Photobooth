@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 namespace App\Filament\SuperAdmin\Resources\GlobalAiSettingResource\Pages;
 
@@ -8,7 +8,7 @@ use Filament\Resources\Pages\EditRecord;
 
 class EditGlobalAiSetting extends EditRecord
 {
-    protected static string  = GlobalAiSettingResource::class;
+    protected static string $resource = GlobalAiSettingResource::class;
 
     protected function getHeaderActions(): array
     {

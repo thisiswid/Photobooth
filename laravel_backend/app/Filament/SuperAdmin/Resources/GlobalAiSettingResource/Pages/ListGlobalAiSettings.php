@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 namespace App\Filament\SuperAdmin\Resources\GlobalAiSettingResource\Pages;
 
@@ -7,7 +7,7 @@ use Filament\Resources\Pages\ListRecords;
 
 class ListGlobalAiSettings extends ListRecords
 {
-    protected static string  = GlobalAiSettingResource::class;
+    protected static string $resource = GlobalAiSettingResource::class;
 
     protected function getHeaderActions(): array
     {
