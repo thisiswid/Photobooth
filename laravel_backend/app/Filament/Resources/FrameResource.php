@@ -125,6 +125,7 @@ class FrameResource extends Resource
                 ->disk('public')
                 ->directory('frames')
                 ->acceptedFileTypes(['image/png', 'image/jpeg', 'image/webp'])
+                ->maxSize(51200)
                 ->columnSpanFull(),
 
             Toggle::make('active')
