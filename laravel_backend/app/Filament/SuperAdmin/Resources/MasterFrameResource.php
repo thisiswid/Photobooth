@@ -117,29 +117,10 @@ class MasterFrameResource extends Resource
                 ->schema([
                     Toggle::make('use_ai_detection')
                         ->label('Mode AI (Auto-Detect Layout & Auto-Punch Transparan)')
-                        ->helperText('Aktifkan agar AI otomatis mendeteksi posisi kotak foto dan melubangi transparansi saat upload. Matikan jika ingin menggunakan file frame original tanpa perubahan AI.')
-                        ->default(true)
-                        ->live()
-                        ->afterStateUpdated(function ($state, callable $set, callable $get) {
-                            if (!$state) {
-                                $set('ai_status_text', '<span style="color:#64748b; font-weight:600;">ℹ️ Mode AI Dinonaktifkan:</span> File frame akan diunggah sesuai aslinya tanpa deteksi/pelubangan AI.');
-                            } else {
-                                $file = $get('asset_url');
-                                if ($file) {
-                                    $analysis = \App\Services\FrameSlotDetector::analyze($file, autoPunchTransparency: true);
-                                    if ($analysis['success']) {
-                                        $set('layout_type', $analysis['layout_type']);
-                                        $set('pose_count', $analysis['pose_count']);
-                                        $set('ai_status_text', '<span style="color:#10b981; font-weight:600;">✨ Mode AI Aktif:</span> ' . e($analysis['layout_label']));
-                                    }
-                                } else {
-                                    $set('ai_status_text', null);
-                                }
-                            }
-                        })
+                        ->helperText('Aktifkan agar AI otomatis mendeteksi posisi kotak foto dan melubangi transparansi saat disimpan.')
+                        ->default(fn () => \App\Models\AiSetting::isAiAvailable())
+                        ->visible(fn () => \App\Models\AiSetting::isAiAvailable())
                         ->columnSpanFull(),
-
-                    Hidden::make('ai_status_text')->dehydrated(false),
 
                     FileUpload::make('asset_url')
                         ->label('File Desain Frame (PNG Transparan / Gambar Frame)')
@@ -148,56 +129,17 @@ class MasterFrameResource extends Resource
                         ->disk('public')
                         ->acceptedFileTypes(['image/png', 'image/jpeg', 'image/webp'])
                         ->helperText(function (callable $get) {
-                            $status = $get('ai_status_text');
-                            if ($status) {
-                                return new \Illuminate\Support\HtmlString($status);
+                            $isAiAllowed = \App\Models\AiSetting::isAiAvailable();
+                            if (!$isAiAllowed) {
+                                return '📁 File frame akan diproses sesuai format dan tipe layout yang Anda pilih di atas.';
                             }
                             $isAi = $get('use_ai_detection') ?? true;
                             if ($isAi) {
-                                return '✨ Mode AI Aktif: Upload file frame (PNG/JPG). Sistem AI akan otomatis mendeteksi layout & melubangi kotak foto.';
+                                return '✨ Mode AI Aktif: Sistem AI akan otomatis mendeteksi posisi slot & melubangi kotak foto saat disimpan.';
                             }
-                            return '📁 Mode AI Nonaktif: File frame akan diunggah original tanpa modifikasi AI.';
+                            return '📁 Mode Frame Standar: File frame akan diunggah original tanpa modifikasi AI.';
                         })
-                        ->live()
-                        ->afterStateUpdated(function ($state, callable $set, callable $get) {
-                            if (!$state) {
-                                $set('ai_status_text', null);
-                                return;
-                            }
-                            $isAi = $get('use_ai_detection') ?? true;
-                            if (!$isAi) {
-                                $set('ai_status_text', '<span style="color:#64748b; font-weight:600;">📁 Mode AI Nonaktif:</span> Frame diunggah tanpa analisis AI & pelubangan otomatis.');
-                                return;
-                            }
-                            $analysis = \App\Services\FrameSlotDetector::analyze($state, autoPunchTransparency: true);
-                            if ($analysis['success']) {
-                                $set('layout_type', $analysis['layout_type']);
-                                $set('pose_count', $analysis['pose_count']);
-                                
-                                // Buat teks status inline dengan icon line
-                                if (!empty($analysis['ai_feedback']) && !$analysis['ai_feedback']['success'] && !empty($analysis['ai_feedback']['attempted'])) {
-                                    $statusType = $analysis['ai_feedback']['status'] ?? 'warning';
-                                    if ($statusType === 'danger') {
-                                        $statusHtml = '<span style="color:#ef4444; font-weight:600;">❌ ' . e($analysis['ai_feedback']['title']) . ':</span> ' . e($analysis['ai_feedback']['message']) . ' <span style="color:#64748b;">(Layout lokal: ' . e($analysis['layout_label']) . ')</span>';
-                                    } else {
-                                        $statusHtml = '<span style="color:#f59e0b; font-weight:600;">⚠️ ' . e($analysis['ai_feedback']['title']) . ':</span> ' . e($analysis['ai_feedback']['message']) . ' <span style="color:#64748b;">(Layout lokal: ' . e($analysis['layout_label']) . ')</span>';
-                                    }
-                                } elseif ($analysis['method'] === 'openagentic_ai_vision' || $analysis['method'] === 'gemini_ai_vision') {
-                                    $aiName = ($analysis['method'] === 'openagentic_ai_vision') ? 'Claude Sonnet 4.6 (AI Vision)' : 'Gemini AI Vision';
-                                    $punchInfo = !empty($analysis['punched']) ? ' • 🪄 <b>Kotak foto telah dibuat transparan</b>' : '';
-                                    $statusHtml = '<span style="color:#10b981; font-weight:600;">✨ ' . $aiName . ':</span> ' . e($analysis['layout_label']) . ' (' . $analysis['pose_count'] . ' Pose)' . $punchInfo;
-                                } elseif ($analysis['method'] === 'alpha_contour') {
-                                    $statusHtml = '<span style="color:#3b82f6; font-weight:600;">🎨 Computer Vision:</span> ' . e($analysis['layout_label']) . ' (' . $analysis['pose_count'] . ' Pose) — ' . e($analysis['description']);
-                                } else {
-                                    $punchInfo = !empty($analysis['punched']) ? ' • 🪄 <b>Kotak foto dilubangi transparan</b>' : '';
-                                    $statusHtml = '<span style="color:#6366f1; font-weight:600;">📐 Deteksi Rasio:</span> ' . e($analysis['layout_label']) . ' (' . $analysis['pose_count'] . ' Pose)' . $punchInfo;
-                                }
-
-                                $set('ai_status_text', $statusHtml);
-                            } else {
-                                $set('ai_status_text', '<span style="color:#ef4444; font-weight:600;">⚠️ Gagal Deteksi:</span> ' . e($analysis['message'] ?? 'Gambar tidak dapat dianalisis.'));
-                            }
-                        })
+                        ->columnSpanFull(),
                         ->columnSpanFull(),
                     Textarea::make('description')
                         ->label('Deskripsi Desain')

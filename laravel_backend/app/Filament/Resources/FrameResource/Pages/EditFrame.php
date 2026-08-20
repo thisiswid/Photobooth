@@ -24,7 +24,8 @@ class EditFrame extends EditRecord
         $layoutType = $data['layout_type'] ?? 'single';
         $rightKey = $data['right_column_order'] ?? 'scrambled_1';
         $poseCount = (int)($data['pose_count'] ?? ($layoutType === 'double_8' ? 4 : ($layoutType === 'double_6' ? 3 : 4)));
-        $useAi = !isset($data['use_ai_detection']) || (bool)$data['use_ai_detection'];
+        $isAiAllowed = \App\Models\AiSetting::isAiAvailable(auth()->user()?->cafe_id);
+        $useAi = $isAiAllowed && (!isset($data['use_ai_detection']) || (bool)$data['use_ai_detection']);
 
         $rightOrder = match($rightKey) {
             'scrambled_1' => ($layoutType === 'double_8') ? [3, 0, 1, 2] : [2, 0, 1],
