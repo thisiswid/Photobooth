@@ -47,6 +47,7 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
   String? _connectedPrinterName;
   int _printRetryCount = 0;
   bool _hasAutoPrinted = false;
+  bool _isPrinting = false; // Guard tambahan agar tidak print ganda
 
   @override
   void initState() {
@@ -133,9 +134,15 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
     }
   }
 
-  /// Eksekusi pengiriman print ke Epson L8050
+  /// Eksekusi pengiriman print ke Epson L8050 — hanya 1x cetak per panggilan.
   Future<void> _executePrint({String? finalUrl}) async {
     if (!mounted) return;
+    // Cegah print ganda / bersamaan
+    if (_isPrinting) {
+      debugPrint('⚠️ Print sudah berjalan, skip duplikat');
+      return;
+    }
+    _isPrinting = true;
 
     setState(() {
       _printStatus = PrintUiStatus.printing;
@@ -212,6 +219,8 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
           _printStatusMessage = 'Gagal mencetak: $e';
         });
       }
+    } finally {
+      _isPrinting = false;
     }
   }
 
@@ -360,97 +369,100 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
       ],
     );
 
-    final actionPanel = Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        _QrCard(qrUrl: qrUrl),
-        SizedBox(height: isMobile ? 8.h : 12.h),
+    final actionPanel = SingleChildScrollView(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _QrCard(qrUrl: qrUrl),
+          SizedBox(height: isMobile ? 8.h : 12.h),
 
-        // ── UI Status Cetak (Loading / Berhasil / Gagal) ──
-        _buildPrintStatusWidget(),
-        SizedBox(height: isMobile ? 6.h : 8.h),
+          // ── UI Status Cetak (Loading / Berhasil / Gagal) ──
+          _buildPrintStatusWidget(),
+          SizedBox(height: isMobile ? 6.h : 8.h),
 
-        // ── Tombol Cetak / Cetak Ulang ───────────────────
-        SizedBox(
-          width: double.infinity,
-          height: isMobile ? 42.h : 46.h,
-          child: OutlinedButton(
-            onPressed: (_printStatus == PrintUiStatus.printing || _printStatus == PrintUiStatus.preparing)
-                ? null
-                : _handleManualPrintRetry,
-            style: OutlinedButton.styleFrom(
-              backgroundColor: AppColors.creamWhite,
-              foregroundColor: AppColors.darkBrown,
-              side: const BorderSide(color: AppColors.darkBrown, width: 1.4),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10.r),
+          // ── Tombol Cetak / Cetak Ulang ───────────────────
+          SizedBox(
+            width: double.infinity,
+            height: isMobile ? 42.h : 46.h,
+            child: OutlinedButton(
+              onPressed: (_printStatus == PrintUiStatus.printing || _printStatus == PrintUiStatus.preparing)
+                  ? null
+                  : _handleManualPrintRetry,
+              style: OutlinedButton.styleFrom(
+                backgroundColor: AppColors.creamWhite,
+                foregroundColor: AppColors.darkBrown,
+                side: const BorderSide(color: AppColors.darkBrown, width: 1.4),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10.r),
+                ),
+              ),
+              child: Text(
+                (_printStatus == PrintUiStatus.printing || _printStatus == PrintUiStatus.preparing)
+                    ? 'Sedang mencetak...'
+                    : 'Cetak',
+                style: GoogleFonts.montserrat(
+                  fontSize: isMobile ? 12.5.sp : 14.sp,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.darkBrown,
+                ),
               ),
             ),
-            child: Text(
-              (_printStatus == PrintUiStatus.printing || _printStatus == PrintUiStatus.preparing)
-                  ? 'Sedang mencetak...'
-                  : 'Cetak',
-              style: GoogleFonts.montserrat(
-                fontSize: isMobile ? 12.5.sp : 14.sp,
-                fontWeight: FontWeight.w600,
-                color: AppColors.darkBrown,
+          ).animate().fadeIn(delay: 200.ms),
+
+          SizedBox(height: isMobile ? 8.h : 10.h),
+
+          // ── Tombol Selesai (Tanpa Tulisan di Bawahnya) ──
+          SizedBox(
+            width: double.infinity,
+            height: isMobile ? 42.h : 46.h,
+            child: ElevatedButton(
+              onPressed: _finishSession,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.buttonBrown,
+                foregroundColor: AppColors.creamWhite,
+                elevation: 3,
+                shadowColor: AppColors.darkBrown.withValues(alpha: 0.3),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10.r),
+                  side: const BorderSide(color: AppColors.gold, width: 1.0),
+                ),
+              ),
+              child: Text(
+                'Selesai',
+                style: GoogleFonts.montserrat(
+                  fontSize: isMobile ? 13.sp : 14.5.sp,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.creamWhite,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ),
+          ).animate().fadeIn(delay: 300.ms),
+
+          SizedBox(height: 6.h),
+
+          // ── Link Pengaturan Printer Cepat (Tanpa Password) ──
+          TextButton.icon(
+            onPressed: () => PrinterSettingsModal.show(
+              context,
+              onPrinterConfigured: () => setState(() => _connectedPrinterName = 'Epson L8050'),
+            ),
+            icon: Icon(Icons.tune_rounded, size: 15.r, color: AppColors.brown),
+            label: Text(
+              _connectedPrinterName != null
+                  ? 'Printer: $_connectedPrinterName'
+                  : 'Pengaturan Printer',
+              style: TextStyle(
+                color: AppColors.brown,
+                fontSize: 11.5.sp,
+                fontWeight: FontWeight.w500,
+                decoration: TextDecoration.underline,
               ),
             ),
           ),
-        ).animate().fadeIn(delay: 200.ms),
-
-        SizedBox(height: isMobile ? 8.h : 10.h),
-
-        // ── Tombol Selesai (Tanpa Tulisan di Bawahnya) ──
-        SizedBox(
-          width: double.infinity,
-          height: isMobile ? 42.h : 46.h,
-          child: ElevatedButton(
-            onPressed: _finishSession,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.buttonBrown,
-              foregroundColor: AppColors.creamWhite,
-              elevation: 3,
-              shadowColor: AppColors.darkBrown.withValues(alpha: 0.3),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10.r),
-                side: const BorderSide(color: AppColors.gold, width: 1.0),
-              ),
-            ),
-            child: Text(
-              'Selesai',
-              style: GoogleFonts.montserrat(
-                fontSize: isMobile ? 13.sp : 14.5.sp,
-                fontWeight: FontWeight.w700,
-                color: AppColors.creamWhite,
-                letterSpacing: 0.3,
-              ),
-            ),
-          ),
-        ).animate().fadeIn(delay: 300.ms),
-
-        SizedBox(height: 6.h),
-
-        // ── Link Pengaturan Printer Cepat (Tanpa Password) ──
-        TextButton.icon(
-          onPressed: () => PrinterSettingsModal.show(
-            context,
-            onPrinterConfigured: () => setState(() => _connectedPrinterName = 'Epson L8050'),
-          ),
-          icon: Icon(Icons.tune_rounded, size: 15.r, color: AppColors.brown),
-          label: Text(
-            _connectedPrinterName != null
-                ? 'Printer: $_connectedPrinterName'
-                : 'Pengaturan Printer',
-            style: TextStyle(
-              color: AppColors.brown,
-              fontSize: 11.5.sp,
-              fontWeight: FontWeight.w500,
-              decoration: TextDecoration.underline,
-            ),
-          ),
-        ),
-      ],
+        ],
+      ),
     ).animate().slideX(begin: 0.05, delay: 200.ms);
 
     return PhotoboothLayout(
