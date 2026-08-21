@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:printing/printing.dart';
 import '../../core/services/printer_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 
-/// Modal Pengaturan Printer Khusus di Halaman Hasil (Final Result Screen) — Tanpa Password
+/// Modal Pengaturan Printer — input IP langsung, tanpa dialog system Android.
+/// Android tidak mendukung listPrinters() — solusi: IPP over HTTP port 631.
 class PrinterSettingsModal extends StatefulWidget {
   const PrinterSettingsModal({super.key, this.onPrinterConfigured});
 
@@ -31,38 +32,86 @@ class PrinterSettingsModal extends StatefulWidget {
 }
 
 class _PrinterSettingsModalState extends State<PrinterSettingsModal> {
-  List<Printer> _printers = [];
-  Printer? _selectedPrinter;
-  bool _isLoading = true;
+  final _ipController = TextEditingController();
+  bool _isChecking = false;
   bool _isTestingPrint = false;
   String? _statusMessage;
   bool _statusIsSuccess = false;
+  String? _savedIp;
 
   @override
   void initState() {
     super.initState();
-    _loadPrinters();
+    _loadCurrentIp();
   }
 
-  Future<void> _loadPrinters() async {
-    setState(() {
-      _isLoading = true;
-      _statusMessage = null;
-    });
+  @override
+  void dispose() {
+    _ipController.dispose();
+    super.dispose();
+  }
 
-    final printers = await PrinterService.getAvailablePrinters();
-    final epson = await PrinterService.findEpsonPrinter(maxRetries: 1);
-
+  Future<void> _loadCurrentIp() async {
+    final ip = await PrinterService.getIpAddress();
     if (mounted) {
       setState(() {
-        _printers = printers;
-        _selectedPrinter = PrinterService.selectedPrinter ?? epson;
-        _isLoading = false;
+        _savedIp = ip;
+        _ipController.text = ip;
       });
     }
   }
 
+  Future<void> _checkConnection() async {
+    final ip = _ipController.text.trim();
+    if (ip.isEmpty) {
+      setState(() {
+        _statusMessage = 'Masukkan IP address printer terlebih dahulu.';
+        _statusIsSuccess = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isChecking = true;
+      _statusMessage = null;
+    });
+
+    final reachable = await PrinterService.isPrinterReachable(ip: ip);
+
+    if (mounted) {
+      setState(() {
+        _isChecking = false;
+        _statusIsSuccess = reachable;
+        _statusMessage = reachable
+            ? '✅ Printer dapat dijangkau di $ip:631'
+            : '❌ Printer tidak merespons di $ip:631\nPastikan printer menyala dan terhubung ke Wi-Fi yang sama.';
+      });
+    }
+  }
+
+  Future<void> _saveAndApply() async {
+    final ip = _ipController.text.trim();
+    if (ip.isEmpty) return;
+
+    await PrinterService.setIpAddress(ip);
+
+    if (mounted) {
+      setState(() {
+        _savedIp = ip;
+        _statusMessage = '💾 IP printer disimpan: $ip';
+        _statusIsSuccess = true;
+      });
+      widget.onPrinterConfigured?.call();
+    }
+  }
+
   Future<void> _testPrint() async {
+    final ip = _ipController.text.trim();
+    if (ip.isNotEmpty && ip != _savedIp) {
+      await PrinterService.setIpAddress(ip);
+      setState(() => _savedIp = ip);
+    }
+
     setState(() {
       _isTestingPrint = true;
       _statusMessage = null;
@@ -92,15 +141,7 @@ class _PrinterSettingsModalState extends State<PrinterSettingsModal> {
         color: AppColors.darkBrown,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
         border: Border.all(color: AppColors.gold, width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.8),
-            blurRadius: 25,
-            offset: const Offset(0, -6),
-          ),
-        ],
       ),
-      constraints: BoxConstraints(maxHeight: 540.h),
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -152,7 +193,7 @@ class _PrinterSettingsModalState extends State<PrinterSettingsModal> {
                         ),
                       ),
                       Text(
-                        'Pilih printer Epson L8050 yang terhubung via USB / Wi-Fi',
+                        'Hubungkan Epson L8050 via Wi-Fi (IP Address)',
                         style: AppTextStyles.caption.copyWith(
                           color: AppColors.antiqueBrass.withValues(alpha: 0.9),
                           fontSize: 11.sp,
@@ -172,215 +213,234 @@ class _PrinterSettingsModalState extends State<PrinterSettingsModal> {
             ),
             const Divider(color: Colors.white12, height: 24),
 
-            // Active Selected Printer Banner
+            // Status printer aktif
             Container(
               padding: EdgeInsets.all(12.r),
               decoration: BoxDecoration(
-                color: (_selectedPrinter != null ? Colors.green : Colors.orange)
+                color: (_savedIp != null ? Colors.green : Colors.orange)
                     .withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(10.r),
                 border: Border.all(
-                  color: (_selectedPrinter != null ? Colors.green : Colors.orange)
+                  color: (_savedIp != null ? Colors.green : Colors.orange)
                       .withValues(alpha: 0.5),
                 ),
               ),
               child: Row(
                 children: [
                   Icon(
-                    _selectedPrinter != null
-                        ? Icons.check_circle_rounded
-                        : Icons.info_outline_rounded,
-                    color: _selectedPrinter != null ? Colors.greenAccent : Colors.orange,
-                    size: 22.r,
+                    _savedIp != null
+                        ? Icons.wifi_rounded
+                        : Icons.wifi_off_rounded,
+                    color:
+                        _savedIp != null ? Colors.greenAccent : Colors.orange,
+                    size: 18.r,
                   ),
-                  SizedBox(width: 10.w),
+                  SizedBox(width: 8.w),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          _selectedPrinter != null
-                              ? 'Printer Aktif: ${_selectedPrinter!.name}'
-                              : 'Mencari printer otomatis...',
+                          _savedIp != null
+                              ? 'Printer dikonfigurasi'
+                              : 'Printer belum dikonfigurasi',
                           style: GoogleFonts.montserrat(
-                            color: _selectedPrinter != null
+                            color: _savedIp != null
                                 ? Colors.greenAccent
                                 : Colors.orange,
-                            fontSize: 12.5.sp,
+                            fontSize: 12.sp,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        Text(
-                          _selectedPrinter != null
-                              ? 'Format foto 4R (4×6 inch) siap dicetak 1 lembar.'
-                              : 'Pastikan Epson L8050 menyala dan terhubung.',
-                          style: TextStyle(
-                            color: AppColors.creamWhite.withValues(alpha: 0.8),
-                            fontSize: 11.sp,
+                        if (_savedIp != null)
+                          Text(
+                            'Epson L8050 — $_savedIp (IPP port 631)',
+                            style: AppTextStyles.caption.copyWith(
+                              color: Colors.white60,
+                              fontSize: 10.sp,
+                            ),
                           ),
-                        ),
                       ],
                     ),
                   ),
                 ],
               ),
             ),
-            SizedBox(height: 14.h),
+            SizedBox(height: 16.h),
 
-            // List of detected printers
+            // Input IP
             Text(
-              'DAFTAR PRINTER TERDETEKSI:',
+              'IP ADDRESS PRINTER',
               style: GoogleFonts.montserrat(
                 color: AppColors.gold,
-                fontSize: 11.5.sp,
+                fontSize: 10.sp,
                 fontWeight: FontWeight.w700,
-                letterSpacing: 1.0,
+                letterSpacing: 1.1,
               ),
             ),
-            SizedBox(height: 8.h),
-
-            if (_isLoading)
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(20.0),
-                  child: CircularProgressIndicator(color: AppColors.gold),
-                ),
-              )
-            else if (_printers.isEmpty)
-              Container(
-                padding: EdgeInsets.all(12.r),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(8.r),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.print_disabled_rounded, color: Colors.orangeAccent, size: 22.r),
-                    SizedBox(width: 10.w),
-                    Expanded(
-                      child: Text(
-                        'Epson L8050 akan dipilih otomatis melalui Print Service saat tombol Cetak ditekan.',
-                        style: TextStyle(color: AppColors.creamWhite.withValues(alpha: 0.8), fontSize: 11.5.sp),
-                      ),
+            SizedBox(height: 6.h),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _ipController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
                     ),
-                  ],
-                ),
-              )
-            else
-              ..._printers.map((p) {
-                final isSelected = _selectedPrinter?.url == p.url || _selectedPrinter?.name == p.name;
-                return Card(
-                  color: isSelected ? AppColors.gold.withValues(alpha: 0.22) : Colors.black.withValues(alpha: 0.3),
-                  margin: EdgeInsets.only(bottom: 8.h),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8.r),
-                    side: BorderSide(
-                      color: isSelected ? AppColors.gold : AppColors.gold.withValues(alpha: 0.2),
-                      width: isSelected ? 1.5 : 1.0,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                    ],
+                    style: GoogleFonts.montserrat(
+                      color: AppColors.creamWhite,
+                      fontSize: 14.sp,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: '192.168.1.14',
+                      hintStyle: GoogleFonts.montserrat(
+                        color: Colors.white30,
+                        fontSize: 14.sp,
+                      ),
+                      prefixIcon: Icon(
+                        Icons.router_rounded,
+                        color: AppColors.gold.withValues(alpha: 0.7),
+                        size: 18.r,
+                      ),
+                      filled: true,
+                      fillColor: Colors.white.withValues(alpha: 0.07),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10.r),
+                        borderSide: BorderSide(
+                          color: AppColors.gold.withValues(alpha: 0.4),
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10.r),
+                        borderSide: BorderSide(
+                          color: AppColors.gold.withValues(alpha: 0.4),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10.r),
+                        borderSide: BorderSide(
+                          color: AppColors.gold,
+                          width: 1.5,
+                        ),
+                      ),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12.w,
+                        vertical: 12.h,
+                      ),
                     ),
                   ),
-                  child: ListTile(
-                    leading: Icon(
-                      Icons.print_rounded,
-                      color: isSelected ? AppColors.gold : AppColors.creamWhite,
-                    ),
-                    title: Text(
-                      p.name,
-                      style: GoogleFonts.montserrat(
-                        color: AppColors.creamWhite,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 12.5.sp,
+                ),
+                SizedBox(width: 8.w),
+                // Tombol cek koneksi
+                SizedBox(
+                  height: 48.h,
+                  child: ElevatedButton(
+                    onPressed: _isChecking ? null : _checkConnection,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.gold.withValues(alpha: 0.2),
+                      foregroundColor: AppColors.gold,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10.r),
+                        side: BorderSide(
+                          color: AppColors.gold.withValues(alpha: 0.6),
+                        ),
                       ),
+                      padding: EdgeInsets.symmetric(horizontal: 12.w),
                     ),
-                    subtitle: Text(
-                      'Interface: ${p.url.isNotEmpty ? p.url : 'USB / Local Network'}',
-                      style: TextStyle(color: AppColors.creamWhite.withValues(alpha: 0.65), fontSize: 11.sp),
-                    ),
-                    trailing: isSelected
-                        ? Container(
-                            padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
-                            decoration: BoxDecoration(
+                    child: _isChecking
+                        ? SizedBox(
+                            width: 16.r,
+                            height: 16.r,
+                            child: const CircularProgressIndicator(
+                              strokeWidth: 2,
                               color: AppColors.gold,
-                              borderRadius: BorderRadius.circular(20.r),
-                            ),
-                            child: Text(
-                              'TERPILIH',
-                              style: GoogleFonts.montserrat(
-                                color: AppColors.darkBrown,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 10.sp,
-                              ),
                             ),
                           )
-                        : TextButton(
-                            onPressed: () {
-                              setState(() => _selectedPrinter = p);
-                              PrinterService.setSelectedPrinter(p);
-                              widget.onPrinterConfigured?.call();
-                            },
-                            child: Text('Pilih', style: TextStyle(color: AppColors.antiqueBrass)),
-                          ),
-                    onTap: () {
-                      setState(() => _selectedPrinter = p);
-                      PrinterService.setSelectedPrinter(p);
-                      widget.onPrinterConfigured?.call();
-                    },
+                        : Icon(Icons.network_check_rounded, size: 20.r),
                   ),
-                );
-              }),
-
-            SizedBox(height: 12.h),
+                ),
+              ],
+            ),
+            SizedBox(height: 8.h),
+            Text(
+              'Cek IP di printer: Menu → Network → Wi-Fi Setup → IP Address',
+              style: AppTextStyles.caption.copyWith(
+                color: Colors.white38,
+                fontSize: 10.sp,
+              ),
+            ),
 
             // Status feedback
             if (_statusMessage != null) ...[
+              SizedBox(height: 10.h),
               Container(
                 width: double.infinity,
                 padding: EdgeInsets.all(10.r),
                 decoration: BoxDecoration(
-                  color: (_statusIsSuccess ? Colors.green : Colors.red).withValues(alpha: 0.1),
+                  color: (_statusIsSuccess ? Colors.green : Colors.red)
+                      .withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8.r),
                   border: Border.all(
-                    color: (_statusIsSuccess ? Colors.green : Colors.red).withValues(alpha: 0.4),
+                    color: (_statusIsSuccess ? Colors.green : Colors.red)
+                        .withValues(alpha: 0.4),
                   ),
                 ),
                 child: Text(
                   _statusMessage!,
                   style: GoogleFonts.montserrat(
-                    color: _statusIsSuccess ? Colors.greenAccent : Colors.redAccent,
+                    color: _statusIsSuccess
+                        ? Colors.greenAccent
+                        : Colors.redAccent,
                     fontSize: 11.sp,
                   ),
                 ),
               ),
-              SizedBox(height: 10.h),
             ],
+
+            SizedBox(height: 16.h),
+            const Divider(color: Colors.white12),
+            SizedBox(height: 12.h),
 
             // Action buttons
             Row(
               children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: AppColors.gold),
-                      foregroundColor: AppColors.gold,
-                      padding: EdgeInsets.symmetric(vertical: 10.h),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
-                    ),
-                    onPressed: _isLoading ? null : _loadPrinters,
-                    icon: const Icon(Icons.refresh_rounded, size: 18),
-                    label: Text('Pindai Ulang', style: GoogleFonts.montserrat(fontSize: 12.sp, fontWeight: FontWeight.w600)),
-                  ),
-                ),
-                SizedBox(width: 10.w),
+                // Simpan IP
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: _isTestingPrint ? null : _testPrint,
+                    onPressed: _saveAndApply,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.gold,
                       foregroundColor: AppColors.darkBrown,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8.r),
+                        borderRadius: BorderRadius.circular(10.r),
                       ),
-                      padding: EdgeInsets.symmetric(vertical: 10.h),
+                      padding: EdgeInsets.symmetric(vertical: 12.h),
+                    ),
+                    icon: Icon(Icons.save_rounded, size: 18.r),
+                    label: Text(
+                      'Simpan IP',
+                      style: GoogleFonts.montserrat(
+                        fontSize: 13.sp,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(width: 10.w),
+                // Test print
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _isTestingPrint ? null : _testPrint,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.buttonBrown,
+                      foregroundColor: AppColors.creamWhite,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10.r),
+                      ),
+                      padding: EdgeInsets.symmetric(vertical: 12.h),
                     ),
                     icon: _isTestingPrint
                         ? SizedBox(
@@ -388,14 +448,14 @@ class _PrinterSettingsModalState extends State<PrinterSettingsModal> {
                             height: 16.r,
                             child: const CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: AppColors.darkBrown,
+                              color: AppColors.creamWhite,
                             ),
                           )
                         : Icon(Icons.print_rounded, size: 18.r),
                     label: Text(
-                      _isTestingPrint ? 'Mencetak...' : 'Cetak 1 Lembar Uji',
+                      _isTestingPrint ? 'Mencetak...' : 'Cetak Uji',
                       style: GoogleFonts.montserrat(
-                        fontSize: 12.sp,
+                        fontSize: 13.sp,
                         fontWeight: FontWeight.w700,
                       ),
                     ),

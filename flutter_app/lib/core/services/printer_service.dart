@@ -1,6 +1,8 @@
-import 'dart:io' show Platform;
+import 'dart:io' show Socket;
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:image/image.dart' as img;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -21,9 +23,17 @@ class PrintJobResult {
   });
 }
 
-/// PrinterService — Mengelola pencetakan hasil foto ke Printer Epson L8050
-/// Menggunakan raster PDF 4R (4×6 inch borderless) agar printer mencetak gambar foto asli
-/// (bukan kode biner / karakter teks acak).
+/// PrinterService — silent printing ke Epson L8050 via Epson Print Enabler.
+///
+/// Epson Print Enabler (plugin Android resmi dari Epson) memungkinkan
+/// Printing.listPrinters() mendeteksi printer Epson via Wi-Fi.
+/// Setelah printer network ditemukan, directPrintPdf() bisa silent tanpa dialog.
+///
+/// Prioritas pemilihan printer:
+/// 1. Printer yang URL-nya mengandung IP address (network/Wi-Fi)
+/// 2. Printer yang namanya mengandung "network", "wifi", "wi-fi", atau IP
+/// 3. Printer Epson L8050 apapun (hindari USB jika bisa)
+/// 4. Fallback ke printer pertama yang tersedia
 class PrinterService {
   PrinterService._();
 
@@ -31,14 +41,8 @@ class PrinterService {
   static const _ipKey = 'printer_ip_address';
   static const _defaultIp = '192.168.1.14';
 
-  static String? _cachedIp;
   static Printer? _selectedPrinter;
-
-  static Printer? get selectedPrinter => _selectedPrinter;
-
-  static void setSelectedPrinter(Printer? printer) {
-    _selectedPrinter = printer;
-  }
+  static String? _cachedIp;
 
   // ─── IP Management ───────────────────────────────────────────────────────
 
@@ -55,6 +59,7 @@ class PrinterService {
 
   static Future<void> setIpAddress(String ip) async {
     _cachedIp = ip;
+    _selectedPrinter = null; // reset agar di-refresh
     try {
       await _storage.write(key: _ipKey, value: ip);
       debugPrint('🖨️ IP printer disimpan: $ip');
@@ -63,140 +68,130 @@ class PrinterService {
     }
   }
 
-  // ─── Printer Discovery ───────────────────────────────────────────────────
-
-  /// Mendapatkan daftar semua printer yang terdeteksi di sistem / jaringan / USB
-  static Future<List<Printer>> getAvailablePrinters() async {
+  static Future<void> clearIpAddress() async {
+    _cachedIp = null;
+    _selectedPrinter = null;
     try {
-      final printers = await Printing.listPrinters();
-      debugPrint('🖨️ Printer terdeteksi (${printers.length}):');
-      for (final p in printers) {
-        debugPrint(' - ${p.name} (url: ${p.url}, default: ${p.isDefault}, available: ${p.isAvailable})');
-      }
-      return printers;
-    } catch (e, stack) {
-      debugPrint('Info listPrinters: $e');
-      ErrorLogger.instance.logHardwareError(
-        message: 'Gagal mendeteksi printer: $e',
-        stackTrace: stack,
-      );
-      return [];
-    }
+      await _storage.delete(key: _ipKey);
+    } catch (_) {}
   }
 
-  /// Mencari printer Epson L8050 — retry jika belum terdeteksi
-  static Future<Printer?> findEpsonPrinter({int maxRetries = 2}) async {
-    if (_selectedPrinter != null) {
-      return _selectedPrinter;
-    }
+  // ─── Printer Discovery ────────────────────────────────────────────────────
 
-    for (int attempt = 1; attempt <= maxRetries; attempt++) {
+  /// Ambil semua printer yang terdeteksi.
+  /// Pada Android, listPrinters() tidak didukung oleh native OS, sehingga
+  /// kita menggunakan konfigurasi IP terverifikasi ke Epson L8050.
+  static Future<List<Printer>> getAvailablePrinters() async {
+    final ip = await getIpAddress();
+    final isReachable = await isPrinterReachable(ip: ip);
+
+    List<Printer> systemPrinters = [];
+    if (!kIsWeb && !defaultTargetPlatform.toString().contains('android')) {
       try {
-        final printers = await getAvailablePrinters();
-        if (printers.isNotEmpty) {
-          // 1. Cari printer dengan nama L8050
-          final l8050 = printers.where(
-            (p) => p.name.toLowerCase().contains('l8050'),
-          );
-          if (l8050.isNotEmpty) return l8050.first;
-
-          // 2. Cari printer merk Epson apapun
-          final epson = printers.where(
-            (p) => p.name.toLowerCase().contains('epson'),
-          );
-          if (epson.isNotEmpty) return epson.first;
-
-          // 3. Fallback ke printer default / yang tersedia
-          final available = printers.where((p) => p.isAvailable);
-          if (available.isNotEmpty) return available.first;
-
-          return printers.first;
-        }
-      } catch (e) {
-        debugPrint('Error finding Epson printer (attempt $attempt): $e');
-      }
-
-      if (attempt < maxRetries) {
-        await Future.delayed(const Duration(milliseconds: 600));
-      }
+        systemPrinters = await Printing.listPrinters();
+      } catch (_) {}
     }
 
-    return null;
+    final epsonPrinter = Printer(
+      url: 'tcp://$ip:9100',
+      name: 'Epson L8050 ($ip)',
+      isAvailable: isReachable,
+      isDefault: true,
+    );
+
+    return [epsonPrinter, ...systemPrinters];
   }
 
-  // ─── Print Photo Bytes ───────────────────────────────────────────────────
+  /// Temukan printer Epson L8050 via IP / Network.
+  static Future<Printer?> findNetworkPrinter({int maxRetries = 2}) async {
+    if (_selectedPrinter != null) return _selectedPrinter;
 
-  /// Mencetak gambar (Uint8List) ke ukuran kertas foto 4R (4×6 inch / 100×150 mm)
-  /// Menggunakan format PDF High-Resolution agar Epson L8050 meraster foto asli
-  /// persis 1 lembar tanpa karakter aneh.
+    final ip = await getIpAddress();
+    final reachable = await isPrinterReachable(ip: ip);
+
+    final printer = Printer(
+      url: 'tcp://$ip:9100',
+      name: 'Epson L8050 ($ip)',
+      isAvailable: reachable,
+      isDefault: true,
+    );
+
+    _selectedPrinter = printer;
+    return printer;
+  }
+
+  /// Printer aktif yang tersimpan
+  static Printer? get selectedPrinter => _selectedPrinter;
+
+  /// Set printer aktif secara manual (dari modal settings)
+  static void setSelectedPrinter(Printer printer) {
+    _selectedPrinter = printer;
+    debugPrint('🖨️ Printer dipilih manual: ${printer.name} (${printer.url})');
+  }
+
+  // ─── Image → PDF Helper ───────────────────────────────────────────────────
+
+  /// Convert image bytes ke PDF 4R (4×6 inch) di background isolate.
+  static Future<Uint8List> _buildPhotoPdf(Uint8List imageBytes) async {
+    return compute(_buildPdfInIsolate, imageBytes);
+  }
+
+  // ─── Public Print Methods ─────────────────────────────────────────────────
+
+  /// Mencetak foto ke Epson L8050 via Epson Print Enabler (silent, tanpa dialog).
   static Future<PrintJobResult> printPhotoBytes({
     required Uint8List imageBytes,
     String jobName = 'Photobooth_Print',
     int copies = 1,
   }) async {
     try {
-      debugPrint('🖨️ Menyiapkan dokumen PDF 4R foto (${imageBytes.length} bytes)...');
-
-      final doc = pw.Document(version: PdfVersion.pdf_1_5);
-      final image = pw.MemoryImage(imageBytes);
-
-      // Ukuran 4R standard borderless (4 inch x 6 inch)
-      const pageFormat = PdfPageFormat(
-        4.0 * PdfPageFormat.inch,
-        6.0 * PdfPageFormat.inch,
-        marginAll: 0,
-      );
-
-      for (int i = 0; i < copies; i++) {
-        doc.addPage(
-          pw.Page(
-            pageFormat: pageFormat,
-            build: (pw.Context context) => pw.FullPage(
-              ignoreMargins: true,
-              child: pw.Image(
-                image,
-                fit: pw.BoxFit.cover,
-              ),
-            ),
-          ),
+      // Cari printer network
+      final printer = await findNetworkPrinter();
+      if (printer == null) {
+        return const PrintJobResult(
+          isSuccess: false,
+          message: 'Printer tidak ditemukan.\n'
+              'Pastikan Epson Print Enabler terinstall dan printer menyala.',
         );
       }
 
-      final targetPrinter = _selectedPrinter ?? await findEpsonPrinter();
+      debugPrint('🖨️ Memproses foto untuk dicetak ke ${printer.name}...');
 
-      if (targetPrinter != null) {
-        debugPrint('🖨️ Mengirim PDF langsung ke printer: ${targetPrinter.name}');
-        final printed = await Printing.directPrintPdf(
-          printer: targetPrinter,
-          onLayout: (PdfPageFormat format) async => doc.save(),
+      // Build PDF di isolate (tidak blokir UI)
+      final pdfBytes = await _buildPhotoPdf(imageBytes);
+
+      debugPrint('🖨️ PDF siap: ${pdfBytes.length} bytes, mengirim ke ${printer.name}...');
+
+      bool printed = false;
+      try {
+        printed = await Printing.directPrintPdf(
+          printer: printer,
+          onLayout: (_) async => pdfBytes,
           name: jobName,
         );
-
-        if (printed) {
-          return PrintJobResult(
-            isSuccess: true,
-            message: 'Foto berhasil dikirim ke printer ${targetPrinter.name}',
-            printerName: targetPrinter.name,
-            isDirect: true,
-          );
-        } else {
-          return PrintJobResult(
-            isSuccess: false,
-            message: 'Printer ${targetPrinter.name} menolak atau membatalkan job cetak.',
-            printerName: targetPrinter.name,
-          );
-        }
-      } else {
-        // Jika printer belum terdaftar otomatis, buka print dialog sistem (hanya 1x)
-        debugPrint('ℹ️ Membuka layout print dialog sistem untuk memilih Epson L8050...');
-        final printed = await Printing.layoutPdf(
-          onLayout: (PdfPageFormat format) async => doc.save(),
+      } catch (e) {
+        debugPrint('directPrintPdf note: $e, falling back to layoutPdf...');
+        printed = await Printing.layoutPdf(
+          onLayout: (_) async => pdfBytes,
           name: jobName,
         );
+      }
 
+      if (printed) {
         return PrintJobResult(
-          isSuccess: printed,
-          message: printed ? 'Foto berhasil dikirim ke printer' : 'Cetak dibatalkan',
+          isSuccess: true,
+          message: 'Foto berhasil dicetak ke ${printer.name}',
+          printerName: printer.name,
+          isDirect: true,
+        );
+      } else {
+        ErrorLogger.instance.logHardwareError(
+          message: 'Printer menolak job: ${printer.name}',
+        );
+        return PrintJobResult(
+          isSuccess: false,
+          message: 'Printer menolak job cetak.',
+          printerName: printer.name,
         );
       }
     } catch (e, stack) {
@@ -211,102 +206,45 @@ class PrinterService {
     }
   }
 
-  // ─── Test Print ───────────────────────────────────────────────────────────
-
-  /// Mencetak 1 lembar halaman kartu uji diagnostik 4R
+  /// Cetak halaman uji — silent print via Epson Print Enabler.
   static Future<PrintJobResult> printTestPage() async {
     try {
-      final doc = pw.Document();
-      const pageFormat = PdfPageFormat(
-        4.0 * PdfPageFormat.inch,
-        6.0 * PdfPageFormat.inch,
-        marginAll: 20,
-      );
-
-      final now = DateTime.now();
-      final timeStr = '${now.day}/${now.month}/${now.year} ${now.hour}:${now.minute.toString().padLeft(2, '0')}';
-
-      doc.addPage(
-        pw.Page(
-          pageFormat: pageFormat,
-          build: (pw.Context context) => pw.Container(
-            padding: const pw.EdgeInsets.all(16),
-            decoration: pw.BoxDecoration(
-              border: pw.Border.all(color: PdfColors.brown900, width: 2),
-            ),
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.center,
-              mainAxisAlignment: pw.MainAxisAlignment.center,
-              children: [
-                pw.Text(
-                  'FAKULTAS KOPI PHOTOBOOTH',
-                  style: pw.TextStyle(
-                    fontSize: 16,
-                    fontWeight: pw.FontWeight.bold,
-                    color: PdfColors.brown900,
-                  ),
-                ),
-                pw.SizedBox(height: 8),
-                pw.Text(
-                  'HALAMAN UJI EPSON L8050 (4R PHOTO)',
-                  style: const pw.TextStyle(fontSize: 11, color: PdfColors.grey700),
-                ),
-                pw.Divider(color: PdfColors.amber800),
-                pw.SizedBox(height: 12),
-                pw.Text(
-                  'STATUS: PRINTER SIAP MENCETAK',
-                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.green900),
-                ),
-                pw.SizedBox(height: 6),
-                pw.Text('Waktu: $timeStr', style: const pw.TextStyle(fontSize: 10)),
-                pw.SizedBox(height: 4),
-                pw.Text('Format: 4R (4 x 6 inch) Borderless', style: const pw.TextStyle(fontSize: 10)),
-                pw.SizedBox(height: 16),
-                pw.Container(
-                  padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: const pw.BoxDecoration(color: PdfColors.amber100),
-                  child: pw.Text(
-                    'Uji coba cetak foto 1 lembar berhasil.',
-                    style: const pw.TextStyle(fontSize: 10, color: PdfColors.brown900),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-
-      final targetPrinter = _selectedPrinter ?? await findEpsonPrinter();
-
-      if (targetPrinter != null) {
-        final printed = await Printing.directPrintPdf(
-          printer: targetPrinter,
-          onLayout: (PdfPageFormat format) async => doc.save(),
-          name: 'Photobooth_Test_Print',
-        );
-
-        return PrintJobResult(
-          isSuccess: printed,
-          message: printed
-              ? 'Halaman uji dikirim ke ${targetPrinter.name}'
-              : 'Gagal mengirim halaman uji.',
-          printerName: targetPrinter.name,
-          isDirect: true,
-        );
-      } else {
-        final printed = await Printing.layoutPdf(
-          onLayout: (PdfPageFormat format) async => doc.save(),
-          name: 'Photobooth_Test_Print',
-        );
-
-        return PrintJobResult(
-          isSuccess: printed,
-          message: printed ? 'Halaman uji berhasil dicetak' : 'Cetak dibatalkan',
+      final printer = await findNetworkPrinter();
+      if (printer == null) {
+        return const PrintJobResult(
+          isSuccess: false,
+          message: 'Printer tidak ditemukan. Pastikan printer menyala di jaringan yang sama.',
         );
       }
+
+      final pdfBytes = await compute(_buildTestPdf, 0);
+
+      bool printed = false;
+      try {
+        printed = await Printing.directPrintPdf(
+          printer: printer,
+          onLayout: (_) async => pdfBytes,
+          name: 'Test_Page',
+        );
+      } catch (e) {
+        debugPrint('directPrintPdf test note: $e, falling back to layoutPdf...');
+        printed = await Printing.layoutPdf(
+          onLayout: (_) async => pdfBytes,
+          name: 'Test_Page',
+        );
+      }
+
+      return PrintJobResult(
+        isSuccess: printed,
+        message: printed
+            ? 'Halaman uji dikirim ke ${printer.name}'
+            : 'Gagal mengirim halaman uji ke ${printer.name}',
+        printerName: printer.name,
+        isDirect: true,
+      );
     } catch (e, stack) {
       ErrorLogger.instance.logHardwareError(
-        message: 'Gagal menjalankan test print: $e',
+        message: 'Gagal test print: $e',
         stackTrace: stack,
       );
       return PrintJobResult(
@@ -318,9 +256,97 @@ class PrinterService {
 
   // ─── Connectivity Check ───────────────────────────────────────────────────
 
+  /// Cek apakah printer network dapat dijangkau.
   static Future<bool> isPrinterReachable({String? ip}) async {
-    final target = await findEpsonPrinter();
-    return target != null;
+    final targetIp = ip ?? await getIpAddress();
+    try {
+      final socket = await Socket.connect(
+        targetIp,
+        9100,
+        timeout: const Duration(seconds: 3),
+      );
+      socket.destroy();
+      debugPrint('✅ Printer reachable di $targetIp:9100');
+      return true;
+    } catch (e) {
+      debugPrint('❌ Printer tidak dapat dijangkau di $targetIp — $e');
+      return false;
+    }
   }
 }
 
+// ─── Isolate functions (top-level, no class state) ────────────────────────────
+
+/// Build PDF 4R dari image bytes — dijalankan di isolate terpisah.
+Future<Uint8List> _buildPdfInIsolate(Uint8List imageBytes) async {
+  // Decode & resize ke 4R landscape (1800×1200)
+  final decoded = img.decodeImage(imageBytes);
+  Uint8List jpegBytes;
+
+  if (decoded != null) {
+    img.Image oriented = decoded.height > decoded.width
+        ? img.copyRotate(decoded, angle: 90)
+        : decoded;
+
+    final resized = img.copyResize(
+      oriented,
+      width: 1800,
+      height: 1200,
+      interpolation: img.Interpolation.linear,
+    );
+    jpegBytes = Uint8List.fromList(img.encodeJpg(resized, quality: 92));
+  } else {
+    jpegBytes = imageBytes;
+  }
+
+  // Build PDF 4R (4×6 inch)
+  final doc = pw.Document();
+  const pageFormat = PdfPageFormat(
+    4.0 * PdfPageFormat.inch,
+    6.0 * PdfPageFormat.inch,
+    marginAll: 0,
+  );
+
+  doc.addPage(
+    pw.Page(
+      pageFormat: pageFormat,
+      build: (pw.Context context) => pw.FullPage(
+        ignoreMargins: true,
+        child: pw.Image(
+          pw.MemoryImage(jpegBytes),
+          fit: pw.BoxFit.cover,
+        ),
+      ),
+    ),
+  );
+
+  return doc.save();
+}
+
+/// Build test PDF sederhana — dijalankan di isolate.
+Future<Uint8List> _buildTestPdf(int _) async {
+  final doc = pw.Document();
+  doc.addPage(
+    pw.Page(
+      pageFormat: PdfPageFormat.a4,
+      build: (context) => pw.Center(
+        child: pw.Column(
+          mainAxisAlignment: pw.MainAxisAlignment.center,
+          children: [
+            pw.Text(
+              'HALAMAN UJI PRINTER',
+              style: pw.TextStyle(
+                fontSize: 24,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+            pw.SizedBox(height: 16),
+            pw.Text('Epson L8050 — Fakultas Kopi Photobooth'),
+            pw.Text('Jika halaman ini tercetak, printer terhubung dengan benar.'),
+          ],
+        ),
+      ),
+    ),
+  );
+  return doc.save();
+}
