@@ -29,7 +29,7 @@ class ErrorLogResource extends Resource
         $cafeId = auth()->user()?->cafe_id;
         $query = static::getModel()::whereDate('created_at', today());
         if ($cafeId) {
-            $query->where(fn($q) => $q->where('cafe_id', $cafeId)->orWhereHas('event', fn($eq) => $eq->where('cafe_id', $cafeId)));
+            $query->where(fn($q) => $q->where('cafe_id', $cafeId)->orWhereHas('event', fn($eq) => $eq->where('cafe_id', $cafeId))->orWhereNull('cafe_id'));
         }
         $count = $query->count();
         return $count > 0 ? (string) $count : null;
@@ -174,7 +174,8 @@ class ErrorLogResource extends Resource
         if ($cafeId = auth()->user()?->cafe_id) {
             $query->where(function ($q) use ($cafeId) {
                 $q->where('cafe_id', $cafeId)
-                  ->orWhereHas('event', fn ($eq) => $eq->where('cafe_id', $cafeId));
+                  ->orWhereHas('event', fn ($eq) => $eq->where('cafe_id', $cafeId))
+                  ->orWhereNull('cafe_id');
             });
         }
         return $query;

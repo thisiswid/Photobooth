@@ -23,7 +23,7 @@ class StatsOverviewWidget extends BaseWidget
         if ($cafeId) {
             $sessionQuery->where(fn($q) => $q->where('cafe_id', $cafeId)->orWhereHas('event', fn($eq) => $eq->where('cafe_id', $cafeId)));
             $paymentQuery->whereHas('session', fn($sq) => $sq->where('cafe_id', $cafeId)->orWhereHas('event', fn($eq) => $eq->where('cafe_id', $cafeId)));
-            $errorQuery->where(fn($q) => $q->where('cafe_id', $cafeId)->orWhereHas('event', fn($eq) => $eq->where('cafe_id', $cafeId)));
+            $errorQuery->where(fn($q) => $q->where('cafe_id', $cafeId)->orWhereHas('event', fn($eq) => $eq->where('cafe_id', $cafeId))->orWhereNull('cafe_id'));
         }
 
         $todayErrors = (clone $errorQuery)->whereDate('created_at', today())->count();

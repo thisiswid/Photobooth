@@ -19,7 +19,7 @@ class LatestErrorLogsWidget extends BaseWidget
         $query = ErrorLog::query()->latest();
 
         if ($cafeId) {
-            $query->where(fn($q) => $q->where('cafe_id', $cafeId)->orWhereHas('event', fn($eq) => $eq->where('cafe_id', $cafeId)));
+            $query->where(fn($q) => $q->where('cafe_id', $cafeId)->orWhereHas('event', fn($eq) => $eq->where('cafe_id', $cafeId))->orWhereNull('cafe_id'));
         }
 
         return $table
