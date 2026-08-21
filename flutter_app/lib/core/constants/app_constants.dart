@@ -2,10 +2,13 @@
 /// All magic numbers and configuration values live here.
 abstract final class AppConstants {
   // ── App Identity ──────────────────────────────────────────────────────────
-  static const String appName = 'Fakultas Kopi Photobooth';
+  static const String appName = 'SnapTechBooth';
   static const String appVersion = '1.0.0';
-  static const String brandName = 'FAKULTAS KOPI';
-  static const String tagline = 'Capture Your Moment';
+  static const String brandName = 'SNAPTECH BOOTH';
+  static const String defaultCafeBrandName = 'FAKULTAS KOPI';
+  static const String tagline = 'Capture Your Best Moment';
+  static const String logoSnaptechAsset = 'assets/images/logo-snaptech.jpg';
+  static const String defaultLogoAsset = 'assets/images/logo.png';
 
   // ── API Configuration ─────────────────────────────────────────────────────
   /// Production VPS base URL:

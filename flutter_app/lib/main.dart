@@ -26,13 +26,13 @@ void main() async {
 
   runApp(
     const ProviderScope(
-      child: FakultasKopiApp(),
+      child: SnapTechBoothApp(),
     ),
   );
 }
 
-class FakultasKopiApp extends ConsumerWidget {
-  const FakultasKopiApp({super.key});
+class SnapTechBoothApp extends ConsumerWidget {
+  const SnapTechBoothApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
