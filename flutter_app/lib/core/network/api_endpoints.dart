@@ -47,4 +47,8 @@ abstract final class ApiEndpoints {
 
   // ── Packages (public) ─────────────────────────────────────────────────────
   static const String packages = '/packages';
+
+  // ── Timers ────────────────────────────────────────────────────────────────
+  static const String activeTimers = '/timers/active';
+  static String eventTimers(int eventId) => '/events/$eventId/timers';
 }

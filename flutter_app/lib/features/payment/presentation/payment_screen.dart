@@ -12,6 +12,7 @@ import '../../../core/services/error_logger.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../features/session/providers/session_provider.dart';
+import '../../../features/session/providers/timer_provider.dart';
 import '../../../shared/widgets/customer_header.dart';
 import '../../../shared/widgets/photobooth_layout.dart';
 import '../../../shared/widgets/responsive_layout_builder.dart';
@@ -43,6 +44,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   }
 
   void _startTimeout() {
+    final timerSetting = ref.read(timerSettingProvider).valueOrNull;
+    _timeoutLeft = timerSetting?.paymentTimeoutSeconds ?? 120;
+
     _timeoutTimer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) {
         t.cancel();

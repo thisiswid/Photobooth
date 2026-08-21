@@ -24,6 +24,39 @@ return new class extends Migration
             $table->boolean('is_active')->default(true);
             $table->timestamps();
         });
+
+        $now = now();
+        $cafeId = \Illuminate\Support\Facades\DB::table('cafes')->value('id');
+        $eventId = \Illuminate\Support\Facades\DB::table('events')->value('id');
+
+        \Illuminate\Support\Facades\DB::table('timer_settings')->insert([
+            [
+                'cafe_id'                       => null,
+                'event_id'                      => null,
+                'name'                          => 'Standar Timer Global (Default)',
+                'camera_countdown_seconds'      => 5,
+                'session_timeout_seconds'       => 300,
+                'payment_timeout_seconds'       => 120,
+                'result_screen_timeout_seconds' => 60,
+                'retake_timeout_seconds'        => 60,
+                'is_active'                     => true,
+                'created_at'                    => $now,
+                'updated_at'                    => $now,
+            ],
+            [
+                'cafe_id'                       => $cafeId ?? 1,
+                'event_id'                      => $eventId ?? 1,
+                'name'                          => 'Timer Standar Cafe',
+                'camera_countdown_seconds'      => 5,
+                'session_timeout_seconds'       => 300,
+                'payment_timeout_seconds'       => 120,
+                'result_screen_timeout_seconds' => 60,
+                'retake_timeout_seconds'        => 60,
+                'is_active'                     => true,
+                'created_at'                    => $now,
+                'updated_at'                    => $now,
+            ],
+        ]);
     }
 
     /**

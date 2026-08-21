@@ -16,6 +16,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../features/frame/domain/models/frame_model.dart';
 import '../../../features/session/domain/models/session_model.dart';
 import '../../../features/session/providers/session_provider.dart';
+import '../../../features/session/providers/timer_provider.dart';
 import '../../../shared/widgets/customer_header.dart';
 import '../../../shared/widgets/photobooth_layout.dart';
 import '../../../shared/widgets/photo_strip_widget.dart';
@@ -109,9 +110,11 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
 
   void _startCountdown() {
     ref.read(sessionNotifierProvider.notifier).setMirror(_isMirrorEnabled);
+    final timerSetting = ref.read(timerSettingProvider).valueOrNull;
+    final countdownSecs = timerSetting?.cameraCountdownSeconds ?? _countdownSeconds;
     setState(() {
       _step = _CaptureStep.countdown;
-      _countdownValue = _countdownSeconds;
+      _countdownValue = countdownSecs;
     });
 
     _countdownTimer?.cancel();

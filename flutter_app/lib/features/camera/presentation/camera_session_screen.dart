@@ -9,6 +9,7 @@ import '../../../core/router/app_router.dart';
 import '../../../core/services/camera_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../features/session/providers/session_provider.dart';
+import '../../../features/session/providers/timer_provider.dart';
 import '../../../shared/widgets/photobooth_layout.dart';
 import '../../../shared/widgets/responsive_button.dart';
 import '../../../shared/widgets/session_header.dart';
@@ -108,9 +109,11 @@ class _CameraSessionScreenState extends ConsumerState<CameraSessionScreen> {
 
   void _startCapture() {
     if (_stage != _CaptureStage.idle) return;
+    final timerSetting = ref.read(timerSettingProvider).valueOrNull;
+    final countdownSecs = timerSetting?.cameraCountdownSeconds ?? _countdownSeconds;
     setState(() {
       _stage = _CaptureStage.countdown;
-      _countdown = _countdownSeconds;
+      _countdown = countdownSecs;
     });
 
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
