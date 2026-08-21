@@ -42,8 +42,10 @@ class TimerSetting extends Model
      */
     public static function resolveForCafe(?int $cafeId = null): self
     {
-        if ($cafeId) {
-            $setting = static::where('cafe_id', $cafeId)->where('is_active', true)->first();
+        $targetCafeId = $cafeId ?? \App\Models\Cafe::first()?->id;
+
+        if ($targetCafeId) {
+            $setting = static::where('cafe_id', $targetCafeId)->where('is_active', true)->first();
             if ($setting) {
                 return $setting;
             }
@@ -51,6 +53,7 @@ class TimerSetting extends Model
 
         // Global active setting or default instance
         return static::whereNull('cafe_id')->where('is_active', true)->first()
+            ?? static::where('is_active', true)->first()
             ?? new static([
                 'name'                          => 'Default Timer',
                 'camera_countdown_seconds'      => 5,
