@@ -53,6 +53,14 @@ final class DioClient {
     return _dio;
   }
 
+  String get baseUrl => _dio.options.baseUrl;
+
+  void updateBaseUrl(String newUrl) {
+    if (_initialized) {
+      _dio.options.baseUrl = newUrl;
+    }
+  }
+
   /// Convenience wrapper that maps Dio/network errors to [AppException].
   Future<Response<T>> safeRequest<T>(
     Future<Response<T>> Function() request,
