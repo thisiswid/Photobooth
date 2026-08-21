@@ -8,14 +8,13 @@ import '../../../features/provisioning/providers/tenant_provider.dart';
 import 'logo_emblem.dart';
 import 'responsive_layout_builder.dart';
 
-/// Reusable internal page header — logo + brand name centered only.
-/// Session timer is rendered by PhotoboothLayout as a screen-level overlay.
+/// Reusable internal page header — logo + brand name centered without overflow.
 class CustomerHeader extends StatelessWidget {
   const CustomerHeader({
     super.key,
-    this.trailing,        // kept for API compat — ignored, timer is in layout
-    this.showTimer,       // kept for API compat — ignored
-    this.currentStep,     // kept for API compat — ignored
+    this.trailing,
+    this.showTimer,
+    this.currentStep,
   });
 
   final Widget? trailing;
@@ -26,8 +25,8 @@ class CustomerHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final isMobile = context.isMobile;
 
-    return SizedBox(
-      height: isMobile ? 80.h : 96.h,
+    return Padding(
+      padding: EdgeInsets.only(top: isMobile ? 4.h : 6.h, bottom: isMobile ? 2.h : 4.h),
       child: Center(
         child: _BrandLockup(isMobile: isMobile),
       ),
@@ -35,7 +34,7 @@ class CustomerHeader extends StatelessWidget {
   }
 }
 
-/// Brand lockup — logo + "Nama Cafe Photobooth", centered.
+/// Brand lockup — logo + "Nama Cafe Photobooth", centered & overflow-safe.
 class _BrandLockup extends ConsumerWidget {
   const _BrandLockup({this.isMobile = false});
   final bool isMobile;
@@ -52,17 +51,20 @@ class _BrandLockup extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         LogoEmblem(
-          size: isMobile ? 48.r : 60.r,
+          size: isMobile ? 36.r : 44.r,
           showRing: false,
         ),
-        SizedBox(height: 4.h),
+        SizedBox(height: 2.h),
         Text(
           title,
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: GoogleFonts.cormorantGaramond(
-            fontSize: isMobile ? 28.sp : 36.sp,
+            fontSize: isMobile ? 18.sp : 24.sp,
             fontWeight: FontWeight.w700,
             color: AppColors.darkBrown,
-            letterSpacing: 0.4,
+            letterSpacing: 0.5,
             height: 1.1,
           ),
         ),
@@ -91,7 +93,7 @@ class TimerChip extends StatelessWidget {
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: isMobile ? 10.w : 14.w,
-        vertical: isMobile ? 5.h : 6.h,
+        vertical: isMobile ? 4.h : 6.h,
       ),
       decoration: BoxDecoration(
         color: isWarning
