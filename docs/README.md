@@ -60,3 +60,11 @@ Screen content lifecycle: `Draft → Preview → Publish → Active`
 | Database | PostgreSQL |
 | Storage | Cloud Storage |
 | Payment | Xendit QRIS |
+
+---
+
+## Multi-Tenant & Dynamic Provisioning (SnapTechBooth)
+- [Arsitektur Multi-Tenant Kiosk](file:///c:/PROJECT/Photobooth/docs/architecture/10-snaptech-multi-tenant-kiosk.md)
+- [Alur Provisioning & Onboarding Mesin](file:///c:/PROJECT/Photobooth/docs/flows/06-device-provisioning-and-tenant-onboarding.md)
+- [Arsitektur APK Flutter Kiosk](file:///c:/PROJECT/Photobooth/docs/architecture/09-flutter-kiosk-apk-architecture.md)
+
