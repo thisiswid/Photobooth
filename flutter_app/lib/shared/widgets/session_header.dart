@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_colors.dart';
+import '../../features/provisioning/providers/tenant_provider.dart';
 
 /// Header dipakai khusus di layar sesi foto (Pilih Frame → Ambil Foto):
-/// tombol kembali di kiri, judul aplikasi "KopiKlick" di tengah, dan
-/// chip timer di kanan — sesuai referensi Detail_halaman_foto.png.
-class SessionHeader extends StatelessWidget implements PreferredSizeWidget {
+/// tombol kembali di kiri, judul booth di tengah, dan chip timer di kanan.
+class SessionHeader extends ConsumerWidget implements PreferredSizeWidget {
   const SessionHeader({
     super.key,
     required this.timerText,
@@ -17,7 +19,10 @@ class SessionHeader extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback? onBack;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tenantConfig = ref.watch(tenantNotifierProvider).valueOrNull;
+    final cafeName = tenantConfig?.cafe.name ?? AppConstants.defaultCafeBrandName;
+
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 14.h),
       child: Row(
@@ -27,7 +32,7 @@ class SessionHeader extends StatelessWidget implements PreferredSizeWidget {
             child: Column(
               children: [
                 Text(
-                  'KopiKlick',
+                  'SnapTechBooth',
                   style: GoogleFonts.playfairDisplay(
                     fontSize: 20.sp,
                     fontWeight: FontWeight.w800,
@@ -35,7 +40,7 @@ class SessionHeader extends StatelessWidget implements PreferredSizeWidget {
                   ),
                 ),
                 Text(
-                  'by Fakultas Kopi',
+                  'by $cafeName',
                   style: GoogleFonts.inter(
                     fontSize: 10.sp,
                     fontWeight: FontWeight.w600,

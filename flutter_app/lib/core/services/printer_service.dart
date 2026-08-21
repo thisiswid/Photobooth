@@ -507,7 +507,7 @@ Future<Uint8List> _buildTestPdf(int _) async {
               ),
             ),
             pw.SizedBox(height: 16),
-            pw.Text('Epson L8050 — Fakultas Kopi Photobooth'),
+            pw.Text('Epson L8050 — SnapTech Photobooth System'),
             pw.SizedBox(height: 8),
             pw.Text('Ukuran kertas: 4 x 6 inch'),
             pw.SizedBox(height: 16),

@@ -5,12 +5,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/services/error_logger.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../features/provisioning/providers/tenant_provider.dart';
 import '../../../features/session/providers/session_provider.dart';
 import '../../../shared/widgets/customer_header.dart';
 import '../../../shared/widgets/photobooth_layout.dart';
@@ -27,13 +29,19 @@ class PaymentScreen extends ConsumerStatefulWidget {
 class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   bool _isProcessing = false;
   Timer? _timeoutTimer;
-  int _timeoutLeft = 300;
-  static const String _price = 'Rp 48.000';
+  int _timeoutLeft = 180;
 
   @override
   void initState() {
     super.initState();
+    final tenantConfig = ref.read(tenantNotifierProvider).valueOrNull;
+    _timeoutLeft = tenantConfig?.timers.paymentTimeoutSeconds ?? 180;
     _startTimeout();
+  }
+
+  String _formatPrice(int price) {
+    final formatted = NumberFormat('#,###', 'id_ID').format(price);
+    return 'Rp $formatted';
   }
 
   @override
@@ -151,6 +159,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       );
     }
 
+    final tenantConfig = ref.watch(tenantNotifierProvider).valueOrNull;
+    final dynamicPrice = _formatPrice(tenantConfig?.pricing.sessionPrice ?? 25000);
+
     return PhotoboothLayout(
       header: const CustomerHeader(),
       child: Center(
@@ -160,7 +171,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             vertical: isMobile ? 12.h : 20.h,
           ),
           child: _QrisMainCard(
-            price: _price,
+            price: dynamicPrice,
             isMobile: isMobile,
             onSimulator: _showSimulator,
           ).animate().fadeIn(duration: 350.ms).slideY(begin: 0.04),

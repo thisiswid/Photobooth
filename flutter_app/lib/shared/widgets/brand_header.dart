@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_colors.dart';
+import '../../features/provisioning/providers/tenant_provider.dart';
 import 'logo_emblem.dart';
 
-/// Header brand konsisten dipakai di semua screen (kecuali Welcome):
-/// logo bulat + "FAKULTAS KOPI" + "PHOTOBOOTH", dengan chip timer
+/// Header brand konsisten dipakai di semua screen:
+/// logo bulat + Nama Tenant Cafe + "PHOTOBOOTH", dengan chip timer
 /// opsional di kanan saat sesi foto sedang berjalan.
-class BrandHeader extends StatelessWidget {
+class BrandHeader extends ConsumerWidget {
   const BrandHeader({
     super.key,
     this.showTimer = false,
@@ -18,7 +21,10 @@ class BrandHeader extends StatelessWidget {
   final String? timerText;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tenantConfig = ref.watch(tenantNotifierProvider).valueOrNull;
+    final brandName = (tenantConfig?.cafe.name ?? AppConstants.defaultCafeBrandName).toUpperCase();
+
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: 28.w, vertical: 12.h),
       child: Row(
@@ -30,7 +36,7 @@ class BrandHeader extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'FAKULTAS KOPI',
+                brandName,
                 style: GoogleFonts.playfairDisplay(
                   fontSize: 17.sp,
                   fontWeight: FontWeight.w800,
@@ -40,7 +46,11 @@ class BrandHeader extends StatelessWidget {
               ),
               Row(
                 children: [
-                  Container(width: 14.w, height: 1, color: AppColors.goldAccent),
+                  Container(
+                    width: 14.w,
+                    height: 1,
+                    color: tenantConfig?.cafe.theme.primaryColor ?? AppColors.goldAccent,
+                  ),
                   SizedBox(width: 6.w),
                   Text(
                     'PHOTOBOOTH',

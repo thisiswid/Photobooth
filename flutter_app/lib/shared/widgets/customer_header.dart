@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../features/provisioning/providers/tenant_provider.dart';
+import 'logo_emblem.dart';
 import 'responsive_layout_builder.dart';
 
 /// Reusable internal page header — logo + brand name centered only.
@@ -31,32 +35,29 @@ class CustomerHeader extends StatelessWidget {
   }
 }
 
-/// Brand lockup — logo + "Fakultas Kopi Photobooth", centered.
-class _BrandLockup extends StatelessWidget {
+/// Brand lockup — logo + "Nama Cafe Photobooth", centered.
+class _BrandLockup extends ConsumerWidget {
   const _BrandLockup({this.isMobile = false});
   final bool isMobile;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tenantConfig = ref.watch(tenantNotifierProvider).valueOrNull;
+    final cafeName = tenantConfig?.cafe.name ?? AppConstants.defaultCafeBrandName;
+    final title = '$cafeName Photobooth';
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Image.asset(
-          'assets/images/logo.png',
-          width: isMobile ? 48.r : 60.r,
-          height: isMobile ? 48.r : 60.r,
-          fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) => Icon(
-            Icons.coffee_rounded,
-            size: isMobile ? 40.r : 52.r,
-            color: AppColors.darkBrown,
-          ),
+        LogoEmblem(
+          size: isMobile ? 48.r : 60.r,
+          showRing: false,
         ),
         SizedBox(height: 4.h),
         Text(
-          'Fakultas Kopi Photobooth',
+          title,
           style: GoogleFonts.cormorantGaramond(
             fontSize: isMobile ? 28.sp : 36.sp,
             fontWeight: FontWeight.w700,
