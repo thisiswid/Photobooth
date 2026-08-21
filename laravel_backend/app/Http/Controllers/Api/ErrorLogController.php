@@ -16,6 +16,7 @@ class ErrorLogController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
+            'cafe_id'     => 'nullable|integer|exists:cafes,id',
             'device_id'   => 'nullable|string|max:100',
             'event_id'    => 'nullable|integer|exists:events,id',
             'category'    => 'required|string|in:network,payment,camera,api_fetch,system,hardware',
@@ -26,9 +27,35 @@ class ErrorLogController extends Controller
             'stack_trace' => 'nullable|string',
         ]);
 
+        $deviceId = $validated['device_id'] ?? null;
+        $device = null;
+        if ($deviceId) {
+            $device = \App\Models\Device::where('device_key', $deviceId)
+                ->orWhere('id', $deviceId)
+                ->orWhere('name', $deviceId)
+                ->first();
+        }
+
+        $eventId = $validated['event_id'] ?? $device?->event_id;
+        $event = $eventId ? \App\Models\Event::find($eventId) : null;
+
+        $cafeId = $validated['cafe_id']
+            ?? $event?->cafe_id
+            ?? $device?->cafe_id
+            ?? \App\Models\Cafe::first()?->id;
+
+        if (!$eventId) {
+            $event = \App\Models\Event::where('cafe_id', $cafeId)->where('active', true)->first()
+                ?? \App\Models\Event::where('cafe_id', $cafeId)->latest()->first()
+                ?? \App\Models\Event::where('active', true)->first()
+                ?? \App\Models\Event::first();
+            $eventId = $event?->id;
+        }
+
         $log = ErrorLog::create([
-            'device_id'   => $validated['device_id'] ?? null,
-            'event_id'    => $validated['event_id'] ?? 1,
+            'cafe_id'     => $cafeId,
+            'device_id'   => $deviceId,
+            'event_id'    => $eventId,
             'category'    => $validated['category'],
             'level'       => $validated['level'] ?? 'error',
             'title'       => $validated['title'],
