@@ -364,10 +364,10 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                                   imageUrl: logoUrl,
                                   fit: BoxFit.contain,
                                   errorWidget: (_, __, ___) => Image.asset(
-                                    AppConstants.logoSnaptechAsset,
+                                    AppConstants.defaultLogoAsset,
                                     fit: BoxFit.contain,
                                     errorBuilder: (_, __, ___) => Image.asset(
-                                      AppConstants.defaultLogoAsset,
+                                      AppConstants.logoSnaptechAsset,
                                       fit: BoxFit.contain,
                                       errorBuilder: (_, __, ___) => Icon(
                                         Icons.camera_alt_rounded,
@@ -378,10 +378,10 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                                   ),
                                 )
                               : Image.asset(
-                                  AppConstants.logoSnaptechAsset,
+                                  AppConstants.defaultLogoAsset,
                                   fit: BoxFit.contain,
                                   errorBuilder: (_, __, ___) => Image.asset(
-                                    AppConstants.defaultLogoAsset,
+                                    AppConstants.logoSnaptechAsset,
                                     fit: BoxFit.contain,
                                     errorBuilder: (_, __, ___) => Icon(
                                       Icons.camera_alt_rounded,

@@ -74,10 +74,10 @@ class LogoEmblem extends ConsumerWidget {
 
   Widget _buildFallbackImage() {
     return Image.asset(
-      AppConstants.logoSnaptechAsset,
+      AppConstants.defaultLogoAsset,
       fit: BoxFit.contain,
       errorBuilder: (_, __, ___) => Image.asset(
-        AppConstants.defaultLogoAsset,
+        AppConstants.logoSnaptechAsset,
         fit: BoxFit.contain,
         errorBuilder: (_, __, ___) => Icon(
           Icons.camera_alt_rounded,
