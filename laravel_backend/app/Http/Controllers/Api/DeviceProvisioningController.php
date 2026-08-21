@@ -250,8 +250,8 @@ class DeviceProvisioningController extends Controller
         if (!empty($request->error_message) || $request->printer_status === 'error' || $request->camera_status === 'error') {
             ErrorLog::create([
                 'cafe_id'     => $device->cafe_id,
-                'device_id'   => $device->id,
-                'event_id'    => $device->event_id,
+                'device_id'   => $device->device_key ?? (string) $device->id,
+                'event_id'    => $device->event_id ?? \App\Models\Event::where('cafe_id', $device->cafe_id)->where('active', true)->first()?->id ?? \App\Models\Event::first()?->id,
                 'category'    => $request->camera_status === 'error' ? 'camera' : ($request->printer_status === 'error' ? 'hardware' : 'system'),
                 'level'       => 'warning',
                 'title'       => 'Heartbeat Telemetry Alert: ' . ($request->error_message ?? 'Hardware status error'),
