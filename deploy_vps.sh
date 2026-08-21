@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 
 # ==============================================================================
 # SnapTech Photobooth — Automated VPS Setup Script
@@ -21,7 +21,7 @@ echo "============================================================"
 # 1. Update system packages
 echo "Updating system packages..."
 sudo apt update && sudo apt upgrade -y
-sudo apt install -y software-properties-common curl git unzip zip htop ufw supervisor nginx postgresql postgresql-contrib certbot python3-certbot-nginx
+sudo apt install -y software-properties-common curl git unzip zip htop ufw supervisor nginx postgresql postgresql-contrib certbot python3-certbot-nginx ffmpeg
 
 # 2. Setup 2GB Swap Memory (Prevent Out-Of-Memory)
 if [ ! -f /swapfile ]; then
