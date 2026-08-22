@@ -114,8 +114,15 @@ class GlobalDeviceResource extends Resource
                 TextColumn::make('name')
                     ->label('Nama Mesin')
                     ->searchable()
-                    ->sortable()
-                    ->description(fn (Device $record): string => "Key: " . ($record->device_key ?? '-')),
+                    ->sortable(),
+                TextColumn::make('device_key')
+                    ->label('Device Pairing Key')
+                    ->badge()
+                    ->color('info')
+                    ->copyable()
+                    ->copyMessage('Device Key berhasil disalin!')
+                    ->searchable()
+                    ->sortable(),
                 TextColumn::make('cafe.name')
                     ->label('Lokasi Cafe')
                     ->searchable()
