@@ -93,9 +93,9 @@ class TutorialScreen extends ConsumerWidget {
                     ),
             ),
 
-            // ── Tombol Lanjut — kanan bawah, kecil, tanpa icon ────────────
+            // ── Tombol Lanjut / Pembayaran — tengah ─────────────────────────
             Align(
-              alignment: Alignment.bottomRight,
+              alignment: Alignment.center,
               child: GestureDetector(
                 onTap: () => context.go(AppRoutes.payment),
                 child: Container(
