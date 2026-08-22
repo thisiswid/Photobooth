@@ -54,6 +54,15 @@ class EditFrame extends EditRecord
                 $h = $imageInfo[1];
             }
 
+            // Smart Fail-Safe: Cek rasio kanvas gambar
+            // Jika rasio <= 0.45 (misal 600x1800 -> 0.333), ini pasti Single Strip vertikal
+            $aspectRatio = $h > 0 ? ($w / $h) : 0.66;
+            if ($aspectRatio <= 0.45 && in_array($layoutType, ['double_6', 'double_8'])) {
+                $layoutType = 'single';
+                $poseCount = 4;
+                $slotCount = 4;
+            }
+
             if ($useAi) {
                 $analysis = FrameSlotDetector::analyze($pngPath, autoPunchTransparency: true);
                 if (!empty($analysis['punched']) && !empty($analysis['relative_path'])) {
@@ -78,6 +87,20 @@ class EditFrame extends EditRecord
                 $detectedSlots = FrameSlotDetector::generateStandardSlots($w, $h, $layoutType, $poseCount, $rightOrder);
             }
         }
+
+        // Smart Fail-Safe: Enforce strict pose_count & slot_count according to layout
+        if ($layoutType === 'double_6') {
+            $poseCount = 3;
+            $slotCount = 6;
+        } elseif ($layoutType === 'double_8') {
+            $poseCount = 4;
+            $slotCount = 8;
+        } else {
+            $slotCount = $poseCount;
+        }
+
+        $data['pose_count'] = $poseCount;
+        $data['layout_type'] = $layoutType;
 
         // Ensure pose_index in slots accurately aligns with chosen rightOrder
         $finalSlots = FrameSlotDetector::assignSlotPoses($detectedSlots, $layoutType, $rightOrder, $poseCount);
