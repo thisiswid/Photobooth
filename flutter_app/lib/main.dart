@@ -6,6 +6,7 @@ import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
 import 'core/network/dio_client.dart';
 import 'core/constants/app_constants.dart';
+import 'core/services/heartbeat_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,15 +25,18 @@ void main() async {
   // Initialize DioClient (dev mode for now)
   DioClient.instance.initialize(isProduction: false);
 
+  // Start background heartbeat telemetry
+  HeartbeatService.instance.start();
+
   runApp(
     const ProviderScope(
-      child: FakultasKopiApp(),
+      child: SnapTechBoothApp(),
     ),
   );
 }
 
-class FakultasKopiApp extends ConsumerWidget {
-  const FakultasKopiApp({super.key});
+class SnapTechBoothApp extends ConsumerWidget {
+  const SnapTechBoothApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

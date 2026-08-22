@@ -20,10 +20,6 @@ class PhotoPreviewScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final sessionState = ref.watch(sessionNotifierProvider);
     final photos = sessionState.session?.photos ?? [];
-    final remaining = sessionState.remainingTime;
-    final timerText =
-        '${(remaining.inSeconds ~/ 60).toString().padLeft(2, '0')}:'
-        '${(remaining.inSeconds % 60).toString().padLeft(2, '0')}';
 
     return PhotoboothLayout(
       header: const CustomerHeader(),

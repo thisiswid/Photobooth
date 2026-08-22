@@ -4,263 +4,366 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../features/provisioning/providers/tenant_provider.dart';
 import '../../../shared/widgets/customer_header.dart';
 import '../../../shared/widgets/photobooth_layout.dart';
 import '../../../shared/widgets/responsive_layout_builder.dart';
 
-/// Tutorial Screen — Panduan sesi photobooth, clean & minimal.
+/// Tutorial Screen — Panduan 5 Langkah Sesi Photobooth dengan Kotak Persegi Kompak & Tombol Tengah.
 class TutorialScreen extends ConsumerWidget {
   const TutorialScreen({super.key});
 
   static const _steps = [
-    _TutorialStep(number: '1', title: 'Bayar', desc: 'Scan QRIS untuk mulai sesi.'),
-    _TutorialStep(number: '2', title: 'Pilih Frame', desc: 'Pilih bingkai favoritmu.'),
-    _TutorialStep(number: '3', title: 'Ambil Foto', desc: 'Pose saat hitung mundur.'),
-    _TutorialStep(number: '4', title: 'Filter', desc: 'Tambahkan sentuhan vintage.'),
-    _TutorialStep(number: '5', title: 'Cetak & Unduh', desc: 'Cetak fisik & download QR.'),
+    _TutorialStep(
+      number: '1',
+      title: 'Bayar QRIS',
+      desc: 'Scan QRIS untuk mulai',
+      icon: Icons.qr_code_scanner_rounded,
+    ),
+    _TutorialStep(
+      number: '2',
+      title: 'Pilih Frame',
+      desc: 'Pilih bingkai favoritmu',
+      icon: Icons.filter_frames_rounded,
+    ),
+    _TutorialStep(
+      number: '3',
+      title: 'Ambil Foto',
+      desc: 'Pose saat hitung mundur',
+      icon: Icons.photo_camera_rounded,
+    ),
+    _TutorialStep(
+      number: '4',
+      title: 'Pilih Filter',
+      desc: 'Sentuhan warna estetik',
+      icon: Icons.auto_awesome_rounded,
+    ),
+    _TutorialStep(
+      number: '5',
+      title: 'Cetak & Unduh',
+      desc: 'Cetak fisik & download QR',
+      icon: Icons.print_rounded,
+    ),
   ];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isMobile = context.isMobile;
     final isPortrait = context.isPortrait;
+    final tenantConfig = ref.watch(tenantNotifierProvider).valueOrNull;
+
+    final primaryColor = tenantConfig?.cafe.theme.primaryColor ?? AppColors.gold;
+    final sessionPrice = tenantConfig?.pricing.sessionPrice ?? 25000;
+    final formattedPrice = 'Rp ${NumberFormat('#,###', 'id_ID').format(sessionPrice)}';
 
     return PhotoboothLayout(
       header: const CustomerHeader(),
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          isMobile ? 16.w : 28.w,
-          isMobile ? 0 : 4.h,
-          isMobile ? 16.w : 28.w,
-          isMobile ? 12.h : 16.h,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Judul — sedikit lebih ke atas ──────────────────────────────
-            SizedBox(height: isMobile ? 4.h : 8.h),
-            Text(
-              'Panduan Sesi Photobooth',
-              style: GoogleFonts.cormorantGaramond(
-                fontSize: isMobile ? 20.sp : 26.sp,
-                fontWeight: FontWeight.w700,
-                color: AppColors.darkBrown,
-                letterSpacing: 0.3,
+      child: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: isMobile ? 16.w : 24.w,
+            vertical: isMobile ? 4.h : 6.h,
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // ── Header Title ─────────────────────────────────────────────
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'PANDUAN SESI PHOTOBOOTH',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.cormorantGaramond(
+                      fontSize: isMobile ? 18.sp : 24.sp,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.darkBrown,
+                      letterSpacing: 1.5,
+                    ),
+                  ).animate().fadeIn(duration: 250.ms),
+
+                  SizedBox(height: 2.h),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 24.w,
+                        height: 1.2,
+                        color: primaryColor.withValues(alpha: 0.6),
+                      ),
+                      SizedBox(width: 8.w),
+                      Text(
+                        '5 Langkah Mudah untuk Mengabadikan Momenmu',
+                        style: GoogleFonts.montserrat(
+                          fontSize: isMobile ? 9.sp : 11.sp,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.brown,
+                        ),
+                      ),
+                      SizedBox(width: 8.w),
+                      Container(
+                        width: 24.w,
+                        height: 1.2,
+                        color: primaryColor.withValues(alpha: 0.6),
+                      ),
+                    ],
+                  ).animate().fadeIn(delay: 100.ms),
+                ],
               ),
-            ).animate().fadeIn(duration: 300.ms),
 
-            SizedBox(height: isMobile ? 2.h : 4.h),
-
-            // Divider tipis
-            Container(
-              width: 40.w,
-              height: 1.2,
-              color: AppColors.gold.withValues(alpha: 0.6),
-            ).animate().fadeIn(delay: 100.ms),
-
-            SizedBox(height: isMobile ? 12.h : 16.h),
-
-            // ── Daftar langkah ─────────────────────────────────────────────
-            Expanded(
-              child: (isMobile || isPortrait)
-                  ? Column(
-                      mainAxisAlignment: MainAxisAlignment.start,
-                      children: _steps.asMap().entries.map((e) {
-                        return Padding(
-                          padding: EdgeInsets.only(bottom: isMobile ? 8.h : 10.h),
-                          child: _StepRow(step: e.value, index: e.key)
+              // ── Kotak Panduan Persegi Kompak (Square Box) ─────────────────
+              Padding(
+                padding: EdgeInsets.symmetric(vertical: isMobile ? 8.h : 12.h),
+                child: (isMobile || isPortrait)
+                    ? Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: 10.w,
+                        runSpacing: 10.h,
+                        children: _steps.asMap().entries.map((e) {
+                          return _StepBoxSquare(
+                            step: e.value,
+                            accentColor: primaryColor,
+                            width: isMobile ? 140.w : 150.w,
+                            height: isMobile ? 110.h : 120.h,
+                          )
                               .animate()
-                              .fadeIn(delay: (e.key * 60).ms)
-                              .slideY(begin: 0.04, delay: (e.key * 60).ms),
-                        );
-                      }).toList(),
-                    )
-                  : Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: _steps.asMap().entries.map((e) {
-                        return Expanded(
-                          child: Padding(
+                              .fadeIn(delay: (e.key * 40).ms)
+                              .scale(begin: const Offset(0.92, 0.92), delay: (e.key * 40).ms);
+                        }).toList(),
+                      )
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: _steps.asMap().entries.map((e) {
+                          return Padding(
                             padding: EdgeInsets.symmetric(horizontal: 6.w),
-                            child: _StepCard(step: e.value, index: e.key)
+                            child: _StepBoxSquare(
+                              step: e.value,
+                              accentColor: primaryColor,
+                              width: 140.w,
+                              height: 145.h,
+                            )
                                 .animate()
-                                .fadeIn(delay: (e.key * 60).ms)
-                                .slideY(begin: 0.04, delay: (e.key * 60).ms),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-            ),
+                                .fadeIn(delay: (e.key * 50).ms)
+                                .scale(begin: const Offset(0.92, 0.92), delay: (e.key * 50).ms),
+                          );
+                        }).toList(),
+                      ),
+              ),
 
-            // ── Tombol Lanjut — kanan bawah, kecil, tanpa icon ────────────
-            Align(
-              alignment: Alignment.bottomRight,
-              child: GestureDetector(
-                onTap: () => context.go(AppRoutes.payment),
-                child: Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isMobile ? 20.w : 28.w,
-                    vertical: isMobile ? 9.h : 11.h,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.buttonBrown,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    'Lanjut',
-                    style: GoogleFonts.montserrat(
-                      fontSize: isMobile ? 12.sp : 13.sp,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.creamWhite,
-                      letterSpacing: 0.3,
+              // ── Tombol Bayar di Tengah Layar (Centered CTA Button) ───────
+              Center(
+                child: SizedBox(
+                  width: isMobile ? (isPortrait ? 260.w : 220.w) : 340.w,
+                  height: isMobile ? 46.h : 54.h,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.buttonBrown,
+                      foregroundColor: AppColors.creamWhite,
+                      elevation: 6,
+                      shadowColor: Colors.black.withValues(alpha: 0.35),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(28.r),
+                        side: BorderSide(
+                          color: primaryColor.withValues(alpha: 0.6),
+                          width: 1.2,
+                        ),
+                      ),
+                      padding: EdgeInsets.symmetric(horizontal: 18.w),
+                    ),
+                    onPressed: () => context.go(AppRoutes.payment),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.qr_code_scanner_rounded,
+                          size: isMobile ? 18.r : 22.r,
+                          color: AppColors.creamWhite,
+                        ),
+                        SizedBox(width: 8.w),
+                        Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'LANJUT KE PEMBAYARAN',
+                              style: GoogleFonts.montserrat(
+                                fontSize: isMobile ? 11.sp : 12.5.sp,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.creamWhite,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                            Text(
+                              'Sesi Foto — $formattedPrice',
+                              style: GoogleFonts.montserrat(
+                                fontSize: isMobile ? 8.5.sp : 9.5.sp,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.creamWhite.withValues(alpha: 0.85),
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(width: 8.w),
+                        Icon(
+                          Icons.arrow_forward_rounded,
+                          size: isMobile ? 16.r : 18.r,
+                          color: AppColors.creamWhite,
+                        ),
+                      ],
                     ),
                   ),
-                ),
-              ).animate().fadeIn(delay: 350.ms),
-            ),
-          ],
+                )
+                    .animate(onPlay: (c) => c.repeat(reverse: true))
+                    .scale(begin: const Offset(1.0, 1.0), end: const Offset(1.02, 1.02), duration: 1300.ms)
+                    .animate()
+                    .fadeIn(delay: 300.ms),
+              ),
+
+              SizedBox(height: 4.h),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-// ── Step Row (portrait/mobile) ────────────────────────────────────────────────
+// ── Kotak Biasa Persegi (Compact Square Box) ──────────────────────────────────
 
-class _StepRow extends StatelessWidget {
-  const _StepRow({required this.step, required this.index});
+class _StepBoxSquare extends StatelessWidget {
+  const _StepBoxSquare({
+    required this.step,
+    required this.accentColor,
+    required this.width,
+    required this.height,
+  });
+
   final _TutorialStep step;
-  final int index;
+  final Color accentColor;
+  final double width;
+  final double height;
 
   @override
   Widget build(BuildContext context) {
-    final isMobile = context.isMobile;
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        // Number circle
-        Container(
-          width: isMobile ? 30.r : 36.r,
-          height: isMobile ? 30.r : 36.r,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: AppColors.buttonBrown.withValues(alpha: 0.08),
-            border: Border.all(
-              color: AppColors.gold.withValues(alpha: 0.55),
-              width: 1.2,
-            ),
-          ),
-          child: Center(
-            child: Text(
-              step.number,
-              style: GoogleFonts.cormorantGaramond(
-                fontSize: isMobile ? 13.sp : 16.sp,
-                fontWeight: FontWeight.w700,
-                color: AppColors.darkBrown,
-              ),
-            ),
-          ),
+    return Container(
+      width: width,
+      height: height,
+      padding: EdgeInsets.all(10.r),
+      decoration: BoxDecoration(
+        color: AppColors.creamWhite,
+        borderRadius: BorderRadius.circular(14.r),
+        border: Border.all(
+          color: accentColor.withValues(alpha: 0.5),
+          width: 1.2,
         ),
-
-        SizedBox(width: isMobile ? 12.w : 16.w),
-
-        // Title + desc
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.darkBrown.withValues(alpha: 0.08),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Lingkaran Icon & Angka Step
+          Stack(
+            clipBehavior: Clip.none,
             children: [
-              Text(
-                step.title,
-                style: GoogleFonts.montserrat(
-                  fontSize: isMobile ? 12.sp : 13.sp,
-                  fontWeight: FontWeight.w600,
+              Container(
+                width: 42.r,
+                height: 42.r,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.buttonBrown.withValues(alpha: 0.08),
+                  border: Border.all(
+                    color: accentColor.withValues(alpha: 0.6),
+                    width: 1.2,
+                  ),
+                ),
+                child: Icon(
+                  step.icon,
                   color: AppColors.darkBrown,
+                  size: 20.r,
                 ),
               ),
-              SizedBox(height: 1.h),
-              Text(
-                step.desc,
-                style: GoogleFonts.montserrat(
-                  fontSize: isMobile ? 10.sp : 11.sp,
-                  color: AppColors.brown,
+              Positioned(
+                top: -3,
+                right: -4,
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 5.w, vertical: 1.5.h),
+                  decoration: BoxDecoration(
+                    color: AppColors.buttonBrown,
+                    borderRadius: BorderRadius.circular(8.r),
+                  ),
+                  child: Text(
+                    step.number,
+                    style: TextStyle(
+                      color: AppColors.creamWhite,
+                      fontSize: 8.5.sp,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ),
             ],
           ),
-        ),
-      ],
+
+          SizedBox(height: 8.h),
+
+          // Judul Langkah
+          Text(
+            step.title,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.montserrat(
+              fontSize: 11.5.sp,
+              fontWeight: FontWeight.w700,
+              color: AppColors.darkBrown,
+            ),
+          ),
+
+          SizedBox(height: 3.h),
+
+          // Deskripsi Singkat
+          Text(
+            step.desc,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.montserrat(
+              fontSize: 9.sp,
+              fontWeight: FontWeight.w500,
+              color: AppColors.brown,
+              height: 1.2,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
-// ── Step Card (landscape) ─────────────────────────────────────────────────────
-
-class _StepCard extends StatelessWidget {
-  const _StepCard({required this.step, required this.index});
-  final _TutorialStep step;
-  final int index;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 32.r,
-          height: 32.r,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: AppColors.buttonBrown.withValues(alpha: 0.08),
-            border: Border.all(
-              color: AppColors.gold.withValues(alpha: 0.55),
-              width: 1.2,
-            ),
-          ),
-          child: Center(
-            child: Text(
-              step.number,
-              style: GoogleFonts.cormorantGaramond(
-                fontSize: 15.sp,
-                fontWeight: FontWeight.w700,
-                color: AppColors.darkBrown,
-              ),
-            ),
-          ),
-        ),
-        SizedBox(height: 8.h),
-        Text(
-          step.title,
-          style: GoogleFonts.montserrat(
-            fontSize: 12.sp,
-            fontWeight: FontWeight.w600,
-            color: AppColors.darkBrown,
-          ),
-        ),
-        SizedBox(height: 3.h),
-        Text(
-          step.desc,
-          style: GoogleFonts.montserrat(
-            fontSize: 10.5.sp,
-            color: AppColors.brown,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ── Data class ────────────────────────────────────────────────────────────────
+// ── Data Class ────────────────────────────────────────────────────────────────
 
 class _TutorialStep {
   const _TutorialStep({
     required this.number,
     required this.title,
     required this.desc,
+    required this.icon,
   });
+
   final String number;
   final String title;
   final String desc;
+  final IconData icon;
 }

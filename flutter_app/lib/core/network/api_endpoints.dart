@@ -1,6 +1,11 @@
 /// All API endpoint paths for Fakultas Kopi Photobooth backend.
 /// Used with DioClient.baseUrl as prefix.
 abstract final class ApiEndpoints {
+  // ── Device Provisioning & Telemetry ────────────────────────────────────────
+  static const String deviceActivate = '/devices/activate';
+  static String deviceConfig(String deviceKey) => '/devices/$deviceKey/config';
+  static const String deviceHeartbeat = '/devices/heartbeat';
+
   // ── Auth ──────────────────────────────────────────────────────────────────
   static const String login = '/login';
   static const String logout = '/admin/auth/logout';

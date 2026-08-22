@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,6 +8,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/services/camera_service.dart';
 import '../../../core/theme/app_colors.dart';
@@ -15,6 +17,7 @@ import '../../../shared/widgets/corner_decorations.dart';
 import '../../../shared/widgets/kiosk_settings_dialog.dart';
 import '../../../shared/widgets/responsive_button.dart';
 import '../../../shared/widgets/responsive_layout_builder.dart';
+import '../../provisioning/providers/tenant_provider.dart';
 
 /// Welcome Screen — Retro-Modern Artisan Studio Grand Entrance.
 class WelcomeScreen extends ConsumerStatefulWidget {
@@ -193,6 +196,13 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
     final isMobile = context.isMobile;
     final isPortrait = context.isPortrait;
 
+    final tenantConfig = ref.watch(tenantNotifierProvider).valueOrNull;
+    final cafeName = (tenantConfig?.cafe.name ?? AppConstants.defaultCafeBrandName).toUpperCase();
+    final welcomeTitle = ((tenantConfig?.screens['welcome']?['title'] as String?) ?? cafeName).toUpperCase();
+    final welcomeSubtitle = ((tenantConfig?.screens['welcome']?['description'] as String?) ?? 'SELF-SERVICE PHOTOBOOTH').toUpperCase();
+    final buttonLabel = ((tenantConfig?.screens['welcome']?['button_text'] as String?) ?? 'MULAI SESI FOTO').toUpperCase();
+    final logoUrl = tenantConfig?.cafe.logoUrl;
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
@@ -215,6 +225,69 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                   Colors.black.withValues(alpha: 0.65),
                   Colors.black.withValues(alpha: 0.88),
                 ],
+              ),
+            ),
+          ),
+
+          // ── Header Bar (Setting Icon & Status) ─────────────────────────
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: isMobile ? 16.w : 24.w,
+                  vertical: 12.h,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // Status dot
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(12.r),
+                        border: Border.all(color: Colors.white12),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 7.r,
+                            height: 7.r,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF22C55E),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          SizedBox(width: 6.w),
+                          Text(
+                            'ONLINE',
+                            style: GoogleFonts.montserrat(
+                              color: Colors.white70,
+                              fontSize: 10.sp,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Kiosk Settings Button (Disembunyikan jika dimatikan via Admin)
+                    if (_showSettingsIcon)
+                      IconButton(
+                        onPressed: _promptSettingsPin,
+                        icon: Icon(
+                          Icons.settings_outlined,
+                          color: AppColors.creamWhite.withValues(alpha: 0.85),
+                          size: isMobile ? 22.sp : 26.sp,
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -246,73 +319,94 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
-                physics: const NeverScrollableScrollPhysics(),
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: isMobile ? 16.w : 32.w),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(height: isMobile ? 20.h : 10.h),
-
-                      // Vintage Badge Ring & Logo (with emergency secret tap gesture)
-                      GestureDetector(
-                        onTap: _onLogoSecretTap,
-                        behavior: HitTestBehavior.opaque,
+                padding: EdgeInsets.symmetric(
+                  horizontal: isMobile ? 20.w : 40.w,
+                  vertical: 16.h,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Vintage Badge Ring & Logo (with emergency secret tap gesture)
+                    GestureDetector(
+                      onTap: _onLogoSecretTap,
+                      behavior: HitTestBehavior.opaque,
+                      child: Container(
+                        width: isMobile ? 140.r : 210.r,
+                        height: isMobile ? 140.r : 210.r,
+                        padding: EdgeInsets.all(isMobile ? 10.r : 16.r),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppColors.creamWhite.withValues(alpha: 0.12),
+                          border: Border.all(
+                            color: (tenantConfig?.cafe.theme.primaryColor ?? AppColors.gold).withValues(alpha: 0.75),
+                            width: 2.0,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.4),
+                              blurRadius: 20,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
                         child: Container(
-                          width: isMobile ? 140.r : 210.r,
-                          height: isMobile ? 140.r : 210.r,
-                          padding: EdgeInsets.all(isMobile ? 10.r : 16.r),
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: AppColors.creamWhite.withValues(alpha: 0.12),
+                            color: AppColors.creamWhite,
                             border: Border.all(
-                              color: AppColors.gold.withValues(alpha: 0.75),
-                              width: 2.0,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.4),
-                                blurRadius: 20,
-                                offset: const Offset(0, 8),
-                              ),
-                            ],
-                          ),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: AppColors.creamWhite,
-                              border: Border.all(
-                                color: AppColors.gold,
-                                width: 1.5,
-                              ),
-                            ),
-                            padding: EdgeInsets.all(isMobile ? 12.r : 18.r),
-                            child: Image.asset(
-                              'assets/images/logo.png',
-                              fit: BoxFit.contain,
-                              errorBuilder: (_, __, ___) => Icon(
-                                Icons.local_cafe_rounded,
-                                color: AppColors.darkBrown,
-                                size: isMobile ? 60.r : 90.r,
-                              ),
+                              color: tenantConfig?.cafe.theme.primaryColor ?? AppColors.gold,
+                              width: 1.5,
                             ),
                           ),
+                          padding: EdgeInsets.all(isMobile ? 12.r : 18.r),
+                          child: (logoUrl != null && logoUrl.isNotEmpty)
+                              ? CachedNetworkImage(
+                                  imageUrl: logoUrl,
+                                  fit: BoxFit.contain,
+                                  errorWidget: (_, __, ___) => Image.asset(
+                                    AppConstants.defaultLogoAsset,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (_, __, ___) => Image.asset(
+                                      AppConstants.logoSnaptechAsset,
+                                      fit: BoxFit.contain,
+                                      errorBuilder: (_, __, ___) => Icon(
+                                        Icons.camera_alt_rounded,
+                                        color: AppColors.darkBrown,
+                                        size: isMobile ? 60.r : 90.r,
+                                      ),
+                                    ),
+                                  ),
+                                )
+                              : Image.asset(
+                                  AppConstants.defaultLogoAsset,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (_, __, ___) => Image.asset(
+                                    AppConstants.logoSnaptechAsset,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (_, __, ___) => Icon(
+                                      Icons.camera_alt_rounded,
+                                      color: AppColors.darkBrown,
+                                      size: isMobile ? 60.r : 90.r,
+                                    ),
+                                  ),
+                                ),
                         ),
-                      )
-                          .animate()
-                          .scale(
-                            begin: const Offset(0.88, 0.88),
-                            duration: 800.ms,
-                            curve: Curves.easeOutBack,
-                          )
-                          .fadeIn(duration: 600.ms),
+                      ),
+                    )
+                        .animate()
+                        .scale(
+                          begin: const Offset(0.88, 0.88),
+                          duration: 800.ms,
+                          curve: Curves.easeOutBack,
+                        )
+                        .fadeIn(duration: 600.ms),
 
                       SizedBox(height: isMobile ? 12.h : 18.h),
 
-                      // FAKULTAS KOPI Title
+                      // Dynamic Cafe / Welcome Title
                       Text(
-                        'FAKULTAS KOPI',
+                        welcomeTitle,
+                        textAlign: TextAlign.center,
                         style: GoogleFonts.cormorantGaramond(
                           color: AppColors.creamWhite,
                           fontSize: isMobile ? 26.sp : 38.sp,
@@ -326,18 +420,18 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
 
                       SizedBox(height: isMobile ? 4.h : 6.h),
 
-                      // PHOTOBOOTH EXPERIENCE Subtitle with Vintage Brass Lines
+                      // Dynamic Subtitle with Accent Lines
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Container(
                             width: isMobile ? 16.w : 32.w,
                             height: 1.2,
-                            color: AppColors.gold.withValues(alpha: 0.8),
+                            color: (tenantConfig?.cafe.theme.primaryColor ?? AppColors.gold).withValues(alpha: 0.8),
                           ),
                           SizedBox(width: isMobile ? 6.w : 10.w),
                           Text(
-                            'SELF-SERVICE PHOTOBOOTH',
+                            welcomeSubtitle,
                             style: GoogleFonts.montserrat(
                               color: AppColors.creamWhite.withValues(alpha: 0.95),
                               fontSize: isMobile ? 9.5.sp : 12.5.sp,
@@ -352,19 +446,19 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                           Container(
                             width: isMobile ? 16.w : 32.w,
                             height: 1.2,
-                            color: AppColors.gold.withValues(alpha: 0.8),
+                            color: (tenantConfig?.cafe.theme.primaryColor ?? AppColors.gold).withValues(alpha: 0.8),
                           ),
                         ],
                       ).animate().fadeIn(delay: 450.ms),
 
                       SizedBox(height: isMobile ? 24.h : 36.h),
 
-                      // Grand CTA Button — MULAI SESI FOTO
+                      // Grand CTA Button — Dynamic Label
                       SizedBox(
                         width: isMobile ? (isPortrait ? 260.w : 220.w) : 320.w,
                         height: isMobile ? 54.h : 68.h,
                         child: ResponsiveButton(
-                          label: 'MULAI SESI FOTO',
+                          label: buttonLabel,
                           icon: Icons.camera_alt_rounded,
                           onPressed: () => context.go(AppRoutes.tutorial),
                         ),
@@ -388,51 +482,6 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                     ],
                   ),
                 ),
-              ),
-            ),
-          ),
-
-          // ── Top Corner Settings Button (Configurable via Super Admin) ─
-          if (_showSettingsIcon)
-            Positioned(
-              top: isMobile ? 12.h : 20.h,
-              right: isMobile ? 12.w : 24.w,
-              child: SafeArea(
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: _promptSettingsPin,
-                    borderRadius: BorderRadius.circular(30.r),
-                    splashColor: AppColors.gold.withValues(alpha: 0.3),
-                    highlightColor: AppColors.gold.withValues(alpha: 0.15),
-                    child: Container(
-                      padding: EdgeInsets.all(isMobile ? 10.r : 12.r),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.black.withValues(alpha: 0.55),
-                        border: Border.all(
-                          color: AppColors.gold.withValues(alpha: 0.65),
-                          width: 1.5,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.5),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Icon(
-                        Icons.settings_suggest_rounded,
-                        color: AppColors.antiqueBrass,
-                        size: isMobile ? 22.r : 26.r,
-                      ),
-                    ),
-                  ),
-                )
-                    .animate()
-                    .fadeIn(delay: 500.ms)
-                    .scale(begin: const Offset(0.8, 0.8), duration: 400.ms, curve: Curves.easeOut),
               ),
             ),
         ],

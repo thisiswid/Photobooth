@@ -9,6 +9,8 @@ import '../../features/camera/presentation/camera_screen.dart';
 import '../../features/preview/presentation/photo_preview_screen.dart';
 import '../../features/filter/presentation/filter_screen.dart';
 import '../../features/result/presentation/final_result_screen.dart';
+import '../../features/provisioning/presentation/provisioning_screen.dart';
+import '../../features/provisioning/providers/tenant_provider.dart';
 import '../../features/session/providers/session_provider.dart';
 
 part 'app_router.g.dart';
@@ -16,8 +18,9 @@ part 'app_router.g.dart';
 // ── Route paths ───────────────────────────────────────────────────────────────
 
 /// Canonical flow:
-/// welcome → tutorial → payment → frame → camera → preview → filter → result
+/// provisioning (if setup) → welcome → tutorial → payment → frame → camera → preview → filter → result
 abstract final class AppRoutes {
+  static const provisioning = '/provisioning';
   static const welcome  = '/';
   static const tutorial = '/tutorial';
   static const payment  = '/payment';
@@ -33,6 +36,7 @@ abstract final class AppRoutes {
 class _RouterNotifier extends ChangeNotifier {
   _RouterNotifier(this._ref) {
     _ref.listen(sessionNotifierProvider, (_, __) => notifyListeners());
+    _ref.listen(tenantNotifierProvider, (_, __) => notifyListeners());
   }
   final AppRouterRef _ref;
 }
@@ -50,6 +54,9 @@ GoRouter appRouter(AppRouterRef ref) {
 
     redirect: (BuildContext context, GoRouterState state) {
       final location = state.matchedLocation;
+
+      // Always allow setup/provisioning screen
+      if (location == AppRoutes.provisioning) return null;
 
       // Open routes — no session required.
       const openRoutes = {AppRoutes.welcome, AppRoutes.tutorial, AppRoutes.payment};
@@ -75,6 +82,7 @@ GoRouter appRouter(AppRouterRef ref) {
     },
 
     routes: [
+      GoRoute(path: AppRoutes.provisioning, builder: (_, __) => const ProvisioningScreen()),
       GoRoute(path: AppRoutes.welcome,  builder: (_, __) => const WelcomeScreen()),
       GoRoute(path: AppRoutes.tutorial, builder: (_, __) => const TutorialScreen()),
       GoRoute(path: AppRoutes.payment,  builder: (_, __) => const PaymentScreen()),
