@@ -12,7 +12,7 @@
             $imageVal = reset($imageVal);
         }
         if (is_string($imageVal)) {
-            if (str_starts_with($imageVal, 'http://') || str_starts_with($imageVal, 'https://')) {
+            if (str_starts_with($imageVal, 'http://') || str_starts_with($imageVal, 'https://') || str_starts_with($imageVal, 'blob:')) {
                 $initialImageUrl = $imageVal;
             } else {
                 $initialImageUrl = '/storage/' . ltrim($imageVal, '/');
@@ -32,10 +32,11 @@
     .dark .fpe-btn-normal:hover { background: #334155; color: #ffffff; }
     .fpe-btn-green { background: #dcfce7; color: #15803d; border-color: #86efac; }
     .fpe-btn-green:hover { background: #bbf7d0; color: #166534; }
-    .fpe-canvas-wrapper { position: relative; max-width: 100%; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2); border: 2px solid #334155; background: repeating-conic-gradient(#cbd5e1 0% 25%, #ffffff 0% 50%) 50% / 18px 18px; margin: 0 auto; display: inline-block; }
-    .fpe-canvas-box { position: absolute; border: 2px dashed #2563eb; background: rgba(37, 99, 235, 0.15); border-radius: 6px; pointer-events: none; display: flex; align-items: center; justify-content: center; box-sizing: border-box; }
-    .fpe-badge { background: rgba(15, 23, 42, 0.9); color: #ffffff; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 800; display: inline-flex; align-items: center; gap: 4px; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
-    .fpe-loupe { position: absolute; pointer-events: none; width: 32px; height: 32px; border-radius: 9999px; border: 2.5px solid #ffffff; box-shadow: 0 4px 8px rgba(0,0,0,0.4); transform: translate(-50%, -50%); z-index: 50; }
+    .fpe-canvas-wrapper { position: relative; max-width: 100%; min-width: 280px; min-height: 400px; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.25); border: 3px solid #334155; background: repeating-conic-gradient(#cbd5e1 0% 25%, #ffffff 0% 50%) 50% / 18px 18px; margin: 0 auto; display: inline-flex; align-items: center; justify-content: center; }
+    .fpe-canvas-box { position: absolute; border: 2px dashed #2563eb; background: rgba(37, 99, 235, 0.2); border-radius: 6px; pointer-events: none; display: flex; align-items: center; justify-content: center; box-sizing: border-box; }
+    .fpe-badge { background: rgba(15, 23, 42, 0.92); color: #ffffff; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 800; display: inline-flex; align-items: center; gap: 4px; border: 1px solid rgba(255,255,255,0.25); box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+    .fpe-loupe { position: absolute; pointer-events: none; width: 34px; height: 34px; border-radius: 9999px; border: 2.5px solid #ffffff; box-shadow: 0 4px 10px rgba(0,0,0,0.5); transform: translate(-50%, -50%); z-index: 60; }
+    .fpe-upload-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; text-align: center; color: #475569; cursor: pointer; }
 </style>
 
 <div
@@ -51,7 +52,6 @@
     <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 16px; margin-bottom: 18px;">
         <div style="display: flex; align-items: center; gap: 10px;">
             <div style="padding: 8px; border-radius: 10px; background: #eff6ff; color: #2563eb; display: flex; align-items: center; justify-content: center;">
-                <!-- Pencil / Magic Wand SVG Icon -->
                 <svg style="width: 22px; height: 22px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0l2.77-2.77m-2.77 2.77l-1.5 1.5m6.77-6.77l2.77-2.77a2.25 2.25 0 000-3.182l-1.364-1.364a2.25 2.25 0 00-3.182 0l-2.77 2.77m4.546 4.546l-4.546-4.546m0 0L3.75 14.25v3.75h3.75l9.25-9.25z"/>
                 </svg>
@@ -112,8 +112,8 @@
                 <span style="font-size: 13px; font-weight: 900; color: #2563eb;" x-text="`${slots.length} Lubang Terdeteksi`"></span>
             </div>
             <div>
-                <span style="font-size: 11px; font-weight: 700; color: #64748b;">Ukuran Desain Asli: </span>
-                <span style="font-size: 12px; font-weight: 800; color: #0f172a;" x-text="`${canvasW} × ${canvasH} px`"></span>
+                <span style="font-size: 11px; font-weight: 700; color: #64748b;">Ukuran Desain: </span>
+                <span style="font-size: 12px; font-weight: 800; color: #0f172a;" x-text="hasImageLoaded ? `${canvasW} × ${canvasH} px` : 'Menunggu upload...'"></span>
             </div>
         </div>
 
@@ -133,9 +133,14 @@
 
     <!-- Main Visual Canvas Workspace -->
     <div style="text-align: center;">
-        <div class="fpe-canvas-wrapper" style="position: relative;">
-            <!-- HTML5 Interactive Canvas -->
+        <div
+            class="fpe-canvas-wrapper"
+            @dragover.prevent
+            @drop.prevent="handleDrop($event)"
+        >
+            <!-- HTML5 Interactive Canvas (visible when image loaded) -->
             <canvas
+                x-show="hasImageLoaded"
                 x-ref="frameCanvas"
                 @mousemove="onCanvasMouseMove($event)"
                 @mouseleave="onCanvasMouseLeave()"
@@ -143,8 +148,30 @@
                 :style="`cursor: crosshair; width: ${displayW}px; height: ${displayH}px; display: block;`"
             ></canvas>
 
+            <!-- Placeholder if image is not loaded yet -->
+            <div
+                x-show="!hasImageLoaded"
+                @click="$refs.localFileInput.click()"
+                class="fpe-upload-placeholder"
+            >
+                <svg style="width: 42px; height: 42px; color: #94a3b8; margin-bottom: 12px;" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/>
+                </svg>
+                <div style="font-size: 13px; font-weight: 700; color: #1e293b;">Pilih / Upload File Desain Frame</div>
+                <div style="font-size: 11px; color: #64748b; margin-top: 4px;">Pilih file pada upload di atas atau klik kotak ini</div>
+            </div>
+
+            <!-- Hidden direct file input as fallback -->
+            <input
+                type="file"
+                x-ref="localFileInput"
+                @change="onLocalFileChosen($event)"
+                accept="image/png,image/jpeg,image/webp"
+                style="display: none;"
+            />
+
             <!-- Hover Loupe Circle (shows sampled color) -->
-            <template x-if="hoverColor">
+            <template x-if="hoverColor && hasImageLoaded">
                 <div
                     class="fpe-loupe"
                     :style="`left: ${hoverDispX}px; top: ${hoverDispY}px; background: ${hoverColor};`"
@@ -152,21 +179,23 @@
             </template>
 
             <!-- Detected Hole Badges Overlay -->
-            <template x-for="(slot, idx) in slots" :key="idx">
-                <div
-                    class="fpe-canvas-box"
-                    :style="`left: ${toDispX(slot.x)}px; top: ${toDispY(slot.y)}px; width: ${toDispW(slot.w)}px; height: ${toDispH(slot.h)}px;`"
-                >
-                    <div class="fpe-badge">
-                        <svg style="width: 12px; height: 12px; color: #fbbf24;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z"/>
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z"/>
-                        </svg>
-                        <span x-text="`Foto #${idx + 1}`" style="color: #7dd3fc;"></span>
-                        <span style="color: #64748b;">•</span>
-                        <span x-text="`Pose ${slot.pose_index + 1}`" style="color: #fde047; font-weight: 900;"></span>
+            <template x-if="hasImageLoaded">
+                <template x-for="(slot, idx) in slots" :key="idx">
+                    <div
+                        class="fpe-canvas-box"
+                        :style="`left: ${toDispX(slot.x)}px; top: ${toDispY(slot.y)}px; width: ${toDispW(slot.w)}px; height: ${toDispH(slot.h)}px;`"
+                    >
+                        <div class="fpe-badge">
+                            <svg style="width: 12px; height: 12px; color: #fbbf24;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z"/>
+                            </svg>
+                            <span x-text="`Foto #${idx + 1}`" style="color: #7dd3fc;"></span>
+                            <span style="color: #64748b;">•</span>
+                            <span x-text="`Pose ${slot.pose_index + 1}`" style="color: #fde047; font-weight: 900;"></span>
+                        </div>
                     </div>
-                </div>
+                </template>
             </template>
         </div>
 
@@ -186,6 +215,7 @@
             displayW: 340,
             displayH: 1020,
             slots: [],
+            hasImageLoaded: false,
             isPencilActive: true,
             tolerance: 45,
             hoverColor: null,
@@ -204,24 +234,58 @@
                 }
                 this.updateDisplayDimensions();
 
-                // Listen to dynamic file input change (instant upload preview)
                 this.$nextTick(() => {
                     if (this.imageUrl) {
                         this.loadImage(this.imageUrl);
                     }
 
-                    const fileInputs = document.querySelectorAll('input[type="file"]');
-                    fileInputs.forEach(input => {
-                        input.addEventListener('change', (e) => {
-                            if (e.target.files && e.target.files[0]) {
-                                const file = e.target.files[0];
-                                const blobUrl = URL.createObjectURL(file);
-                                this.imageUrl = blobUrl;
-                                this.loadImage(blobUrl);
-                            }
-                        });
+                    // 1. Delegated change listener on document (captures all file inputs)
+                    document.addEventListener('change', (e) => {
+                        if (e.target && e.target.type === 'file' && e.target.files && e.target.files[0]) {
+                            const file = e.target.files[0];
+                            const blobUrl = URL.createObjectURL(file);
+                            this.imageUrl = blobUrl;
+                            this.loadImage(blobUrl);
+                        }
+                    }, true);
+
+                    // 2. FilePond global event listener
+                    window.addEventListener('FilePond:addfile', (e) => {
+                        if (e.detail && e.detail.file && e.detail.file.file) {
+                            const blobUrl = URL.createObjectURL(e.detail.file.file);
+                            this.imageUrl = blobUrl;
+                            this.loadImage(blobUrl);
+                        }
                     });
+
+                    // 3. Watch for Livewire / FilePond DOM image preview injection
+                    const observer = new MutationObserver(() => {
+                        const filepondImg = document.querySelector('.filepond--image-preview-wrapper img, .filepond--item-preview img');
+                        if (filepondImg && filepondImg.src && filepondImg.src !== this.imageUrl && filepondImg.src.startsWith('blob:')) {
+                            this.imageUrl = filepondImg.src;
+                            this.loadImage(filepondImg.src);
+                        }
+                    });
+                    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
                 });
+            },
+
+            onLocalFileChosen(event) {
+                if (event.target.files && event.target.files[0]) {
+                    const file = event.target.files[0];
+                    const blobUrl = URL.createObjectURL(file);
+                    this.imageUrl = blobUrl;
+                    this.loadImage(blobUrl);
+                }
+            },
+
+            handleDrop(event) {
+                if (event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0]) {
+                    const file = event.dataTransfer.files[0];
+                    const blobUrl = URL.createObjectURL(file);
+                    this.imageUrl = blobUrl;
+                    this.loadImage(blobUrl);
+                }
             },
 
             updateDisplayDimensions() {
@@ -237,25 +301,29 @@
             toDispH(val) { return Math.round((val / this.canvasH) * this.displayH); },
 
             loadImage(src) {
+                if (!src) return;
                 const img = new Image();
                 img.crossOrigin = 'anonymous';
                 img.onload = () => {
                     this.originalImageObj = img;
                     this.canvasW = img.naturalWidth;
                     this.canvasH = img.naturalHeight;
+                    this.hasImageLoaded = true;
                     this.updateDisplayDimensions();
 
-                    const canvas = this.$refs.frameCanvas;
-                    if (canvas) {
-                        canvas.width = this.canvasW;
-                        canvas.height = this.canvasH;
-                        const ctx = canvas.getContext('2d');
-                        ctx.clearRect(0, 0, this.canvasW, this.canvasH);
-                        ctx.drawImage(img, 0, 0);
+                    this.$nextTick(() => {
+                        const canvas = this.$refs.frameCanvas;
+                        if (canvas) {
+                            canvas.width = this.canvasW;
+                            canvas.height = this.canvasH;
+                            const ctx = canvas.getContext('2d');
+                            ctx.clearRect(0, 0, this.canvasW, this.canvasH);
+                            ctx.drawImage(img, 0, 0);
 
-                        // If already has transparent slots, detect them
-                        this.detectHolesFromCanvas();
-                    }
+                            // Detect transparent holes if image is already a transparent PNG
+                            this.detectHolesFromCanvas();
+                        }
+                    });
                 };
                 img.src = src;
             },
@@ -326,7 +394,6 @@
 
                     let shouldErase = false;
                     if (isChromaMode) {
-                        // Green dominant
                         if (g > 110 && g > (r + 30) && g > (b + 30)) {
                             shouldErase = true;
                         } else {
@@ -334,7 +401,6 @@
                             if (dist < 135) shouldErase = true;
                         }
                     } else {
-                        // Match clicked RGB
                         const dist = Math.sqrt((r - tr) ** 2 + (g - tg) ** 2 + (b - tb) ** 2);
                         if (dist <= tol) {
                             shouldErase = true;
@@ -357,8 +423,7 @@
                         const ctx = canvas.getContext('2d');
                         ctx.clearRect(0, 0, this.canvasW, this.canvasH);
                         ctx.drawImage(this.originalImageObj, 0, 0);
-                        this.slots = [];
-                        this.onStateChange();
+                        this.detectHolesFromCanvas();
                     }
                 }
             },
