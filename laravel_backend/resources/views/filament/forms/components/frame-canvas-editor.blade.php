@@ -46,8 +46,10 @@
     .fbe-canvas-viewport { position: relative; border-radius: 20px; overflow: hidden; user-select: none; box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06); }
     .fbe-canvas-box { position: absolute; border-radius: 6px; display: flex; align-items: center; justify-content: center; user-select: none; cursor: move; box-sizing: border-box; }
     .fbe-badge { background: rgba(15, 23, 42, 0.9); color: #ffffff; padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; gap: 5px; pointer-events: none; border: 1px solid rgba(255,255,255,0.15); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2); }
-    .fbe-handle { position: absolute; width: 14px; height: 14px; background: #2563eb; border: 2px solid #ffffff; border-radius: 9999px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); z-index: 30; }
-    .fbe-handle:hover { transform: scale(1.25); }
+    .fbe-handle-corner { position: absolute; width: 16px; height: 16px; background: #2563eb; border: 2.5px solid #ffffff; border-radius: 9999px; box-shadow: 0 2px 5px rgba(0,0,0,0.3); z-index: 40; }
+    .fbe-handle-corner:hover { transform: scale(1.3); background: #1d4ed8; }
+    .fbe-handle-edge { position: absolute; background: #2563eb; border: 2px solid #ffffff; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); z-index: 40; }
+    .fbe-handle-edge:hover { transform: scale(1.2); background: #1d4ed8; }
     .fbe-input { width: 100%; font-size: 12px; font-weight: 600; border-radius: 8px; border: 1px solid #d1d5db; background: #f9fafb; padding: 6px 10px; box-sizing: border-box; }
     .dark .fbe-input { border-color: #4b5563; background: #374151; color: #f3f4f6; }
 </style>
@@ -59,6 +61,10 @@
         imageUrl: @js($initialImageUrl),
     })"
     x-init="initEditor()"
+    @mousemove.window="onPointerMove($event)"
+    @mouseup.window="onPointerUp($event)"
+    @touchmove.window="onTouchMove($event)"
+    @touchend.window="onPointerUp($event)"
     class="fbe-container"
 >
     <!-- Top Header: Title & Quick Presets with Clean Line Icons -->
@@ -73,7 +79,7 @@
             </div>
             <div>
                 <div style="font-size: 13px; font-weight: 700; color: #111827;">Visual Frame Builder & Pose Editor</div>
-                <div style="font-size: 11px; color: #6b7280;">Atur letak kotak foto, bentuk, dan nomor pose kamera langsung di atas kanvas.</div>
+                <div style="font-size: 11px; color: #6b7280;">Tarik sudut kotak untuk mengubah ukuran (resize), atau geser posisi kotak di kanvas.</div>
             </div>
         </div>
 
@@ -84,7 +90,6 @@
                 @click="addSlot('portrait')"
                 class="fbe-btn fbe-primary-btn"
             >
-                <!-- Plus Outline Icon -->
                 <svg class="fbe-icon-sm" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
                 </svg>
@@ -95,7 +100,6 @@
                 @click="clearAllSlots()"
                 class="fbe-btn fbe-danger-btn"
             >
-                <!-- Trash Outline Icon -->
                 <svg class="fbe-icon-sm" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/>
                 </svg>
@@ -107,7 +111,6 @@
     <!-- Quick Preset Badges Toolbar -->
     <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; background: #f9fafb; padding: 10px; border-radius: 12px; border: 1px solid #e5e7eb; margin-bottom: 18px;">
         <span style="font-size: 11px; font-weight: 700; color: #6b7280; display: inline-flex; align-items: center; gap: 6px; padding: 0 4px;">
-            <!-- Layers Outline Icon -->
             <svg class="fbe-icon-sm" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M6.429 9.75L2.25 12l4.179 2.25m0-4.5l5.571 3 5.571-3m-11.142 0L2.25 7.5 12 2.25l9.75 5.25-4.179 2.25m0 0L21.75 12l-4.179 2.25m0 0l4.179 2.25L12 21.75 2.25 16.5l4.179-2.25m11.142 0l-5.571 3-5.571-3"/>
             </svg>
@@ -196,11 +199,6 @@
                     x-ref="canvasContainer"
                     class="fbe-canvas-viewport"
                     :style="`width: ${displayW}px; height: ${displayH}px; max-width: 100%; margin: 0 auto; background: repeating-conic-gradient(#e5e7eb 0% 25%, #ffffff 0% 50%) 50% / 16px 16px;`"
-                    @mousemove="onPointerMove($event)"
-                    @mouseup="onPointerUp($event)"
-                    @mouseleave="onPointerUp($event)"
-                    @touchmove="onTouchMove($event)"
-                    @touchend="onPointerUp($event)"
                 >
                     <!-- Background Frame Image -->
                     <template x-if="imageUrl">
@@ -228,7 +226,7 @@
                             class="fbe-canvas-box"
                             :style="`left: ${toDispX(slot.x)}px; top: ${toDispY(slot.y)}px; width: ${toDispW(slot.w)}px; height: ${toDispH(slot.h)}px; ${
                                 selectedIndex === idx
-                                    ? 'border: 2px solid #2563eb; background: rgba(37, 99, 235, 0.25); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.4); z-index: 20;'
+                                    ? 'border: 2.5px solid #2563eb; background: rgba(37, 99, 235, 0.25); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.4); z-index: 20;'
                                     : 'border: 2px dashed #0284c7; background: rgba(14, 165, 233, 0.15); z-index: 10;'
                             }`"
                             @mousedown.stop="startDrag(idx, $event)"
@@ -246,36 +244,65 @@
                                 <span x-text="`POSE ${slot.pose_index + 1}`" style="color: #fde047; font-weight: 800;"></span>
                             </div>
 
-                            <!-- 4 Corner Resize Handles -->
+                            <!-- 8 Resize Handles (4 Corners + 4 Edges for selected box) -->
                             <template x-if="selectedIndex === idx">
                                 <div style="position: absolute; inset: 0; pointer-events: auto;">
                                     <!-- SE (Bottom Right) -->
                                     <div
-                                        class="fbe-handle"
-                                        style="right: -7px; bottom: -7px; cursor: se-resize;"
-                                        @mousedown.stop="startResize(idx, 'se', $event)"
-                                        @touchstart.stop="startTouchResize(idx, 'se', $event)"
+                                        class="fbe-handle-corner"
+                                        style="right: -8px; bottom: -8px; cursor: nwse-resize;"
+                                        @mousedown.stop.prevent="startResize(idx, 'se', $event)"
+                                        @touchstart.stop.prevent="startTouchResize(idx, 'se', $event)"
                                     ></div>
                                     <!-- SW (Bottom Left) -->
                                     <div
-                                        class="fbe-handle"
-                                        style="left: -7px; bottom: -7px; cursor: sw-resize;"
-                                        @mousedown.stop="startResize(idx, 'sw', $event)"
-                                        @touchstart.stop="startTouchResize(idx, 'sw', $event)"
+                                        class="fbe-handle-corner"
+                                        style="left: -8px; bottom: -8px; cursor: nesw-resize;"
+                                        @mousedown.stop.prevent="startResize(idx, 'sw', $event)"
+                                        @touchstart.stop.prevent="startTouchResize(idx, 'sw', $event)"
                                     ></div>
                                     <!-- NE (Top Right) -->
                                     <div
-                                        class="fbe-handle"
-                                        style="right: -7px; top: -7px; cursor: ne-resize;"
-                                        @mousedown.stop="startResize(idx, 'ne', $event)"
-                                        @touchstart.stop="startTouchResize(idx, 'ne', $event)"
+                                        class="fbe-handle-corner"
+                                        style="right: -8px; top: -8px; cursor: nesw-resize;"
+                                        @mousedown.stop.prevent="startResize(idx, 'ne', $event)"
+                                        @touchstart.stop.prevent="startTouchResize(idx, 'ne', $event)"
                                     ></div>
                                     <!-- NW (Top Left) -->
                                     <div
-                                        class="fbe-handle"
-                                        style="left: -7px; top: -7px; cursor: nw-resize;"
-                                        @mousedown.stop="startResize(idx, 'nw', $event)"
-                                        @touchstart.stop="startTouchResize(idx, 'nw', $event)"
+                                        class="fbe-handle-corner"
+                                        style="left: -8px; top: -8px; cursor: nwse-resize;"
+                                        @mousedown.stop.prevent="startResize(idx, 'nw', $event)"
+                                        @touchstart.stop.prevent="startTouchResize(idx, 'nw', $event)"
+                                    ></div>
+
+                                    <!-- Right Edge (E) -->
+                                    <div
+                                        class="fbe-handle-edge"
+                                        style="right: -6px; top: 50%; transform: translateY(-50%); width: 8px; height: 20px; cursor: ew-resize;"
+                                        @mousedown.stop.prevent="startResize(idx, 'e', $event)"
+                                        @touchstart.stop.prevent="startTouchResize(idx, 'e', $event)"
+                                    ></div>
+                                    <!-- Left Edge (W) -->
+                                    <div
+                                        class="fbe-handle-edge"
+                                        style="left: -6px; top: 50%; transform: translateY(-50%); width: 8px; height: 20px; cursor: ew-resize;"
+                                        @mousedown.stop.prevent="startResize(idx, 'w', $event)"
+                                        @touchstart.stop.prevent="startTouchResize(idx, 'w', $event)"
+                                    ></div>
+                                    <!-- Bottom Edge (S) -->
+                                    <div
+                                        class="fbe-handle-edge"
+                                        style="bottom: -6px; left: 50%; transform: translateX(-50%); width: 20px; height: 8px; cursor: ns-resize;"
+                                        @mousedown.stop.prevent="startResize(idx, 's', $event)"
+                                        @touchstart.stop.prevent="startTouchResize(idx, 's', $event)"
+                                    ></div>
+                                    <!-- Top Edge (N) -->
+                                    <div
+                                        class="fbe-handle-edge"
+                                        style="top: -6px; left: 50%; transform: translateX(-50%); width: 20px; height: 8px; cursor: ns-resize;"
+                                        @mousedown.stop.prevent="startResize(idx, 'n', $event)"
+                                        @touchstart.stop.prevent="startTouchResize(idx, 'n', $event)"
                                     ></div>
                                 </div>
                             </template>
@@ -782,11 +809,13 @@
                     slot.x = Math.max(0, Math.min(this.canvasW - slot.w, newX));
                     slot.y = Math.max(0, Math.min(this.canvasH - slot.h, newY));
                 } else if (this.isResizing) {
-                    const minSize = 30;
-                    if (this.resizeHandle === 'se') {
+                    const minSize = 25;
+                    const h = this.resizeHandle;
+
+                    if (h === 'se') {
                         slot.w = Math.max(minSize, Math.min(this.canvasW - start.x, Math.round(start.w + deltaX)));
                         slot.h = Math.max(minSize, Math.min(this.canvasH - start.y, Math.round(start.h + deltaY)));
-                    } else if (this.resizeHandle === 'sw') {
+                    } else if (h === 'sw') {
                         const newW = Math.max(minSize, Math.round(start.w - deltaX));
                         const newX = start.x + (start.w - newW);
                         if (newX >= 0) {
@@ -794,7 +823,7 @@
                             slot.x = newX;
                         }
                         slot.h = Math.max(minSize, Math.min(this.canvasH - start.y, Math.round(start.h + deltaY)));
-                    } else if (this.resizeHandle === 'ne') {
+                    } else if (h === 'ne') {
                         slot.w = Math.max(minSize, Math.min(this.canvasW - start.x, Math.round(start.w + deltaX)));
                         const newH = Math.max(minSize, Math.round(start.h - deltaY));
                         const newY = start.y + (start.h - newH);
@@ -802,7 +831,7 @@
                             slot.h = newH;
                             slot.y = newY;
                         }
-                    } else if (this.resizeHandle === 'nw') {
+                    } else if (h === 'nw') {
                         const newW = Math.max(minSize, Math.round(start.w - deltaX));
                         const newX = start.x + (start.w - newW);
                         const newH = Math.max(minSize, Math.round(start.h - deltaY));
@@ -810,6 +839,24 @@
                         if (newX >= 0 && newY >= 0) {
                             slot.w = newW;
                             slot.x = newX;
+                            slot.h = newH;
+                            slot.y = newY;
+                        }
+                    } else if (h === 'e') {
+                        slot.w = Math.max(minSize, Math.min(this.canvasW - start.x, Math.round(start.w + deltaX)));
+                    } else if (h === 's') {
+                        slot.h = Math.max(minSize, Math.min(this.canvasH - start.y, Math.round(start.h + deltaY)));
+                    } else if (h === 'w') {
+                        const newW = Math.max(minSize, Math.round(start.w - deltaX));
+                        const newX = start.x + (start.w - newW);
+                        if (newX >= 0) {
+                            slot.w = newW;
+                            slot.x = newX;
+                        }
+                    } else if (h === 'n') {
+                        const newH = Math.max(minSize, Math.round(start.h - deltaY));
+                        const newY = start.y + (start.h - newH);
+                        if (newY >= 0) {
                             slot.h = newH;
                             slot.y = newY;
                         }
