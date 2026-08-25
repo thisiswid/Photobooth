@@ -2,6 +2,7 @@
 
 namespace App\Filament\SuperAdmin\Resources;
 
+use App\Filament\Forms\Components\FramePencilEditor;
 use App\Filament\SuperAdmin\Resources\MasterFrameResource\Pages;
 use App\Models\Cafe;
 use App\Models\MasterFrame;
@@ -113,56 +114,28 @@ class MasterFrameResource extends Resource
                         ->default(true),
                 ])->columns(2),
 
-            Section::make('File Aset & Layout Koordinat')
+            Section::make('File Aset & Kanvas Pensil Melubangi Frame')
                 ->schema([
-                    Toggle::make('use_ai_detection')
-                        ->label('Mode AI (Auto-Detect Layout & Auto-Punch Transparan)')
-                        ->helperText('Aktifkan agar AI otomatis mendeteksi posisi kotak foto dan melubangi transparansi saat disimpan.')
-                        ->default(fn () => \App\Models\AiSetting::isAiAvailable())
-                        ->visible(fn () => \App\Models\AiSetting::isAiAvailable())
-                        ->columnSpanFull(),
-
-                    Select::make('transparency_mode')
-                        ->label('Alat Transparansi & Lubang Foto')
-                        ->options([
-                            'auto_alpha'   => '1. File Sudah Transparan Sendiri (PNG dari Photoshop/Canva)',
-                            'chroma_green' => '2. 🟢 Hapus Kotak Hijau Otomatis (Green Screen #00FF00)',
-                            'custom_color' => '3. 🪄 Alat Pipet (Klik / Pilih Warna Penanda Kotak Foto)',
-                        ])
-                        ->default('auto_alpha')
-                        ->live()
-                        ->columnSpanFull(),
-
-                    TextInput::make('custom_remove_color')
-                        ->label('🪄 Pipet Warna Penanda Kotak Foto yang Ingin Dilubangi')
-                        ->type('color')
-                        ->default('#00ff00')
-                        ->visible(fn ($get) => $get('transparency_mode') === 'custom_color')
-                        ->helperText('Klik kotak warna di atas, lalu gunakan ikon pipet (eyedropper) untuk mengambil warna penanda kotak foto pada gambar Anda.')
-                        ->columnSpanFull(),
-
                     FileUpload::make('asset_url')
-                        ->label('File Desain Frame (PNG Transparan / Gambar Frame)')
+                        ->label('File Desain Frame (PNG / JPG / WEBP)')
                         ->image()
                         ->directory('frames')
                         ->disk('public')
                         ->acceptedFileTypes(['image/png', 'image/jpeg', 'image/webp'])
                         ->maxSize(51200)
-                        ->helperText(function (callable $get) {
-                            $isAiAllowed = \App\Models\AiSetting::isAiAvailable();
-                            if (!$isAiAllowed) {
-                                return '📁 File frame akan diproses sesuai format dan tipe layout yang Anda pilih di atas.';
-                            }
-                            $isAi = $get('use_ai_detection') ?? true;
-                            if ($isAi) {
-                                return '✨ Mode AI Aktif: Sistem AI akan otomatis mendeteksi posisi slot & melubangi kotak foto saat disimpan.';
-                            }
-                            return '📁 Mode Frame Standar: File frame akan diunggah original tanpa modifikasi AI.';
-                        })
+                        ->live()
+                        ->columnSpanFull()
+                        ->required(),
+
+                    FramePencilEditor::make('layout_config')
+                        ->label('')
+                        ->imageField('asset_url')
                         ->columnSpanFull(),
+
                     Textarea::make('description')
                         ->label('Deskripsi Desain')
                         ->rows(3)
+                        ->placeholder('Deskripsi template master untuk cafe')
                         ->columnSpanFull(),
                 ]),
         ]);
