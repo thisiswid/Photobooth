@@ -53,16 +53,21 @@ class EditMasterFrame extends EditRecord
                 $h = $imageInfo[1];
             }
 
-            $removeGreen = !empty($data['remove_green_screen']);
+            $mode = $data['transparency_mode'] ?? 'auto_alpha';
+            $customColor = $data['custom_remove_color'] ?? null;
 
-            if ($removeGreen) {
-                $chromaRes = FrameSlotDetector::removeGreenScreenAndDetectSlots($pngPath);
+            if ($mode === 'chroma_green' || $mode === 'custom_color' || !empty($data['remove_green_screen'])) {
+                $targetColor = ($mode === 'custom_color') ? $customColor : null;
+                $chromaRes = FrameSlotDetector::removeGreenScreenAndDetectSlots($pngPath, $targetColor);
                 if (!empty($chromaRes['success'])) {
                     if (!empty($chromaRes['relative_path'])) {
                         $data['asset_url'] = $chromaRes['relative_path'];
                     }
                     if (!empty($chromaRes['slots'])) {
                         $detectedSlots = $chromaRes['slots'];
+                        if (!empty($chromaRes['layout_type'])) {
+                            $layoutType = $chromaRes['layout_type'];
+                        }
                     }
                 }
             } elseif ($useAi) {
@@ -71,8 +76,6 @@ class EditMasterFrame extends EditRecord
                     $data['asset_url'] = $analysis['relative_path'];
                 }
 
-                // Accept slots from AI/alpha detection even if layout_type differs —
-                // the detected slot count is more trustworthy than the user's manual selection.
                 if (!empty($analysis['slots'])) {
                     $detectedSlots = $analysis['slots'];
                     if (!empty($analysis['layout_type']) && !empty($analysis['slot_count'])) {
@@ -81,12 +84,15 @@ class EditMasterFrame extends EditRecord
                     }
                 }
             } else {
-                // Mode Manual: Cek apakah file PNG sudah memiliki lubang transparan (Alpha Channel)
+                // Mode 1: File Sudah Transparan Sendiri (Alpha Channel)
                 $isPng = ($imageInfo[2] ?? 0) === IMAGETYPE_PNG;
                 if ($isPng) {
                     $alphaRes = FrameSlotDetector::detectAlphaCutouts($pngPath, $w, $h);
                     if (!empty($alphaRes['success']) && !empty($alphaRes['slots'])) {
                         $detectedSlots = $alphaRes['slots'];
+                        if (!empty($alphaRes['layout_type'])) {
+                            $layoutType = $alphaRes['layout_type'];
+                        }
                     }
                 }
             }

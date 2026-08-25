@@ -107,4 +107,57 @@ class ChromaKeyFrameTest extends TestCase
         @unlink($tempFile);
         @unlink($savedPath);
     }
+
+    public function test_it_removes_custom_pipette_color_and_detects_natural_slots()
+    {
+        Storage::fake('public');
+
+        // Test custom magenta (#FF00FF) placeholder boxes
+        $w = 600;
+        $h = 1800;
+        $im = imagecreatetruecolor($w, $h);
+        $black = imagecolorallocate($im, 20, 20, 20);
+        $magenta = imagecolorallocate($im, 255, 0, 255);
+
+        imagefilledrectangle($im, 0, 0, $w, $h, $black);
+
+        // 3 Magenta boxes
+        $slotH = 450;
+        $gap = 70;
+        $top = 80;
+        for ($i = 0; $i < 3; $i++) {
+            $y1 = $top + $i * ($slotH + $gap);
+            $y2 = $y1 + $slotH;
+            imagefilledrectangle($im, 50, $y1, $w - 50, $y2, $magenta);
+        }
+
+        $tempFile = tempnam(sys_get_temp_dir(), 'pipette_test') . '.png';
+        imagepng($im, $tempFile);
+        imagedestroy($im);
+
+        // Remove magenta with custom hex #FF00FF
+        $res = FrameSlotDetector::removeGreenScreenAndDetectSlots($tempFile, '#FF00FF');
+
+        $this->assertTrue($res['success']);
+        $this->assertCount(3, $res['slots']);
+        $this->assertEquals('single', $res['layout_type']);
+
+        $savedPath = storage_path('app/public/' . $res['relative_path']);
+        $this->assertFileExists($savedPath);
+
+        $outIm = imagecreatefrompng($savedPath);
+        // Middle of slot 1 should be transparent
+        $rgb = imagecolorat($outIm, 300, 200);
+        $alpha = ($rgb & 0x7F000000) >> 24;
+        $this->assertGreaterThan(64, $alpha, 'Custom magenta area should become transparent');
+
+        // Background should remain black opaque
+        $rgbBg = imagecolorat($outIm, 10, 10);
+        $alphaBg = ($rgbBg & 0x7F000000) >> 24;
+        $this->assertEquals(0, $alphaBg);
+
+        imagedestroy($outIm);
+        @unlink($tempFile);
+        @unlink($savedPath);
+    }
 }

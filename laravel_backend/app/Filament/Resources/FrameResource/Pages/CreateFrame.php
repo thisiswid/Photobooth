@@ -55,16 +55,21 @@ class CreateFrame extends CreateRecord
                 $h = $imageInfo[1];
             }
 
-            $removeGreen = !empty($data['remove_green_screen']);
+            $mode = $data['transparency_mode'] ?? 'auto_alpha';
+            $customColor = $data['custom_remove_color'] ?? null;
 
-            if ($removeGreen) {
-                $chromaRes = FrameSlotDetector::removeGreenScreenAndDetectSlots($pngPath);
+            if ($mode === 'chroma_green' || $mode === 'custom_color' || !empty($data['remove_green_screen'])) {
+                $targetColor = ($mode === 'custom_color') ? $customColor : null;
+                $chromaRes = FrameSlotDetector::removeGreenScreenAndDetectSlots($pngPath, $targetColor);
                 if (!empty($chromaRes['success'])) {
                     if (!empty($chromaRes['relative_path'])) {
                         $data['asset_url'] = $chromaRes['relative_path'];
                     }
                     if (!empty($chromaRes['slots'])) {
                         $detectedSlots = $chromaRes['slots'];
+                        if (!empty($chromaRes['layout_type'])) {
+                            $layoutType = $chromaRes['layout_type'];
+                        }
                     }
                 }
             } elseif ($useAi) {
@@ -73,17 +78,22 @@ class CreateFrame extends CreateRecord
                     $data['asset_url'] = $analysis['relative_path'];
                 }
                
-                 // Pakai slots dari AI selama tidak kosong
                  if (!empty($analysis['slots'])) {
                     $detectedSlots = $analysis['slots'];
+                    if (!empty($analysis['layout_type'])) {
+                        $layoutType = $analysis['layout_type'];
+                    }
                 }
             } else {
-                // Mode Manual: Cek apakah file PNG sudah memiliki lubang transparan (Alpha Channel)
+                // Mode 1: File Sudah Transparan Sendiri (Alpha Channel)
                 $isPng = ($imageInfo[2] ?? 0) === IMAGETYPE_PNG;
                 if ($isPng) {
                     $alphaRes = FrameSlotDetector::detectAlphaCutouts($pngPath, $w, $h);
                     if (!empty($alphaRes['success']) && !empty($alphaRes['slots'])) {
                         $detectedSlots = $alphaRes['slots'];
+                        if (!empty($alphaRes['layout_type'])) {
+                            $layoutType = $alphaRes['layout_type'];
+                        }
                     }
                 }
             }

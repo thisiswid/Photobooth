@@ -108,10 +108,23 @@ class FrameResource extends Resource
                 ->default(fn () => \App\Models\AiSetting::isAiAvailable(auth()->user()?->cafe_id))
                 ->visible(fn () => \App\Models\AiSetting::isAiAvailable(auth()->user()?->cafe_id)),
 
-            Toggle::make('remove_green_screen')
-                ->label('🟢 Hapus Kotak Hijau Jadi Transparan (Chroma Key Remover)')
-                ->helperText('Aktifkan jika desain Anda menggunakan kotak berwarna hijau sebagai penanda foto. Sistem akan otomatis melubanginya menjadi 100% transparan.')
-                ->default(false),
+            Select::make('transparency_mode')
+                ->label('Alat Transparansi & Lubang Foto')
+                ->options([
+                    'auto_alpha'   => '1. File Sudah Transparan Sendiri (PNG dari Photoshop/Canva)',
+                    'chroma_green' => '2. 🟢 Hapus Kotak Hijau Otomatis (Green Screen #00FF00)',
+                    'custom_color' => '3. 🪄 Alat Pipet (Klik / Pilih Warna Penanda Kotak Foto)',
+                ])
+                ->default('auto_alpha')
+                ->live()
+                ->helperText('Pilih metode penentuan lubang transparan foto pada frame.'),
+
+            TextInput::make('custom_remove_color')
+                ->label('🪄 Pipet Warna Penanda Kotak Foto yang Ingin Dilubangi')
+                ->type('color')
+                ->default('#00ff00')
+                ->visible(fn ($get) => $get('transparency_mode') === 'custom_color')
+                ->helperText('Klik kotak warna di atas, lalu gunakan ikon pipet (eyedropper) untuk mengambil warna penanda kotak foto pada gambar Anda.'),
 
             FileUpload::make('asset_url')
                 ->label('File Frame Template (PNG Transparan / Gambar Frame)')

@@ -366,10 +366,10 @@ class FrameSlotDetector
     }
 
     /**
-     * Removes green screen (Chroma Key) areas from an image, turning green pixels 100% transparent.
-     * Saves the resulting image as a PNG and detects the bounding box slots automatically.
+     * Removes green screen (Chroma Key) or custom clicked color areas from an image, turning them 100% transparent.
+     * Saves the resulting image as a PNG and detects the natural bounding box slots automatically from the frame.
      */
-    public static function removeGreenScreenAndDetectSlots(string $sourcePath, ?string $targetPath = null): array
+    public static function removeGreenScreenAndDetectSlots(string $sourcePath, ?string $targetHexColor = null, int $tolerance = 50, ?string $targetPath = null): array
     {
         if (!file_exists($sourcePath)) {
             return ['success' => false, 'message' => 'File tidak ditemukan', 'slots' => []];
@@ -401,7 +401,23 @@ class FrameSlotDetector
 
         $transparent = imagecolorallocatealpha($dest, 0, 0, 0, 127);
 
-        // Convert green pixels to transparent
+        // Parse target color if provided (e.g. from pipette click)
+        $hasCustomColor = !empty($targetHexColor);
+        $tr = 0; $tg = 255; $tb = 0;
+        if ($hasCustomColor) {
+            $hex = ltrim($targetHexColor, '#');
+            if (strlen($hex) === 6) {
+                $tr = hexdec(substr($hex, 0, 2));
+                $tg = hexdec(substr($hex, 2, 2));
+                $tb = hexdec(substr($hex, 4, 2));
+            } elseif (strlen($hex) === 3) {
+                $tr = hexdec(str_repeat(substr($hex, 0, 1), 2));
+                $tg = hexdec(str_repeat(substr($hex, 1, 1), 2));
+                $tb = hexdec(str_repeat(substr($hex, 2, 1), 2));
+            }
+        }
+
+        // Convert target color pixels to transparent
         for ($y = 0; $y < $h; $y++) {
             for ($x = 0; $x < $w; $x++) {
                 $rgb = imagecolorat($src, $x, $y);
@@ -416,19 +432,26 @@ class FrameSlotDetector
                     continue;
                 }
 
-                // Check if color is Chroma Green (#00FF00, #00E000, #00FF11, #39FF14, etc.)
-                $isGreen = false;
-                if ($g > 110 && $g > ($r + 30) && $g > ($b + 30)) {
-                    $isGreen = true;
+                $isMatch = false;
+                if ($hasCustomColor) {
+                    // Match specific clicked pipette color with tolerance distance
+                    $dist = sqrt(($r - $tr) ** 2 + ($g - $tg) ** 2 + ($b - $tb) ** 2);
+                    if ($dist <= max(30, $tolerance)) {
+                        $isMatch = true;
+                    }
                 } else {
-                    // Distance to pure green (0, 255, 0)
-                    $dist = sqrt($r * $r + (255 - $g) * (255 - $g) + $b * $b);
-                    if ($dist < 135) {
-                        $isGreen = true;
+                    // Default Chroma Green auto-detection (#00FF00, #00E000, #00FF11, #39FF14, etc.)
+                    if ($g > 110 && $g > ($r + 30) && $g > ($b + 30)) {
+                        $isMatch = true;
+                    } else {
+                        $dist = sqrt($r * $r + (255 - $g) * (255 - $g) + $b * $b);
+                        if ($dist < 135) {
+                            $isMatch = true;
+                        }
                     }
                 }
 
-                if ($isGreen) {
+                if ($isMatch) {
                     imagesetpixel($dest, $x, $y, $transparent);
                 } else {
                     $color = imagecolorallocatealpha($dest, $r, $g, $b, $alpha);
