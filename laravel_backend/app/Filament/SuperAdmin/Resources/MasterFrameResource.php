@@ -2,7 +2,6 @@
 
 namespace App\Filament\SuperAdmin\Resources;
 
-use App\Filament\Forms\Components\FrameCanvasEditor;
 use App\Filament\SuperAdmin\Resources\MasterFrameResource\Pages;
 use App\Models\Cafe;
 use App\Models\MasterFrame;
@@ -14,6 +13,9 @@ use Filament\Infolists\Components\ImageEntry;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Components\IconEntry;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\KeyValue;
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -49,7 +51,6 @@ class MasterFrameResource extends Resource
                         ->required()
                         ->maxLength(255)
                         ->placeholder('Contoh: Vintage Classic Photo Strip (4 Poses)'),
-
                     Select::make('category')
                         ->label('Kategori')
                         ->options([
@@ -62,6 +63,64 @@ class MasterFrameResource extends Resource
                         ])
                         ->default('General')
                         ->required(),
+                    Select::make('layout_type')
+                        ->label('Tipe Layout Cetak')
+                        ->options([
+                            'single'   => 'Single Strip / Standar (1 Kolom)',
+                            'double_6' => 'Double Strip 6 Foto (2 Kolom: Kiri 3, Kanan 3 — Ambil 3 Pose)',
+                            'double_8' => 'Double Strip 8 Foto (2 Kolom: Kiri 4, Kanan 4 — Ambil 4 Pose)',
+                        ])
+                        ->default('single')
+                        ->live()
+                        ->afterStateUpdated(function ($state, callable $set) {
+                            if ($state === 'double_6') {
+                                $set('pose_count', 3);
+                            } elseif ($state === 'double_8') {
+                                $set('pose_count', 4);
+                            }
+                        })
+                        ->afterStateHydrated(function ($component, $state, $record) {
+                            if ($record) {
+                                $type = $record->layout_config['layout_type'] ?? $record->layout_type ?? 'single';
+                                $component->state($type);
+                            }
+                        })
+                        ->required(),
+
+                    Select::make('right_column_order')
+                        ->label('Urutan Pose Kolom Kanan')
+                        ->options([
+                            'scrambled_1' => 'Pose 3, Pose 1, Pose 2 (Acak 1)',
+                            'scrambled_2' => 'Pose 2, Pose 3, Pose 1 (Acak 2)',
+                            'reversed'    => 'Pose 3, Pose 2, Pose 1 (Terbalik)',
+                            'identical'   => 'Pose 1, Pose 2, Pose 3 (Identik / Kembar)',
+                        ])
+                        ->default('scrambled_1')
+                        ->visible(fn ($get) => in_array($get('layout_type'), ['double_6', 'double_8']))
+                        ->afterStateHydrated(function ($component, $state, $record) {
+                            if ($record && !empty($record->layout_config['right_column_order_key'])) {
+                                $component->state($record->layout_config['right_column_order_key']);
+                            }
+                        }),
+
+                    TextInput::make('pose_count')
+                        ->label('Jumlah Pose Foto')
+                        ->numeric()
+                        ->default(4)
+                        ->required(),
+                    Toggle::make('is_active')
+                        ->label('Status Aktif')
+                        ->default(true),
+                ])->columns(2),
+
+            Section::make('File Aset & Layout Koordinat')
+                ->schema([
+                    Toggle::make('use_ai_detection')
+                        ->label('Mode AI (Auto-Detect Layout & Auto-Punch Transparan)')
+                        ->helperText('Aktifkan agar AI otomatis mendeteksi posisi kotak foto dan melubangi transparansi saat disimpan.')
+                        ->default(fn () => \App\Models\AiSetting::isAiAvailable())
+                        ->visible(fn () => \App\Models\AiSetting::isAiAvailable())
+                        ->columnSpanFull(),
 
                     FileUpload::make('asset_url')
                         ->label('File Desain Frame (PNG Transparan / Gambar Frame)')
@@ -70,26 +129,21 @@ class MasterFrameResource extends Resource
                         ->disk('public')
                         ->acceptedFileTypes(['image/png', 'image/jpeg', 'image/webp'])
                         ->maxSize(51200)
-                        ->live()
-                        ->helperText('Upload gambar template. Jika belum berlubang transparan, sistem akan melubanginya otomatis sesuai kotak di editor visual di bawah.')
-                        ->columnSpanFull()
-                        ->required(),
-
+                        ->helperText(function (callable $get) {
+                            $isAiAllowed = \App\Models\AiSetting::isAiAvailable();
+                            if (!$isAiAllowed) {
+                                return '📁 File frame akan diproses sesuai format dan tipe layout yang Anda pilih di atas.';
+                            }
+                            $isAi = $get('use_ai_detection') ?? true;
+                            if ($isAi) {
+                                return '✨ Mode AI Aktif: Sistem AI akan otomatis mendeteksi posisi slot & melubangi kotak foto saat disimpan.';
+                            }
+                            return '📁 Mode Frame Standar: File frame akan diunggah original tanpa modifikasi AI.';
+                        })
+                        ->columnSpanFull(),
                     Textarea::make('description')
                         ->label('Deskripsi Desain')
-                        ->rows(2)
-                        ->columnSpanFull(),
-
-                    Toggle::make('is_active')
-                        ->label('Status Aktif')
-                        ->default(true),
-                ])->columns(2),
-
-            Section::make('Visual Frame Builder (Atur Posisi, Ukuran & Urutan Pose Foto)')
-                ->schema([
-                    FrameCanvasEditor::make('layout_config')
-                        ->label('')
-                        ->imageField('asset_url')
+                        ->rows(3)
                         ->columnSpanFull(),
                 ]),
         ]);
@@ -111,11 +165,12 @@ class MasterFrameResource extends Resource
             Section::make('Informasi Template')->schema([
                 TextEntry::make('name')->label('Nama Frame')->weight('bold'),
                 TextEntry::make('category')->label('Kategori')->badge()->color('primary'),
-                TextEntry::make('layout_display')->label('Layout')->badge()
-                    ->state(fn ($record) => \App\Services\FrameSlotDetector::describeGridLayout(
-                        $record->layout_config ?? [],
-                        $record->pose_count
-                    )),
+                TextEntry::make('layout_type')->label('Tipe Layout')->badge()
+                    ->formatStateUsing(fn ($state) => match($state) {
+                        'double_6' => 'Double Strip 6 Foto',
+                        'double_8' => 'Double Strip 8 Foto',
+                        default    => 'Single Strip',
+                    }),
                 TextEntry::make('pose_count')->label('Jumlah Pose')->suffix(' Pose'),
                 TextEntry::make('usage_count')->label('Digunakan di Cafe')->suffix(' Cafe')->badge()->color('success'),
                 IconEntry::make('is_active')->label('Status Aktif')->boolean(),
@@ -146,19 +201,11 @@ class MasterFrameResource extends Resource
                     ->badge()
                     ->color('primary')
                     ->sortable(),
-                TextColumn::make('layout_display')
-                    ->label('Layout Slot')
-                    ->state(fn ($record) => \App\Services\FrameSlotDetector::describeGridLayout(
-                        $record->layout_config ?? [],
-                        $record->pose_count
-                    ))
-                    ->badge()
-                    ->color('info'),
                 TextColumn::make('pose_count')
                     ->label('Pose')
                     ->suffix(' Pose')
                     ->badge()
-                    ->color('warning')
+                    ->color('info')
                     ->sortable(),
                 TextColumn::make('usage_count')
                     ->label('Digunakan')
@@ -208,7 +255,7 @@ class MasterFrameResource extends Resource
                                         $isInstalled = in_array($cafe->id, $installedCafeIds);
                                         $label = $isInstalled
                                             ? "{$cafe->name} (✓ Sudah Memiliki Frame Ini)"
-                                             : $cafe->name;
+                                            : $cafe->name;
                                         return [$cafe->id => $label];
                                     });
                             })

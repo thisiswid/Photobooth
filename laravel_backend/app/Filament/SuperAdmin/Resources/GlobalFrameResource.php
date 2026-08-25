@@ -2,7 +2,6 @@
 
 namespace App\Filament\SuperAdmin\Resources;
 
-use App\Filament\Forms\Components\FrameCanvasEditor;
 use App\Filament\SuperAdmin\Resources\GlobalFrameResource\Pages;
 use App\Models\Frame;
 use Filament\Actions\DeleteAction;
@@ -43,39 +42,30 @@ class GlobalFrameResource extends Resource
                     ->searchable()
                     ->preload()
                     ->required(),
-
                 TextInput::make('name')
                     ->label('Nama Frame')
                     ->required()
                     ->maxLength(255),
-
                 Select::make('master_frame_id')
                     ->label('Sumber Template Master (Opsional)')
                     ->relationship('masterFrame', 'name')
                     ->searchable()
                     ->preload(),
-
+                TextInput::make('pose_count')
+                    ->label('Jumlah Pose')
+                    ->numeric()
+                    ->default(4)
+                    ->required(),
                 FileUpload::make('asset_url')
                     ->label('File PNG Frame')
                     ->image()
                     ->directory('frames')
-                    ->disk('public')
-                    ->live()
-                    ->helperText('Upload desain frame. Jika belum berlubang transparan, sistem akan melubanginya otomatis sesuai kotak di editor visual di bawah.')
                     ->columnSpanFull()
                     ->required(),
-
                 Toggle::make('active')
                     ->label('Status Aktif')
                     ->default(true),
             ])->columns(2),
-
-            Section::make('Visual Frame Builder (Atur Posisi, Ukuran & Urutan Pose Foto)')->schema([
-                FrameCanvasEditor::make('layout_config')
-                    ->label('')
-                    ->imageField('asset_url')
-                    ->columnSpanFull(),
-            ]),
         ]);
     }
 
@@ -86,11 +76,6 @@ class GlobalFrameResource extends Resource
                 TextEntry::make('name')->label('Nama Frame')->weight('bold'),
                 TextEntry::make('event.cafe.name')->label('Lokasi Cafe')->badge()->color('primary'),
                 TextEntry::make('event.name')->label('Event'),
-                TextEntry::make('layout_display')->label('Layout')->badge()
-                    ->state(fn ($record) => \App\Services\FrameSlotDetector::describeGridLayout(
-                        $record->layout_config ?? [],
-                        $record->pose_count
-                    )),
                 TextEntry::make('pose_count')->label('Jumlah Pose')->suffix(' Pose'),
                 TextEntry::make('masterFrame.name')->label('Template Master')->placeholder('Kustom Cafe'),
                 TextEntry::make('sessions_count')->label('Total Penggunaan')
@@ -111,14 +96,6 @@ class GlobalFrameResource extends Resource
                 TextColumn::make('name')->label('Nama Frame')->searchable()->sortable()->weight('bold'),
                 TextColumn::make('event.cafe.name')->label('Cafe')->badge()->color('primary')->searchable()->sortable(),
                 TextColumn::make('event.name')->label('Event')->placeholder('Main Booth')->sortable(),
-                TextColumn::make('layout_display')
-                    ->label('Layout')
-                    ->state(fn ($record) => \App\Services\FrameSlotDetector::describeGridLayout(
-                        $record->layout_config ?? [],
-                        $record->pose_count
-                    ))
-                    ->badge()
-                    ->color('info'),
                 TextColumn::make('pose_count')->label('Pose')->suffix(' Poses')->sortable(),
                 TextColumn::make('masterFrame.name')->label('Master Origin')->placeholder('Custom Upload')->limit(20),
                 IconColumn::make('active')->label('Aktif')->boolean()->sortable(),
