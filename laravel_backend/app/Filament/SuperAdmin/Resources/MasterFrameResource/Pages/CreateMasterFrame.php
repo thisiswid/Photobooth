@@ -94,10 +94,33 @@ class CreateMasterFrame extends CreateRecord
         // Ensure pose_index in slots accurately aligns with chosen rightOrder
         $finalSlots = FrameSlotDetector::assignSlotPoses($detectedSlots, $layoutType, $rightOrder, $poseCount);
 
+        // Validation Checks
+        if (empty($finalSlots)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'asset_url' => 'Frame belum memiliki lubang transparan untuk foto! Silakan gunakan Alat Pensil pada kanvas di bawah untuk mengklik kotak warna foto atau gunakan tombol "Lubangi Hijau Otomatis".',
+            ]);
+        }
+
+        // Auto-align layout_type if detected slot structure is clearly different from user choice
+        $actualSlotCount = count($finalSlots);
+        if ($actualSlotCount === 6 && $layoutType === 'single') {
+            $layoutType = 'double_6';
+            $poseCount = 3;
+        } elseif ($actualSlotCount === 8 && $layoutType === 'single') {
+            $layoutType = 'double_8';
+            $poseCount = 4;
+        } elseif ($actualSlotCount <= 4 && in_array($layoutType, ['double_6', 'double_8'])) {
+            $layoutType = 'single';
+            $poseCount = $actualSlotCount;
+        }
+
         $data['layout_type'] = $layoutType;
+        $data['pose_count']  = $poseCount;
+
         $data['layout_config'] = [
             'layout_type'            => $layoutType,
-            'slot_count'             => count($finalSlots) ?: $slotCount,
+            'slot_count'             => $actualSlotCount,
+            'pose_count'             => $poseCount,
             'right_column_order_key' => $rightKey,
             'right_column_order'     => $rightOrder,
             'slots'                  => $finalSlots,
