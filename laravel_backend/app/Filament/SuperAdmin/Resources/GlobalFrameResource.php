@@ -2,6 +2,7 @@
 
 namespace App\Filament\SuperAdmin\Resources;
 
+use App\Filament\Forms\Components\FramePencilEditor;
 use App\Filament\SuperAdmin\Resources\GlobalFrameResource\Pages;
 use App\Models\Frame;
 use Filament\Actions\DeleteAction;
@@ -42,34 +43,76 @@ class GlobalFrameResource extends Resource
                     ->searchable()
                     ->preload()
                     ->required(),
+
                 TextInput::make('name')
                     ->label('Nama Frame')
                     ->required()
                     ->maxLength(255),
+
                 Select::make('master_frame_id')
                     ->label('Sumber Template Master (Opsional)')
                     ->relationship('masterFrame', 'name')
                     ->searchable()
                     ->preload(),
+
+                Select::make('layout_type')
+                    ->label('Tipe Layout Frame')
+                    ->options([
+                        'single'   => 'Single Strip (1 Kolom memanjang — 3 atau 4 Pose)',
+                        'double_6' => 'Double Strip 6 Foto (2 Kolom — Ambil 3 Pose)',
+                        'double_8' => 'Double Strip 8 Foto (2 Kolom — Ambil 4 Pose)',
+                    ])
+                    ->default('single')
+                    ->live()
+                    ->afterStateUpdated(function ($state, callable $set) {
+                        if ($state === 'double_6') {
+                            $set('pose_count', 3);
+                        } elseif ($state === 'double_8') {
+                            $set('pose_count', 4);
+                        }
+                    }),
+
+                Select::make('right_column_order')
+                    ->label('Urutan Pose Kolom Kanan')
+                    ->options([
+                        'scrambled_1' => 'Pose 3, Pose 1, Pose 2 (Acak 1)',
+                        'scrambled_2' => 'Pose 2, Pose 3, Pose 1 (Acak 2)',
+                        'reversed'    => 'Pose 3, Pose 2, Pose 1 (Terbalik)',
+                        'identical'   => 'Pose 1, Pose 2, Pose 3 (Identik / Kembar)',
+                    ])
+                    ->default('scrambled_1')
+                    ->visible(fn ($get) => in_array($get('layout_type'), ['double_6', 'double_8'])),
+
                 TextInput::make('pose_count')
-                    ->label('Jumlah Pose')
+                    ->label('Jumlah Pose yang Diambil Kamera')
                     ->numeric()
                     ->default(4)
+                    ->minValue(1)
+                    ->maxValue(8)
                     ->required(),
-                Toggle::make('remove_green_screen')
-                    ->label('🟢 Hapus Kotak Hijau Jadi Transparan (Chroma Key)')
-                    ->helperText('Otomatis melubangi kotak hijau menjadi 100% transparan.')
-                    ->default(false),
+
                 FileUpload::make('asset_url')
-                    ->label('File PNG Frame')
+                    ->label('File Desain Frame (PNG Transparan / Gambar Frame)')
                     ->image()
                     ->directory('frames')
+                    ->disk('public')
+                    ->acceptedFileTypes(['image/png', 'image/jpeg', 'image/webp'])
+                    ->maxSize(51200)
+                    ->live()
                     ->columnSpanFull()
                     ->required(),
+
                 Toggle::make('active')
                     ->label('Status Aktif')
                     ->default(true),
             ])->columns(2),
+
+            Section::make('Kanvas Pensil Melubangi Frame (Interactive Click-to-Erase)')->schema([
+                FramePencilEditor::make('layout_config')
+                    ->label('')
+                    ->imageField('asset_url')
+                    ->columnSpanFull(),
+            ]),
         ]);
     }
 
