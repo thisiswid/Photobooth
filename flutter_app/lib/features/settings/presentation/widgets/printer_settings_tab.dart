@@ -232,7 +232,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                   SizedBox(width: 8.w),
                   Text('Wi-Fi IP Address', style: TextStyle(color: Colors.white70, fontSize: 12.sp)),
                   const Spacer(),
-                  Container(
+                  SizedBox(
                     width: 140.w,
                     height: 36.h,
                     child: TextField(

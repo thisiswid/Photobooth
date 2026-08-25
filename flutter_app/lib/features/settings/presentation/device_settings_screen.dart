@@ -76,7 +76,7 @@ class _DeviceSettingsScreenState extends ConsumerState<DeviceSettingsScreen> wit
       ),
       body: TabBarView(
         controller: _tabController,
-        children: [
+        children: const [
           PrinterSettingsTab(),
           _CameraSettingsTab(),
           _SystemSettingsTab(),

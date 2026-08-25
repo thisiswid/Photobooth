@@ -1,13 +1,9 @@
 import 'dart:io' show Platform, Socket;
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:http/http.dart' as http;
-import 'package:image/image.dart' as img;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 import 'error_logger.dart';
 
 /// Result status of a print job
@@ -25,23 +21,52 @@ class PrintJobResult {
   });
 }
 
-/// PrinterService — auto-printing ke Epson L8050 via native Android PrintManager.
+/// Connection mode options
+enum PrinterConnectionMode {
+  usbOnly,
+  wifiOnly,
+  usbWifiAuto,
+}
+
+/// PrinterService — single entry point for all printing (silent kiosk mode).
 ///
-/// Urutan strategi cetak:
-/// 1. Native Android PrintManager (via MethodChannel) — menggunakan Epson Print Enabler
-/// 2. IPP over HTTP — jika IPP aktif di printer
-/// 3. Printing plugin fallback
+/// SATU-SATUNYA jalur cetak: Android PrintManager (MethodChannel 'printPhoto' /
+/// 'printPdf') → Epson Print Service di tablet. Jalur ini silent (tanpa dialog
+/// sistem) dan me-raster dokumen ke ESC/P-R resmi Epson, sehingga foto & test
+/// page tercetak sebagai gambar benar — BUKAN kode/angka acak. Berlaku untuk
+/// printer USB maupun Wi-Fi (Epson Print Service menangani keduanya).
+///
+/// ⚠️ RAW USB bulk transfer (kirim JPEG/PDF bytes langsung ke endpoint USB)
+/// DIHAPUS PERMANEN: Epson L8050 membaca byte mentah sebagai perintah ESC/P
+/// dan mencetaknya sebagai karakter acak. USB Host API hanya dipakai untuk
+/// deteksi / permission / status (UI settings), TIDAK untuk mengirim data print.
+///
+/// Garansi 1 aksi = 1 PrintJob = 1 lembar: setiap panggilan printPhotoBytes /
+/// printTestPage mengirim tepat SATU job tanpa retry otomatis, dilindungi lock
+/// `_isPrintingBusy` terhadap eksekusi bersamaan/ganda.
 class PrinterService {
   PrinterService._();
 
   static const _storage = FlutterSecureStorage();
   static const _ipKey = 'printer_ip_address';
-  static const _defaultIp = '192.168.1.14';
+  static const _defaultIp = '192.168.1.11';
   static const _channel = MethodChannel('com.fakultaskopi.photobooth/printer');
 
-  static String? _cachedIp;
+  // Keys for persistent configurations
+  static const _modeKey = 'printer_connection_mode';
+  static const _paperSizeKey = 'printer_paper_size';
+  static const _copiesKey = 'printer_copies';
+  static const _qualityKey = 'printer_quality';
+  static const _orientationKey = 'printer_orientation';
+  static const _borderlessKey = 'printer_borderless';
+  static const _autoPrintKey = 'printer_auto_print';
+  static const _autoReconnectKey = 'printer_auto_reconnect';
+  static const _retryCountKey = 'printer_retry_count';
 
-  // ─── IP Management ───────────────────────────────────────────────────────
+  static String? _cachedIp;
+  static bool _isPrintingBusy = false; // Lock guard agar tidak ada print bersamaan / ganda
+
+  // ─── Configuration & Storage ──────────────────────────────────────────────
 
   static Future<String> getIpAddress() async {
     if (_cachedIp != null) return _cachedIp!;
@@ -64,16 +89,92 @@ class PrinterService {
     }
   }
 
-  static Future<void> clearIpAddress() async {
-    _cachedIp = null;
+  static Future<PrinterConnectionMode> getConnectionMode() async {
     try {
-      await _storage.delete(key: _ipKey);
+      final val = await _storage.read(key: _modeKey);
+      if (val == 'usb_only') return PrinterConnectionMode.usbOnly;
+      if (val == 'wifi_only') return PrinterConnectionMode.wifiOnly;
+    } catch (_) {}
+    return PrinterConnectionMode.usbWifiAuto; // Default
+  }
+
+  static Future<void> setConnectionMode(PrinterConnectionMode mode) async {
+    String val = 'usb_wifi_auto';
+    if (mode == PrinterConnectionMode.usbOnly) val = 'usb_only';
+    if (mode == PrinterConnectionMode.wifiOnly) val = 'wifi_only';
+    await _storage.write(key: _modeKey, value: val);
+  }
+
+  static Future<String> getPaperSize() async => (await _storage.read(key: _paperSizeKey)) ?? '4x6';
+  static Future<void> setPaperSize(String v) async => await _storage.write(key: _paperSizeKey, value: v);
+
+  static Future<int> getCopies() async => int.tryParse(await _storage.read(key: _copiesKey) ?? '1') ?? 1;
+  static Future<void> setCopies(int c) async => await _storage.write(key: _copiesKey, value: c.toString());
+
+  static Future<String> getQuality() async => (await _storage.read(key: _qualityKey)) ?? 'High';
+  static Future<void> setQuality(String q) async => await _storage.write(key: _qualityKey, value: q);
+
+  static Future<String> getOrientation() async => (await _storage.read(key: _orientationKey)) ?? 'Auto';
+  static Future<void> setOrientation(String o) async => await _storage.write(key: _orientationKey, value: o);
+
+  static Future<bool> getBorderless() async => (await _storage.read(key: _borderlessKey)) != 'false';
+  static Future<void> setBorderless(bool b) async => await _storage.write(key: _borderlessKey, value: b.toString());
+
+  static Future<bool> getAutoPrint() async => (await _storage.read(key: _autoPrintKey)) != 'false';
+  static Future<void> setAutoPrint(bool b) async => await _storage.write(key: _autoPrintKey, value: b.toString());
+
+  static Future<bool> getAutoReconnect() async => (await _storage.read(key: _autoReconnectKey)) != 'false';
+  static Future<void> setAutoReconnect(bool b) async => await _storage.write(key: _autoReconnectKey, value: b.toString());
+
+  static Future<int> getRetryCount() async => int.tryParse(await _storage.read(key: _retryCountKey) ?? '3') ?? 3;
+  static Future<void> setRetryCount(int r) async => await _storage.write(key: _retryCountKey, value: r.toString());
+
+  // ─── USB Detection & Permissions ──────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> detectUsbPrinter() async {
+    if (!Platform.isAndroid) {
+      return {'isDetected': false, 'deviceName': null, 'hasPermission': false, 'status': 'unsupported_platform'};
+    }
+    try {
+      final res = await _channel.invokeMapMethod<String, dynamic>('detectUsbPrinter');
+      return res ?? {'isDetected': false, 'deviceName': null, 'hasPermission': false, 'status': 'disconnected'};
+    } catch (e) {
+      debugPrint('USB detect channel error: $e');
+      return {'isDetected': false, 'deviceName': null, 'hasPermission': false, 'status': 'error'};
+    }
+  }
+
+  static Future<bool> requestUsbPermission() async {
+    if (!Platform.isAndroid) return false;
+    try {
+      final success = await _channel.invokeMethod<bool>('requestUsbPermission');
+      return success ?? false;
+    } catch (e) {
+      debugPrint('USB permission request error: $e');
+      return false;
+    }
+  }
+
+  /// Cek apakah Kiosk Auto-Print Accessibility Helper sudah aktif di Android
+  static Future<bool> isAutoPrintServiceEnabled() async {
+    if (!Platform.isAndroid) return false;
+    try {
+      final res = await _channel.invokeMethod<bool>('isAutoPrintServiceEnabled');
+      return res ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Buka menu Accessibility Settings di tablet untuk mengaktifkan Auto-Print Helper
+  static Future<void> openAccessibilitySettings() async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _channel.invokeMethod('openAccessibilitySettings');
     } catch (_) {}
   }
 
-  // ─── Connectivity Check ───────────────────────────────────────────────────
-
-  /// Cek apakah printer dapat dijangkau di port manapun.
+  /// Connectivity check via Wi-Fi IP socket
   static Future<bool> isPrinterReachable({String? ip}) async {
     final targetIp = ip ?? await getIpAddress();
     for (final port in [9100, 631, 80]) {
@@ -81,269 +182,141 @@ class PrinterService {
         final socket = await Socket.connect(
           targetIp,
           port,
-          timeout: const Duration(seconds: 3),
+          timeout: const Duration(seconds: 2),
         );
         socket.destroy();
-        debugPrint('✅ Printer reachable di $targetIp:$port');
+        debugPrint('✅ Wi-Fi Printer reachable di $targetIp:$port');
         return true;
       } catch (_) {}
     }
-    debugPrint('❌ Printer tidak dapat dijangkau di $targetIp');
+    debugPrint('❌ Wi-Fi Printer tidak dapat dijangkau di $targetIp');
     return false;
   }
 
-  // ─── Image → PDF Helper ───────────────────────────────────────────────────
+  static Future<Map<String, dynamic>> getPrinterStatus() async {
+    final usbStatus = await detectUsbPrinter();
+    final wifiIp = await getIpAddress();
+    final wifiReachable = await isPrinterReachable(ip: wifiIp);
+    final mode = await getConnectionMode();
 
-  /// Convert image bytes ke PDF 4×6 inch di background isolate.
-  static Future<Uint8List> _buildPhotoPdf(Uint8List imageBytes) async {
-    return compute(_buildPdfInIsolate, imageBytes);
+    String activeConn = 'None';
+    if (usbStatus['isDetected'] == true && usbStatus['hasPermission'] == true) {
+      activeConn = 'USB';
+    } else if (wifiReachable) {
+      activeConn = 'Wi-Fi';
+    }
+
+    return {
+      'mode': mode,
+      'usbDetected': usbStatus['isDetected'] ?? false,
+      'usbPermission': usbStatus['hasPermission'] ?? false,
+      'usbName': usbStatus['deviceName'] ?? 'Epson L8050 USB',
+      'wifiIp': wifiIp,
+      'wifiReachable': wifiReachable,
+      'activeConnection': activeConn,
+    };
   }
 
-  // ─── Native Android Print ─────────────────────────────────────────────────
+  // ─── Print Engine: Android PrintManager (SATU-SATUNYA jalur print) ────────
 
-  /// Cetak foto via native Android PrintManager (MethodChannel).
-  /// Menggunakan Epson Print Enabler yang sudah terpasang dan aktif.
-  static Future<bool> _printViaNativeChannel({
+  /// Kirim FOTO via Android PrintManager → Epson Print Service.
+  /// Silent print; mendukung printer USB maupun Wi-Fi. Tepat 1 PrintJob.
+  /// ⚠️ BUKAN raw USB bulk transfer — bytes diraster driver Epson, bukan
+  /// dilempar mentah ke printer.
+  static Future<bool> _printPhotoViaPrintManager({
     required Uint8List imageBytes,
     required String jobName,
   }) async {
+    if (!Platform.isAndroid) return false;
     try {
-      debugPrint('🖨️ Mengirim ke native Android PrintManager...');
+      debugPrint('🖨️ Mengirim foto via Android PrintManager (Epson Print Service)...');
       final success = await _channel.invokeMethod<bool>('printPhoto', {
         'imageBytes': imageBytes,
         'jobName': jobName,
       });
       return success ?? false;
     } catch (e) {
-      debugPrint('Native print channel error: $e');
+      debugPrint('PrintManager photo print error: $e');
       return false;
     }
   }
 
-  /// Cetak PDF via native Android PrintManager (MethodChannel).
-  static Future<bool> _printPdfViaNativeChannel({
+
+  /// Kirim PDF (Test Page) via Android PrintManager → Epson Print Service.
+  /// Silent print; mendukung printer USB maupun Wi-Fi. Tepat 1 PrintJob.
+  static Future<bool> _printPdfViaPrintManager({
     required Uint8List pdfBytes,
     required String jobName,
   }) async {
+    if (!Platform.isAndroid) return false;
     try {
-      debugPrint('🖨️ Mengirim PDF ke native Android PrintManager...');
+      debugPrint('🖨️ Mengirim PDF via Android PrintManager (Epson Print Service)...');
       final success = await _channel.invokeMethod<bool>('printPdf', {
         'pdfBytes': pdfBytes,
         'jobName': jobName,
       });
       return success ?? false;
     } catch (e) {
-      debugPrint('Native PDF print channel error: $e');
+      debugPrint('PrintManager PDF print error: $e');
       return false;
     }
   }
 
-  // ─── IPP Print via HTTP ───────────────────────────────────────────────────
-
-  /// Coba kirim PDF via IPP ke beberapa endpoint.
-  static Future<bool> _trySendIpp({
-    required String printerIp,
-    required Uint8List pdfBytes,
-    required String jobName,
-  }) async {
-    final endpoints = [
-      'http://$printerIp:631/ipp/print',
-      'http://$printerIp:631/ipp',
-      'http://$printerIp:80/EPSON_IPP_Printer',
-      'http://$printerIp:80/ipp/print',
-    ];
-
-    for (final endpoint in endpoints) {
-      try {
-        final uri = Uri.parse(endpoint);
-        try {
-          final socket = await Socket.connect(uri.host, uri.port,
-              timeout: const Duration(seconds: 2));
-          socket.destroy();
-        } catch (_) {
-          continue;
-        }
-
-        debugPrint('🖨️ Mencoba IPP: $endpoint');
-        final success = await _sendIppToEndpoint(
-          endpoint: endpoint,
-          pdfBytes: pdfBytes,
-          jobName: jobName,
-        );
-        if (success) {
-          debugPrint('✅ IPP berhasil via $endpoint');
-          return true;
-        }
-      } catch (e) {
-        debugPrint('   IPP gagal di $endpoint: $e');
-      }
-    }
-    return false;
-  }
-
-  static Future<bool> _sendIppToEndpoint({
-    required String endpoint,
-    required Uint8List pdfBytes,
-    required String jobName,
-  }) async {
-    final uri = Uri.parse(endpoint);
-    final ippUri = endpoint
-        .replaceFirst('http://', 'ipp://')
-        .replaceFirst('https://', 'ipps://');
-
-    final ippHeader = _buildIppPrintJobRequest(
-      jobName: jobName,
-      printerUri: ippUri,
-    );
-
-    final body = Uint8List(ippHeader.length + pdfBytes.length);
-    body.setRange(0, ippHeader.length, ippHeader);
-    body.setRange(ippHeader.length, body.length, pdfBytes);
-
-    final response = await http.post(
-      uri,
-      headers: {
-        'Content-Type': 'application/ipp',
-        'Content-Length': body.length.toString(),
-      },
-      body: body,
-    ).timeout(const Duration(seconds: 15));
-
-    if (response.statusCode == 200) {
-      final respBytes = response.bodyBytes;
-      if (respBytes.length >= 4) {
-        final ippStatus = (respBytes[2] << 8) | respBytes[3];
-        return ippStatus <= 0x00FF;
-      }
-      return true;
-    }
-    return false;
-  }
-
-  static Uint8List _buildIppPrintJobRequest({
-    required String jobName,
-    required String printerUri,
-  }) {
-    final buf = BytesBuilder();
-    buf.addByte(0x02);
-    buf.addByte(0x00);
-    buf.addByte(0x00);
-    buf.addByte(0x02);
-    buf.addByte(0x00);
-    buf.addByte(0x00);
-    buf.addByte(0x00);
-    buf.addByte(0x01);
-    buf.addByte(0x01);
-    _addIppAttribute(buf, 0x47, 'attributes-charset', 'utf-8');
-    _addIppAttribute(buf, 0x48, 'attributes-natural-language', 'en');
-    _addIppAttribute(buf, 0x45, 'printer-uri', printerUri);
-    _addIppAttribute(buf, 0x42, 'job-name', jobName);
-    _addIppAttribute(buf, 0x49, 'document-format', 'application/pdf');
-    buf.addByte(0x03);
-    return buf.toBytes();
-  }
-
-  static void _addIppAttribute(
-    BytesBuilder buf,
-    int valueTag,
-    String name,
-    String value,
-  ) {
-    final nameBytes = name.codeUnits;
-    final valueBytes = value.codeUnits;
-    buf.addByte(valueTag);
-    buf.addByte((nameBytes.length >> 8) & 0xFF);
-    buf.addByte(nameBytes.length & 0xFF);
-    buf.add(nameBytes);
-    buf.addByte((valueBytes.length >> 8) & 0xFF);
-    buf.addByte(valueBytes.length & 0xFF);
-    buf.add(valueBytes);
-  }
-
   // ─── Public Print Methods ─────────────────────────────────────────────────
 
-  /// Mencetak foto ke Epson L8050.
-  /// Strategi: Native Android Print → IPP → Printing plugin fallback.
+  /// Entry point cetak foto. SATU panggilan = SATU PrintJob = SATU lembar.
+  ///
+  /// Flow baru (IPP-first untuk silent print):
+  /// 1. Coba cetak via IPP (silent, tanpa dialog) jika printer reachable via Wi-Fi
+  /// 2. Fallback ke Android PrintManager (dengan dialog preview) jika IPP gagal
+  ///
+  /// Tidak ada retry otomatis — retry manual = PrintJob baru (tetap 1 lembar
+  /// per aksi).
   static Future<PrintJobResult> printPhotoBytes({
     required Uint8List imageBytes,
     String jobName = 'Photobooth_Print',
     int copies = 1,
   }) async {
-    try {
-      final ip = await getIpAddress();
-      debugPrint('🖨️ Memproses foto untuk dicetak ke Epson L8050 ($ip)...');
-
-      // 1. ★ Coba native Android PrintManager (via Epson Print Enabler)
-      //    Ini langsung menggunakan driver Epson yang sudah terpasang di tablet.
-      if (Platform.isAndroid) {
-        try {
-          debugPrint('🖨️ Mencoba native Android PrintManager (Epson Print Enabler)...');
-          final nativeSuccess = await _printViaNativeChannel(
-            imageBytes: imageBytes,
-            jobName: jobName,
-          );
-          if (nativeSuccess) {
-            debugPrint('✅ Native print berhasil dikirim');
-            return const PrintJobResult(
-              isSuccess: true,
-              message: 'Foto berhasil dikirim ke printer Epson L8050',
-              printerName: 'Epson L8050 (Native Print)',
-              isDirect: true,
-            );
-          }
-        } catch (e) {
-          debugPrint('Native print error: $e');
-        }
-      }
-
-      // 2. Build PDF untuk IPP / fallback
-      final pdfBytes = await _buildPhotoPdf(imageBytes);
-      debugPrint('🖨️ PDF 4×6 siap: ${pdfBytes.length} bytes');
-
-      // 3. Coba IPP
-      try {
-        final ippSuccess = await _trySendIpp(
-          printerIp: ip,
-          pdfBytes: pdfBytes,
-          jobName: jobName,
-        );
-        if (ippSuccess) {
-          return PrintJobResult(
-            isSuccess: true,
-            message: 'Foto berhasil dicetak via IPP',
-            printerName: 'Epson L8050 ($ip)',
-            isDirect: true,
-          );
-        }
-      } catch (e) {
-        debugPrint('IPP gagal: $e');
-      }
-
-      // 4. Fallback: Printing plugin layoutPdf
-      debugPrint('🖨️ Fallback → Printing.layoutPdf...');
-      final layoutSuccess = await Printing.layoutPdf(
-        onLayout: (PdfPageFormat format) async => pdfBytes,
-        name: jobName,
-        format: const PdfPageFormat(
-          4.0 * PdfPageFormat.inch,
-          6.0 * PdfPageFormat.inch,
-        ),
+    // 🔒 Static Lock Guard — prevent concurrent / double prints
+    if (_isPrintingBusy) {
+      debugPrint('⚠️ PrinterService busy dengan proses cetak lain. Batalkan duplikat.');
+      return const PrintJobResult(
+        isSuccess: false,
+        message: 'Proses cetak sedang berlangsung.',
       );
+    }
+    _isPrintingBusy = true;
 
-      if (layoutSuccess) {
-        return const PrintJobResult(
-          isSuccess: true,
-          message: 'Foto berhasil dikirim ke printer.',
-          printerName: 'Epson L8050',
-          isDirect: false,
-        );
-      } else {
+    try {
+      if (!Platform.isAndroid) {
         return const PrintJobResult(
           isSuccess: false,
-          message: 'Pencetakan dibatalkan.',
-          printerName: 'Epson L8050',
+          message: 'Printing hanya didukung pada perangkat Android.',
         );
       }
+
+      debugPrint('🖨️ Mengirim foto ke Epson L8050 (AutoPrintService Kiosk)...');
+      final success = await _printPhotoViaPrintManager(
+        imageBytes: imageBytes,
+        jobName: jobName,
+      );
+
+      if (success) {
+        return const PrintJobResult(
+          isSuccess: true,
+          message: 'Foto berhasil dikirim ke printer Epson L8050',
+          printerName: 'Epson L8050',
+          isDirect: true,
+        );
+      }
+
+      debugPrint('❌ Print job gagal.');
+      return const PrintJobResult(
+        isSuccess: false,
+        message:
+            'Gagal mencetak foto. Pastikan Epson L8050 menyala dan terhubung.',
+        printerName: 'Epson L8050',
+      );
     } catch (e, stack) {
       ErrorLogger.instance.logHardwareError(
         message: 'Gagal mencetak foto: $e',
@@ -353,81 +326,54 @@ class PrinterService {
         isSuccess: false,
         message: 'Error cetak: $e',
       );
+    } finally {
+      _isPrintingBusy = false;
     }
   }
 
-  /// Cetak halaman uji.
+  /// Test Print — SATU panggilan = SATU PrintJob = SATU lembar.
+  /// Jalur sama dengan foto: PrintManager → Epson Print Service (PDF diraster
+  /// driver Epson sehingga teks tercetak normal, bukan kode acak).
   static Future<PrintJobResult> printTestPage() async {
-    try {
-      final ip = await getIpAddress();
-      debugPrint('🖨️ Menyiapkan Test PDF 4×6...');
-
-      final pdfBytes = await compute(_buildTestPdf, 0);
-      debugPrint('🖨️ Test PDF: ${pdfBytes.length} bytes');
-
-      // Coba native print (PDF)
-      if (Platform.isAndroid) {
-        try {
-          final nativeSuccess = await _printPdfViaNativeChannel(
-            pdfBytes: pdfBytes,
-            jobName: 'Test_Page',
-          );
-          if (nativeSuccess) {
-            return const PrintJobResult(
-              isSuccess: true,
-              message: 'Test page berhasil dikirim (Native Print)',
-              printerName: 'Epson L8050',
-              isDirect: true,
-            );
-          }
-        } catch (e) {
-          debugPrint('Native test print error: $e');
-        }
-      }
-
-      // Coba IPP
-      try {
-        final ippSuccess = await _trySendIpp(
-          printerIp: ip,
-          pdfBytes: pdfBytes,
-          jobName: 'Test_Page',
-        );
-        if (ippSuccess) {
-          return PrintJobResult(
-            isSuccess: true,
-            message: 'Test page dicetak via IPP',
-            printerName: 'Epson L8050 ($ip)',
-            isDirect: true,
-          );
-        }
-      } catch (e) {
-        debugPrint('IPP test page gagal: $e');
-      }
-
-      // Fallback
-      final layoutSuccess = await Printing.layoutPdf(
-        onLayout: (format) async => pdfBytes,
-        name: 'Test_Page',
-        format: const PdfPageFormat(
-          4.0 * PdfPageFormat.inch,
-          6.0 * PdfPageFormat.inch,
-        ),
+    if (_isPrintingBusy) {
+      return const PrintJobResult(
+        isSuccess: false,
+        message: 'Proses cetak sedang berlangsung.',
       );
+    }
+    _isPrintingBusy = true;
 
-      if (layoutSuccess) {
-        return const PrintJobResult(
-          isSuccess: true,
-          message: 'Test page berhasil dikirim.',
-          printerName: 'Epson L8050',
-          isDirect: false,
-        );
-      } else {
+    try {
+      if (!Platform.isAndroid) {
         return const PrintJobResult(
           isSuccess: false,
-          message: 'Test page dibatalkan.',
-          printerName: 'Epson L8050',
+          message: 'Printing hanya didukung pada perangkat Android.',
         );
       }
+
+      final pdfBytes = await compute(_buildTestPdf, 0);
+      debugPrint('🖨️ Test PDF siap: ${pdfBytes.length} bytes — kirim via PrintManager');
+
+      final success = await _printPdfViaPrintManager(
+        pdfBytes: pdfBytes,
+        jobName: 'Test_Page',
+      );
+
+      if (success) {
+        return const PrintJobResult(
+          isSuccess: true,
+          message: 'Test page berhasil dikirim ke printer Epson L8050',
+          printerName: 'Epson L8050',
+          isDirect: true,
+        );
+      }
+
+      return const PrintJobResult(
+        isSuccess: false,
+        message:
+            'Test page gagal dikirim. Pastikan Epson L8050 menyala (USB/Wi-Fi) dan Epson Print Service aktif.',
+        printerName: 'Epson L8050',
+      );
     } catch (e, stack) {
       ErrorLogger.instance.logHardwareError(
         message: 'Gagal test print: $e',
@@ -437,53 +383,14 @@ class PrinterService {
         isSuccess: false,
         message: 'Error test print: $e',
       );
+    } finally {
+      _isPrintingBusy = false;
     }
   }
 }
 
-// ─── Isolate functions (top-level, no class state) ────────────────────────────
+// ─── Isolate functions (top-level) ────────────────────────────────────────────
 
-/// Build PDF 4×6 dari image bytes — dijalankan di isolate terpisah.
-Future<Uint8List> _buildPdfInIsolate(Uint8List imageBytes) async {
-  final decoded = img.decodeImage(imageBytes);
-  Uint8List jpegBytes;
-
-  if (decoded != null) {
-    final resized = img.copyResize(
-      decoded,
-      width: decoded.width,
-      height: decoded.height,
-      interpolation: img.Interpolation.linear,
-    );
-    jpegBytes = Uint8List.fromList(img.encodeJpg(resized, quality: 95));
-  } else {
-    jpegBytes = imageBytes;
-  }
-
-  final doc = pw.Document();
-  const pageFormat = PdfPageFormat(
-    4.0 * PdfPageFormat.inch,
-    6.0 * PdfPageFormat.inch,
-    marginAll: 0,
-  );
-
-  doc.addPage(
-    pw.Page(
-      pageFormat: pageFormat,
-      build: (pw.Context context) => pw.FullPage(
-        ignoreMargins: true,
-        child: pw.Image(
-          pw.MemoryImage(jpegBytes),
-          fit: pw.BoxFit.cover,
-        ),
-      ),
-    ),
-  );
-
-  return doc.save();
-}
-
-/// Build test PDF 4×6 sederhana — dijalankan di isolate.
 Future<Uint8List> _buildTestPdf(int _) async {
   final doc = pw.Document();
   const pageFormat = PdfPageFormat(
@@ -500,14 +407,13 @@ Future<Uint8List> _buildTestPdf(int _) async {
           children: [
             pw.Text(
               'HALAMAN UJI PRINTER',
-              // ignore: prefer_const_constructors
               style: pw.TextStyle(
                 fontSize: 24,
                 fontWeight: pw.FontWeight.bold,
               ),
             ),
             pw.SizedBox(height: 16),
-            pw.Text('Epson L8050 — SnapTech Photobooth System'),
+            pw.Text('Epson L8050 — PrintManager Silent Print'),
             pw.SizedBox(height: 8),
             pw.Text('Ukuran kertas: 4 x 6 inch'),
             pw.SizedBox(height: 16),
@@ -520,3 +426,5 @@ Future<Uint8List> _buildTestPdf(int _) async {
   );
   return doc.save();
 }
+
+
