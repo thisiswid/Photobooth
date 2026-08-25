@@ -9,6 +9,24 @@ use Illuminate\Support\Facades\Storage;
 class FrameSlotDetector
 {
     /**
+     * Human-readable label for frame layout configuration.
+     */
+    public static function describeGridLayout(array $layoutConfig = [], int $poseCount = 4): string
+    {
+        $type = $layoutConfig['layout_type'] ?? 'single';
+        $slots = $layoutConfig['slots'] ?? [];
+        $count = count($slots) ?: ($layoutConfig['slot_count'] ?? $poseCount);
+
+        return match ($type) {
+            'double_6' => "Double Strip 6 Foto (2 Kolom)",
+            'double_8' => "Double Strip 8 Foto (2 Kolom)",
+            'grid'     => "Grid {$count} Foto",
+            'single'   => "Single Strip ({$count} Foto)",
+            default    => "Layout {$count} Foto ({$poseCount} Pose)",
+        };
+    }
+
+    /**
      * Resolve the absolute filesystem path from Filament/Livewire upload state.
      */
     public static function resolveRealPath(mixed $state): ?string
