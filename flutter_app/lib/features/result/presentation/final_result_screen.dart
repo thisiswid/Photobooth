@@ -20,7 +20,6 @@ import '../../../features/session/providers/session_provider.dart';
 import '../../../shared/widgets/customer_header.dart';
 import '../../../shared/widgets/photobooth_layout.dart';
 import '../../../shared/widgets/photo_strip_widget.dart';
-import '../../../shared/widgets/printer_settings_modal.dart';
 import '../../../shared/widgets/responsive_layout_builder.dart';
 
 enum PrintUiStatus {
@@ -71,6 +70,10 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
     final sessionState = ref.read(sessionNotifierProvider);
     final session = sessionState.session;
     if (session == null) return;
+
+    // Guard langsung agar auto-print tidak berjalan lebih dari 1x
+    if (_hasAutoPrinted) return;
+    _hasAutoPrinted = true;
 
     setState(() {
       _printStatus = PrintUiStatus.preparing;
@@ -127,9 +130,8 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
       debugPrint('Backend result generation note: $e');
     }
 
-    // Auto-Print langsung setelah foto & template siap
-    if (!_hasAutoPrinted && mounted) {
-      _hasAutoPrinted = true;
+    // Auto-Print langsung setelah foto & template siap (hanya 1x)
+    if (mounted) {
       await _executePrint(finalUrl: generatedFinalUrl);
     }
   }
@@ -441,26 +443,6 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
           ).animate().fadeIn(delay: 300.ms),
 
           SizedBox(height: 6.h),
-
-          // ── Link Pengaturan Printer Cepat (Tanpa Password) ──
-          TextButton.icon(
-            onPressed: () => PrinterSettingsModal.show(
-              context,
-              onPrinterConfigured: () => setState(() => _connectedPrinterName = 'Epson L8050'),
-            ),
-            icon: Icon(Icons.tune_rounded, size: 15.r, color: AppColors.brown),
-            label: Text(
-              _connectedPrinterName != null
-                  ? 'Printer: $_connectedPrinterName'
-                  : 'Pengaturan Printer',
-              style: TextStyle(
-                color: AppColors.brown,
-                fontSize: 11.5.sp,
-                fontWeight: FontWeight.w500,
-                decoration: TextDecoration.underline,
-              ),
-            ),
-          ),
         ],
       ),
     ).animate().slideX(begin: 0.05, delay: 200.ms);
@@ -470,43 +452,17 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // "Hasil Foto" & Tombol Setting Printer di bawah header
+          // "Hasil Foto" di bawah header
           Padding(
             padding: EdgeInsets.fromLTRB(isMobile ? 14.w : 32.w, 4.h, isMobile ? 14.w : 32.w, 0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Hasil Foto',
-                  style: GoogleFonts.cormorantGaramond(
-                    fontSize: isMobile ? 22.sp : 30.sp,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.darkBrown,
-                  ),
-                ).animate().fadeIn(),
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
-                    side: const BorderSide(color: AppColors.gold, width: 1.2),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
-                    backgroundColor: AppColors.creamWhite.withValues(alpha: 0.6),
-                  ),
-                  onPressed: () => PrinterSettingsModal.show(
-                    context,
-                    onPrinterConfigured: () => setState(() => _connectedPrinterName = 'Epson L8050'),
-                  ),
-                  icon: Icon(Icons.print_rounded, size: 16.r, color: AppColors.darkBrown),
-                  label: Text(
-                    _connectedPrinterName != null ? _connectedPrinterName! : 'Set Printer',
-                    style: GoogleFonts.montserrat(
-                      fontSize: 11.5.sp,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.darkBrown,
-                    ),
-                  ),
-                ).animate().fadeIn(delay: 200.ms),
-              ],
-            ),
+            child: Text(
+              'Hasil Foto',
+              style: GoogleFonts.cormorantGaramond(
+                fontSize: isMobile ? 22.sp : 30.sp,
+                fontWeight: FontWeight.w700,
+                color: AppColors.darkBrown,
+              ),
+            ).animate().fadeIn(),
           ),
           SizedBox(height: isMobile ? 6.h : 10.h),
 
@@ -638,32 +594,6 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
                       style: AppTextStyles.caption.copyWith(
                         color: const Color(0xFFB71C1C),
                         fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 6.h),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton.icon(
-                    style: TextButton.styleFrom(
-                      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    onPressed: () => PrinterSettingsModal.show(
-                      context,
-                      onPrinterConfigured: () => setState(() => _connectedPrinterName = 'Epson L8050'),
-                    ),
-                    icon: Icon(Icons.settings_rounded, size: 14.r, color: const Color(0xFFB71C1C)),
-                    label: Text(
-                      'Pilih Printer / Cek Koneksi',
-                      style: TextStyle(
-                        color: const Color(0xFFB71C1C),
-                        fontWeight: FontWeight.w700,
-                        fontSize: 11.sp,
                       ),
                     ),
                   ),
