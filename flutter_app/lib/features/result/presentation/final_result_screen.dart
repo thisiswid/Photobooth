@@ -266,6 +266,10 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
     final isMobile = context.isMobile;
     final isPortrait = context.isPortrait;
 
+    // Gunakan finalUrl dari backend jika sudah tersedia, fallback ke PhotoStripWidget
+    final finalUrl = session?.finalUrl;
+    final hasFinalUrl = finalUrl != null && finalUrl.trim().isNotEmpty;
+
     final previewContent = Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -355,11 +359,35 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
         Expanded(
           child: Center(
             child: !_showMotionPreview
-                ? PhotoStripWidget(
-                    photos: photos,
-                    frame: frame,
-                    colorFilter: sessionState.selectedFilter?.colorFilter,
-                  )
+                ? (hasFinalUrl
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(8.r),
+                        child: Image.network(
+                          _getStorageUrl(finalUrl!),
+                          fit: BoxFit.contain,
+                          loadingBuilder: (context, child, progress) {
+                            if (progress == null) return child;
+                            return Center(
+                              child: CircularProgressIndicator(
+                                color: AppColors.gold,
+                                value: progress.expectedTotalBytes != null
+                                    ? progress.cumulativeBytesLoaded / progress.expectedTotalBytes!
+                                    : null,
+                              ),
+                            );
+                          },
+                          errorBuilder: (_, __, ___) => PhotoStripWidget(
+                            photos: photos,
+                            frame: frame,
+                            colorFilter: sessionState.selectedFilter?.colorFilter,
+                          ),
+                        ),
+                      )
+                    : PhotoStripWidget(
+                        photos: photos,
+                        frame: frame,
+                        colorFilter: sessionState.selectedFilter?.colorFilter,
+                      ))
                 : _MotionPlayerWidget(
                     photos: photos,
                     colorFilter: sessionState.selectedFilter?.colorFilter,

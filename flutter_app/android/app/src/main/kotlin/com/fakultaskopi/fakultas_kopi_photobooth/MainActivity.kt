@@ -1,7 +1,9 @@
 package com.fakultaskopi.fakultas_kopi_photobooth
 
 import android.content.Context
+import android.content.Intent
 import android.graphics.BitmapFactory
+import android.hardware.usb.UsbManager
 import android.os.Bundle
 import android.os.CancellationSignal
 import android.os.ParcelFileDescriptor
@@ -9,6 +11,7 @@ import android.print.*
 import android.print.PrintAttributes.*
 import android.print.pdf.PrintedPdfDocument
 import android.graphics.pdf.PdfDocument
+import android.provider.Settings
 import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -43,9 +46,96 @@ class MainActivity : FlutterActivity() {
                         result.error("INVALID_ARGS", "pdfBytes is null", null)
                     }
                 }
+                "detectUsbPrinter" -> detectUsbPrinter(result)
+                "requestUsbPermission" -> result.success(false) // USB permission via dialog tidak diperlukan — PrintManager handle via Epson Print Service
+                "isAutoPrintServiceEnabled" -> result.success(isEpsonPrintServiceEnabled())
+                "openAccessibilitySettings" -> {
+                    startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                    result.success(null)
+                }
+                "getPrinterStatus" -> result.success(getPrinterStatus())
                 else -> result.notImplemented()
             }
         }
+    }
+
+    /**
+     * Deteksi apakah ada USB printer (Epson L8050) terhubung via USB Host.
+     * Hanya untuk informasi UI — data print tetap lewat PrintManager.
+     */
+    private fun detectUsbPrinter(result: MethodChannel.Result) {
+        try {
+            val usbManager = getSystemService(Context.USB_SERVICE) as UsbManager
+            val deviceList = usbManager.deviceList
+            // Epson vendor ID: 0x04B8
+            val epsonDevice = deviceList.values.firstOrNull { it.vendorId == 0x04B8 }
+            if (epsonDevice != null) {
+                result.success(mapOf(
+                    "isDetected" to true,
+                    "deviceName" to (epsonDevice.productName ?: "Epson Printer"),
+                    "hasPermission" to usbManager.hasPermission(epsonDevice),
+                    "status" to "connected"
+                ))
+            } else {
+                result.success(mapOf(
+                    "isDetected" to false,
+                    "deviceName" to null,
+                    "hasPermission" to false,
+                    "status" to "disconnected"
+                ))
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "detectUsbPrinter error: ${e.message}")
+            result.success(mapOf(
+                "isDetected" to false,
+                "deviceName" to null,
+                "hasPermission" to false,
+                "status" to "error"
+            ))
+        }
+    }
+
+    /**
+     * Cek apakah KioskAutoPrintService (Accessibility Service) sudah aktif.
+     * Lebih akurat dari cek Epson Print Service — langsung cek service kita.
+     */
+    private fun isEpsonPrintServiceEnabled(): Boolean {
+        return try {
+            val enabledServices = Settings.Secure.getString(
+                contentResolver,
+                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+            ) ?: ""
+            val ourService = "$packageName/.KioskAutoPrintService"
+            val isOurServiceEnabled = enabledServices.contains(ourService, ignoreCase = true)
+
+            // Fallback: cek Epson Print Service juga
+            val epsonEnabled = Settings.Secure.getString(
+                contentResolver,
+                "enabled_print_services"
+            )?.contains("epson", ignoreCase = true) ?: false
+
+            Log.i(TAG, "KioskAutoPrintService enabled: $isOurServiceEnabled, Epson Print Service: $epsonEnabled")
+            isOurServiceEnabled || epsonEnabled
+        } catch (e: Exception) {
+            Log.e(TAG, "isEpsonPrintServiceEnabled error: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * Status printer ringkas untuk UI settings tab.
+     */
+    private fun getPrinterStatus(): Map<String, Any?> {
+        val usbManager = getSystemService(Context.USB_SERVICE) as UsbManager
+        val deviceList = usbManager.deviceList
+        val epsonDevice = deviceList.values.firstOrNull { it.vendorId == 0x04B8 }
+        val epsonServiceEnabled = isEpsonPrintServiceEnabled()
+        return mapOf(
+            "usbConnected" to (epsonDevice != null),
+            "usbDeviceName" to (epsonDevice?.productName ?: ""),
+            "epsonServiceEnabled" to epsonServiceEnabled,
+            "printManagerReady" to epsonServiceEnabled
+        )
     }
 
     /**
