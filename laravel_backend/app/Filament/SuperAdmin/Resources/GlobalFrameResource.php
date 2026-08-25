@@ -56,6 +56,10 @@ class GlobalFrameResource extends Resource
                     ->numeric()
                     ->default(4)
                     ->required(),
+                Toggle::make('remove_green_screen')
+                    ->label('🟢 Hapus Kotak Hijau Jadi Transparan (Chroma Key)')
+                    ->helperText('Otomatis melubangi kotak hijau menjadi 100% transparan.')
+                    ->default(false),
                 FileUpload::make('asset_url')
                     ->label('File PNG Frame')
                     ->image()

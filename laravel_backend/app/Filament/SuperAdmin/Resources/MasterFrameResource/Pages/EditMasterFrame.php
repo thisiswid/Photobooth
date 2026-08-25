@@ -53,7 +53,19 @@ class EditMasterFrame extends EditRecord
                 $h = $imageInfo[1];
             }
 
-            if ($useAi) {
+            $removeGreen = !empty($data['remove_green_screen']);
+
+            if ($removeGreen) {
+                $chromaRes = FrameSlotDetector::removeGreenScreenAndDetectSlots($pngPath);
+                if (!empty($chromaRes['success'])) {
+                    if (!empty($chromaRes['relative_path'])) {
+                        $data['asset_url'] = $chromaRes['relative_path'];
+                    }
+                    if (!empty($chromaRes['slots'])) {
+                        $detectedSlots = $chromaRes['slots'];
+                    }
+                }
+            } elseif ($useAi) {
                 $analysis = FrameSlotDetector::analyze($pngPath, autoPunchTransparency: true);
                 if (!empty($analysis['punched']) && !empty($analysis['relative_path'])) {
                     $data['asset_url'] = $analysis['relative_path'];
@@ -66,6 +78,15 @@ class EditMasterFrame extends EditRecord
                     if (!empty($analysis['layout_type']) && !empty($analysis['slot_count'])) {
                         $layoutType = $analysis['layout_type'];
                         $poseCount  = $analysis['pose_count'] ?? $poseCount;
+                    }
+                }
+            } else {
+                // Mode Manual: Cek apakah file PNG sudah memiliki lubang transparan (Alpha Channel)
+                $isPng = ($imageInfo[2] ?? 0) === IMAGETYPE_PNG;
+                if ($isPng) {
+                    $alphaRes = FrameSlotDetector::detectAlphaCutouts($pngPath, $w, $h);
+                    if (!empty($alphaRes['success']) && !empty($alphaRes['slots'])) {
+                        $detectedSlots = $alphaRes['slots'];
                     }
                 }
             }

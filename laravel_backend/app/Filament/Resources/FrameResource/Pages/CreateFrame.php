@@ -55,7 +55,19 @@ class CreateFrame extends CreateRecord
                 $h = $imageInfo[1];
             }
 
-            if ($useAi) {
+            $removeGreen = !empty($data['remove_green_screen']);
+
+            if ($removeGreen) {
+                $chromaRes = FrameSlotDetector::removeGreenScreenAndDetectSlots($pngPath);
+                if (!empty($chromaRes['success'])) {
+                    if (!empty($chromaRes['relative_path'])) {
+                        $data['asset_url'] = $chromaRes['relative_path'];
+                    }
+                    if (!empty($chromaRes['slots'])) {
+                        $detectedSlots = $chromaRes['slots'];
+                    }
+                }
+            } elseif ($useAi) {
                 $analysis = FrameSlotDetector::analyze($pngPath, autoPunchTransparency: true);
                 if (!empty($analysis['punched']) && !empty($analysis['relative_path'])) {
                     $data['asset_url'] = $analysis['relative_path'];

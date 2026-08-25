@@ -108,6 +108,11 @@ class FrameResource extends Resource
                 ->default(fn () => \App\Models\AiSetting::isAiAvailable(auth()->user()?->cafe_id))
                 ->visible(fn () => \App\Models\AiSetting::isAiAvailable(auth()->user()?->cafe_id)),
 
+            Toggle::make('remove_green_screen')
+                ->label('🟢 Hapus Kotak Hijau Jadi Transparan (Chroma Key Remover)')
+                ->helperText('Aktifkan jika desain Anda menggunakan kotak berwarna hijau sebagai penanda foto. Sistem akan otomatis melubanginya menjadi 100% transparan.')
+                ->default(false),
+
             FileUpload::make('asset_url')
                 ->label('File Frame Template (PNG Transparan / Gambar Frame)')
                 ->helperText(function (callable $get) {

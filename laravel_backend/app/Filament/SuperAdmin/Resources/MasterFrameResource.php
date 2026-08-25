@@ -122,6 +122,12 @@ class MasterFrameResource extends Resource
                         ->visible(fn () => \App\Models\AiSetting::isAiAvailable())
                         ->columnSpanFull(),
 
+                    Toggle::make('remove_green_screen')
+                        ->label('🟢 Hapus Kotak Hijau Jadi Transparan (Chroma Key Remover)')
+                        ->helperText('Aktifkan jika desain Anda menggunakan kotak berwarna hijau sebagai penanda foto. Sistem akan otomatis melubanginya menjadi 100% transparan.')
+                        ->default(false)
+                        ->columnSpanFull(),
+
                     FileUpload::make('asset_url')
                         ->label('File Desain Frame (PNG Transparan / Gambar Frame)')
                         ->image()
