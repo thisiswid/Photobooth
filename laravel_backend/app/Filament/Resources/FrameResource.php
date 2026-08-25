@@ -54,118 +54,79 @@ class FrameResource extends Resource
                 ->required()
                 ->maxLength(255),
 
-            TextInput::make('slot_count')
-                ->label('Jumlah Kotak Foto')
-                ->numeric()
-                ->default(4)
-                ->minValue(1)
-                ->maxValue(8)
-                ->required()
+            Select::make('layout_type')
+                ->label('Tipe Layout Frame')
+                ->options([
+                    'single'   => 'Single Strip (1 Kolom memanjang 600×1800 px — 4 Pose)',
+                    'double_6' => 'Double Strip 6 Foto (2 Kolom 1200×1800 px — Ambil 3 Pose)',
+                    'double_8' => 'Double Strip 8 Foto (2 Kolom 1200×1800 px — Ambil 4 Pose)',
+                ])
+                ->default('single')
                 ->live()
-                ->helperText('Berapa banyak kotak foto pada hasil cetak (1–8 kotak).')
-                ->afterStateUpdated(function ($state, callable $set, callable $get) {
-                    $slots = max(1, min(8, (int) ($state ?: 4)));
-                    $cols  = max(1, min(3, (int) ($get('columns') ?: 1)));
-                    $set('pose_count', (int) ceil($slots / $cols));
+                ->helperText('Ukuran standar cetak 300 DPI: Double Strip (1200×1800 px), Single Strip (600×1800 px).')
+                ->afterStateUpdated(function ($state, callable $set) {
+                    if ($state === 'double_6') {
+                        $set('pose_count', 3);
+                    } elseif ($state === 'double_8') {
+                        $set('pose_count', 4);
+                    }
                 })
                 ->afterStateHydrated(function ($component, $state, $record) {
-                    if ($record && !empty($record->layout_config['slot_count'])) {
-                        $component->state((int) $record->layout_config['slot_count']);
+                    if ($record && !empty($record->layout_config['layout_type'])) {
+                        $component->state($record->layout_config['layout_type']);
                     }
                 }),
-
-            Select::make('columns')
-                ->label('Susunan Kolom')
-                ->options([
-                    1 => '1 Kolom — Strip Vertikal',
-                    2 => '2 Kolom — Foto Kembar Kiri-Kanan',
-                    3 => '3 Kolom',
-                ])
-                ->default(1)
-                ->live()
-                ->required()
-                ->helperText('Jumlah baris dihitung otomatis: kotak ÷ kolom.')
-                ->afterStateUpdated(function ($state, callable $set, callable $get) {
-                    $slots = max(1, min(8, (int) ($get('slot_count') ?: 4)));
-                    $cols  = max(1, min(3, (int) ($state ?: 1)));
-                    $set('pose_count', (int) ceil($slots / $cols));
-                })
-                ->afterStateHydrated(function ($component, $state, $record) {
-                    if (!$record) {
-                        return;
-                    }
-                    $cfg = $record->layout_config ?? [];
-                    if (!empty($cfg['columns'])) {
-                        $component->state((int) $cfg['columns']);
-                    } elseif (in_array($cfg['layout_type'] ?? null, ['double_6', 'double_8'])) {
-                        $component->state(2);
-                    }
-                }),
-
-            Select::make('slot_aspect')
-                ->label('Bentuk Kotak Foto')
-                ->options([
-                    'portrait'  => 'Persegi Panjang Tegak / Potret (3:4)',
-                    'square'    => 'Persegi (1:1)',
-                    'landscape' => 'Persegi Panjang Tidur / Lanskap (4:3)',
-                ])
-                ->default('portrait')
-                ->required()
-                ->afterStateHydrated(function ($component, $state, $record) {
-                    if ($record && !empty($record->layout_config['slot_aspect'])) {
-                        $component->state($record->layout_config['slot_aspect']);
-                    }
-                }),
-
-            TextInput::make('pose_count')
-                ->label('Jumlah Pose Kamera (Otomatis)')
-                ->numeric()
-                ->default(4)
-                ->disabled()
-                ->dehydrated(false)
-                ->helperText('Dihitung otomatis dari jumlah kotak & kolom. 2/3 kolom = foto kembar per baris.'),
 
             Select::make('right_column_order')
                 ->label('Urutan Pose Kolom Kanan')
                 ->options([
-                    'identical'   => 'Identik / Kembar',
-                    'scrambled_1' => 'Acak 1 (digeser)',
-                    'scrambled_2' => 'Acak 2 (digeser 2)',
-                    'reversed'    => 'Terbalik',
+                    'scrambled_1' => 'Pose 3, Pose 1, Pose 2 (Acak 1)',
+                    'scrambled_2' => 'Pose 2, Pose 3, Pose 1 (Acak 2)',
+                    'reversed'    => 'Pose 3, Pose 2, Pose 1 (Terbalik)',
+                    'identical'   => 'Pose 1, Pose 2, Pose 3 (Identik / Kembar)',
                 ])
-                ->default('identical')
-                ->visible(fn ($get) => (int) ($get('columns') ?? 1) >= 2)
+                ->default('scrambled_1')
+                ->visible(fn ($get) => in_array($get('layout_type'), ['double_6', 'double_8']))
                 ->afterStateHydrated(function ($component, $state, $record) {
                     if ($record && !empty($record->layout_config['right_column_order_key'])) {
                         $component->state($record->layout_config['right_column_order_key']);
                     }
                 }),
 
+            TextInput::make('pose_count')
+                ->label('Jumlah Pose yang Diambil Kamera')
+                ->helperText('Berapa kali kamera akan menjepret foto untuk frame ini.')
+                ->numeric()
+                ->default(4)
+                ->minValue(1)
+                ->maxValue(8)
+                ->required(),
+
             Toggle::make('use_ai_detection')
                 ->label('Mode AI (Auto-Detect Layout & Auto-Punch Transparan)')
-                ->helperText('Aktifkan agar AI otomatis mendeteksi posisi kotak foto dan melubangi transparansi saat disimpan. Jika mati, sistem memakai pengaturan kotak di atas.')
-                ->default(false)
+                ->helperText('Aktifkan agar AI otomatis mendeteksi posisi kotak foto dan melubangi transparansi saat disimpan.')
+                ->default(fn () => \App\Models\AiSetting::isAiAvailable(auth()->user()?->cafe_id))
                 ->visible(fn () => \App\Models\AiSetting::isAiAvailable(auth()->user()?->cafe_id)),
 
             FileUpload::make('asset_url')
                 ->label('File Frame Template (PNG Transparan / Gambar Frame)')
                 ->helperText(function (callable $get) {
-                    $slots = max(1, min(8, (int) ($get('slot_count') ?: 4)));
-                    $cols  = max(1, min(3, (int) ($get('columns') ?: 1)));
-                    $poses = (int) ceil($slots / $cols);
-                    $dimGuide = $cols >= 2
-                        ? "📐 Rekomendasi Kanvas: 1200×1800 px (300 DPI 4R). Layout: {$slots} kotak, {$cols} kolom, {$poses} pose."
-                        : "📐 Rekomendasi Kanvas: 600×1800 px (300 DPI 2x6\"). Layout: {$slots} kotak, 1 kolom, {$poses} pose.";
+                    $layout = $get('layout_type') ?? 'single';
+                    $dimGuide = match($layout) {
+                        'double_6' => '📐 Rekomendasi Kanvas: 1200×1800 px (300 DPI 4R). Ukuran kotak foto: ~504×477 px.',
+                        'double_8' => '📐 Rekomendasi Kanvas: 1200×1800 px (300 DPI 4R). Ukuran kotak foto: ~504×360 px.',
+                        default    => '📐 Rekomendasi Kanvas: 600×1800 px (300 DPI 2x6"). Ukuran kotak foto: ~528×360 px.',
+                    };
 
                     $isAiAllowed = \App\Models\AiSetting::isAiAvailable(auth()->user()?->cafe_id);
                     if (!$isAiAllowed) {
-                        return "$dimGuide\n📁 Mode Manual: PNG transparan dibaca lubangnya otomatis; PNG biasa dilubangi sesuai pengaturan kotak di atas.";
+                        return "$dimGuide\n📁 Mode Manual: File frame PNG transparan akan diproses dengan pemetaan slot presisi.";
                     }
-                    $isAi = $get('use_ai_detection') ?? false;
+                    $isAi = $get('use_ai_detection') ?? true;
                     if ($isAi) {
                         return "$dimGuide\n✨ Mode AI Aktif: Sistem AI akan otomatis mendeteksi posisi kotak foto & melubangi transparansi saat disimpan.";
                     }
-                    return "$dimGuide\n📁 Mode Manual: PNG transparan dibaca lubangnya otomatis; PNG biasa dilubangi sesuai pengaturan kotak di atas.";
+                    return "$dimGuide\n📁 Mode Frame Manual: File frame PNG transparan Anda akan dibaca langsung tanpa campur tangan AI.";
                 })
                 ->image()
                 ->imagePreviewHeight('300')
@@ -199,11 +160,12 @@ class FrameResource extends Resource
                         TextEntry::make('event.name')->label('Event')->default('Main Booth'),
                         TextEntry::make('pose_count')->label('Jumlah Pose'),
                         TextEntry::make('layout_type_display')
-                            ->label('Layout')
-                            ->state(fn ($record) => \App\Services\FrameSlotDetector::describeGridLayout(
-                                $record->layout_config ?? [],
-                                $record->pose_count
-                            ))
+                            ->label('Tipe Layout')
+                            ->state(fn ($record) => match($record->layout_config['layout_type'] ?? 'single') {
+                                'double_6' => 'Double Strip 6 Foto (2 Kolom × 3)',
+                                'double_8' => 'Double Strip 8 Foto (2 Kolom × 4)',
+                                default    => 'Single Strip',
+                            })
                             ->badge()
                             ->color('info'),
                         IconEntry::make('active')->label('Aktif')->boolean(),
@@ -239,11 +201,12 @@ class FrameResource extends Resource
                     ->color('info'),
 
                 TextColumn::make('pose_info')
-                    ->label('Layout')
-                    ->state(fn ($record) => \App\Services\FrameSlotDetector::describeGridLayout(
-                        $record->layout_config ?? [],
-                        $record->pose_count
-                    ))
+                    ->label('Tipe & Pose')
+                    ->state(fn ($record) => match($record->layout_config['layout_type'] ?? 'single') {
+                        'double_6' => '3 Pose (6 Slot)',
+                        'double_8' => '4 Pose (8 Slot)',
+                        default    => "{$record->pose_count} Pose",
+                    })
                     ->badge()
                     ->color('success'),
 

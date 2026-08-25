@@ -95,9 +95,14 @@ class MasterFrame extends Model
         $layoutType = $this->layout_type ?? ($layoutConfig['layout_type'] ?? 'single');
         $layoutConfig['layout_type'] = $layoutType;
 
-        $rightKey = $layoutConfig['right_column_order_key'] ?? 'scrambled_1'; // legacy default for old frames
-        $poseCount = $this->pose_count ?? 4;
-        $rightOrder = \App\Services\FrameSlotDetector::buildRightOrder($rightKey, $poseCount);
+        $rightKey = $layoutConfig['right_column_order_key'] ?? 'scrambled_1';
+        $rightOrder = match($rightKey) {
+            'scrambled_1' => ($layoutType === 'double_8') ? [3, 0, 1, 2] : [2, 0, 1],
+            'scrambled_2' => ($layoutType === 'double_8') ? [2, 3, 0, 1] : [1, 2, 0],
+            'reversed'    => ($layoutType === 'double_8') ? [3, 2, 1, 0] : [2, 1, 0],
+            'identical'   => ($layoutType === 'double_8') ? [0, 1, 2, 3] : [0, 1, 2],
+            default       => ($layoutType === 'double_8') ? [3, 0, 1, 2] : [2, 0, 1],
+        };
 
         $layoutConfig['right_column_order_key'] = $rightKey;
         $layoutConfig['right_column_order'] = $rightOrder;
@@ -107,8 +112,7 @@ class MasterFrame extends Model
                 $layoutConfig['slots'],
                 $layoutType,
                 $rightOrder,
-                $poseCount,
-                (int) ($layoutConfig['columns'] ?? 0)
+                $this->pose_count ?? 4
             );
         }
 
@@ -148,9 +152,14 @@ class MasterFrame extends Model
         $layoutType = $this->layout_type ?? ($layoutConfig['layout_type'] ?? 'single');
         $layoutConfig['layout_type'] = $layoutType;
 
-        $rightKey = $layoutConfig['right_column_order_key'] ?? 'scrambled_1'; // legacy default for old frames
-        $poseCount = $this->pose_count ?? 4;
-        $rightOrder = \App\Services\FrameSlotDetector::buildRightOrder($rightKey, $poseCount);
+        $rightKey = $layoutConfig['right_column_order_key'] ?? 'scrambled_1';
+        $rightOrder = match($rightKey) {
+            'scrambled_1' => ($layoutType === 'double_8') ? [3, 0, 1, 2] : [2, 0, 1],
+            'scrambled_2' => ($layoutType === 'double_8') ? [2, 3, 0, 1] : [1, 2, 0],
+            'reversed'    => ($layoutType === 'double_8') ? [3, 2, 1, 0] : [2, 1, 0],
+            'identical'   => ($layoutType === 'double_8') ? [0, 1, 2, 3] : [0, 1, 2],
+            default       => ($layoutType === 'double_8') ? [3, 0, 1, 2] : [2, 0, 1],
+        };
 
         $layoutConfig['right_column_order_key'] = $rightKey;
         $layoutConfig['right_column_order'] = $rightOrder;
@@ -160,8 +169,7 @@ class MasterFrame extends Model
                 $layoutConfig['slots'],
                 $layoutType,
                 $rightOrder,
-                $poseCount,
-                (int) ($layoutConfig['columns'] ?? 0)
+                $this->pose_count ?? 4
             );
         }
 

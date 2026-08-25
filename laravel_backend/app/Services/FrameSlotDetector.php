@@ -182,71 +182,57 @@ class FrameSlotDetector
     }
 
     /**
-     * Partitions slots into columns and assigns pose indices.
-     * Column 0 (leftmost) is ordered top-to-bottom as poses 0..N-1;
-     * subsequent columns mirror the row pose, optionally permuted via $rightOrder.
-     *
-     * $columns = 0 keeps legacy behaviour (auto-detect multi-column when >= 6 slots
-     * or layout_type is double_6/double_8). Pass an explicit column count (2 or 3)
-     * for declarative grid layouts.
+     * Accurately partitions and assigns pose indices to slots based on layout type and right column order.
+     * Guarantees left column is ordered top-to-bottom (0..N) and right column is mapped to rightOrder top-to-bottom.
      */
-    public static function assignSlotPoses(array $slots, string $layoutType, ?array $rightOrder = null, int $poseCount = 4, int $columns = 0): array
+    public static function assignSlotPoses(array $slots, string $layoutType, ?array $rightOrder = null, int $poseCount = 4): array
     {
         if (empty($slots)) {
             return [];
         }
 
-        $isMultiColumn = $columns >= 2
-            || $layoutType === 'double_6'
-            || $layoutType === 'double_8'
-            || ($columns === 0 && count($slots) >= 6);
+        if ($layoutType === 'double_6' || $layoutType === 'double_8' || count($slots) >= 6) {
+            $expectedRows = ($layoutType === 'double_8' || count($slots) === 8) ? 4 : 3;
+            $defaultRight = ($expectedRows === 4) ? [3, 0, 1, 2] : [2, 0, 1];
+            $rightOrder = $rightOrder ?: $defaultRight;
 
-        if ($isMultiColumn) {
-            $cols = max(2, $columns ?: 2);
-            $expectedRows = (int) ceil(count($slots) / $cols);
-            $rightOrder = $rightOrder ?: self::buildRightOrder('scrambled_1', $expectedRows);
+            // Find median X coordinate to partition left and right columns
+            $xCoords = array_map(fn($s) => $s['x'] + ($s['w'] / 2), $slots);
+            sort($xCoords);
+            $midX = $xCoords[(int) floor(count($xCoords) / 2)];
 
-            // Cluster slots into columns using the largest X-center gaps
-            // (robust to jitter and works for any column count).
-            $indexed = [];
-            foreach ($slots as $i => $s) {
-                $indexed[] = ['i' => $i, 'cx' => $s['x'] + ($s['w'] / 2)];
-            }
-            usort($indexed, fn($a, $b) => $a['cx'] <=> $b['cx']);
+            $leftSlots = [];
+            $rightSlots = [];
 
-            $splitPositions = [];
-            if (count($indexed) > $cols) {
-                $gaps = [];
-                for ($i = 1; $i < count($indexed); $i++) {
-                    $gaps[] = ['gap' => $indexed[$i]['cx'] - $indexed[$i - 1]['cx'], 'pos' => $i];
+            foreach ($slots as $s) {
+                $centerX = $s['x'] + ($s['w'] / 2);
+                if ($centerX < $midX) {
+                    $leftSlots[] = $s;
+                } else {
+                    $rightSlots[] = $s;
                 }
-                usort($gaps, fn($a, $b) => $b['gap'] <=> $a['gap']);
-                $splitPositions = array_map(fn($g) => $g['pos'], array_slice($gaps, 0, $cols - 1));
-                sort($splitPositions);
             }
 
-            $columnGroups = [];
-            $prev = 0;
-            foreach ($splitPositions as $pos) {
-                $columnGroups[] = array_slice($indexed, $prev, $pos - $prev);
-                $prev = $pos;
+            // Fallback if partition was unbalanced
+            if (empty($leftSlots) || empty($rightSlots)) {
+                $half = (int) ceil(count($slots) / 2);
+                $leftSlots = array_slice($slots, 0, $half);
+                $rightSlots = array_slice($slots, $half);
             }
-            $columnGroups[] = array_slice($indexed, $prev);
+
+            // Sort top to bottom (Y ascending)
+            usort($leftSlots, fn($a, $b) => $a['y'] <=> $b['y']);
+            usort($rightSlots, fn($a, $b) => $a['y'] <=> $b['y']);
 
             $result = [];
-            foreach ($columnGroups as $colIdx => $group) {
-                // Sort each column top-to-bottom (Y ascending)
-                usort($group, fn($a, $b) => $slots[$a['i']]['y'] <=> $slots[$b['i']]['y']);
+            foreach ($leftSlots as $idx => $s) {
+                $s['pose_index'] = $idx;
+                $result[] = $s;
+            }
 
-                foreach ($group as $rowIdx => $entry) {
-                    $s = $slots[$entry['i']];
-                    if ($colIdx === 0) {
-                        $s['pose_index'] = $rowIdx;
-                    } else {
-                        $s['pose_index'] = $rightOrder[$rowIdx] ?? ($rowIdx % max(1, $poseCount));
-                    }
-                    $result[] = $s;
-                }
+            foreach ($rightSlots as $idx => $s) {
+                $s['pose_index'] = $rightOrder[$idx] ?? ($idx % max(1, $poseCount));
+                $result[] = $s;
             }
 
             return $result;
@@ -305,183 +291,6 @@ class FrameSlotDetector
         }
 
         return $slots;
-    }
-
-    /**
-     * Compute the number of camera poses for a declarative grid layout.
-     * Pose count equals the number of rows (each row = one camera take,
-     * duplicated across columns for multi-column "twin" strips).
-     */
-    public static function computeGridPoseCount(int $slotCount, int $columns): int
-    {
-        $slotCount = max(1, min(8, $slotCount));
-        $columns   = max(1, min(3, $columns));
-
-        return (int) ceil($slotCount / $columns);
-    }
-
-    /**
-     * Build a right-column pose permutation for a given number of rows.
-     * Generalises the legacy hardcoded double_6 / double_8 orders.
-     */
-    public static function buildRightOrder(string $key, int $rows): array
-    {
-        $rows = max(1, $rows);
-        $seq  = range(0, $rows - 1);
-
-        return match ($key) {
-            'reversed'    => array_reverse($seq),
-            'identical'   => $seq,
-            'scrambled_2' => array_merge(array_slice($seq, 1), array_slice($seq, 0, 1)), // rotate left 1
-            default       => array_merge(array_slice($seq, -1), array_slice($seq, 0, -1)), // scrambled_1: rotate right 1
-        };
-    }
-
-    /**
-     * Declarative Frame Builder: generate slot coordinates for an N-slot grid
-     * with a chosen number of columns and slot aspect ratio. Pose indices are
-     * assigned directly (row = pose; extra columns mirror the pose, optionally
-     * permuted via $rightOrder for 2-column strips).
-     */
-    public static function generateGridSlots(
-        int $w,
-        int $h,
-        int $slotCount,
-        int $columns,
-        string $aspect = 'portrait',
-        ?array $rightOrder = null
-    ): array {
-        $slotCount = max(1, min(8, $slotCount));
-        $columns   = max(1, min(3, $columns));
-        $rows      = (int) ceil($slotCount / $columns);
-
-        $aspectRatio = match ($aspect) {
-            'square'    => 1.0,
-            'landscape' => 4.0 / 3.0,
-            default     => 3.0 / 4.0, // portrait
-        };
-
-        $marginX    = $w * 0.055;
-        $gapX       = (int) round($w * 0.030);
-        $gapY       = (int) round($h * 0.028);
-        $minMarginY = $h * 0.040;
-
-        // 1. Slot width derived from the column layout, height from the aspect ratio.
-        $slotW = ($w - 2 * $marginX - ($columns - 1) * $gapX) / $columns;
-        $slotH = $slotW / $aspectRatio;
-
-        // 2. If the grid overflows vertically, scale down proportionally (keep aspect).
-        $totalH     = $rows * $slotH + ($rows - 1) * $gapY;
-        $availableH = $h - 2 * $minMarginY;
-        if ($totalH > $availableH && $totalH > 0) {
-            $scale  = $availableH / $totalH;
-            $slotW *= $scale;
-            $slotH *= $scale;
-            $gapY  *= $scale;
-        }
-
-        $slotW = (int) round($slotW);
-        $slotH = (int) round($slotH);
-        $gapY  = (int) round($gapY);
-
-        // 3. Center the grid on the canvas.
-        $gridW  = $columns * $slotW + ($columns - 1) * $gapX;
-        $gridH  = $rows * $slotH + ($rows - 1) * $gapY;
-        $startX = (int) round(($w - $gridW) / 2);
-        $startY = (int) round(($h - $gridH) / 2);
-
-        // 4. Emit slots row by row, left to right.
-        $slots = [];
-        $idx   = 0;
-        for ($r = 0; $r < $rows && $idx < $slotCount; $r++) {
-            for ($c = 0; $c < $columns && $idx < $slotCount; $c++) {
-                if ($c === 0 || $columns === 1) {
-                    $poseIndex = $r;
-                } elseif ($rightOrder !== null && isset($rightOrder[$r])) {
-                    $poseIndex = $rightOrder[$r];
-                } else {
-                    $poseIndex = $r;
-                }
-
-                $slots[] = [
-                    'x'          => $startX + $c * ($slotW + $gapX),
-                    'y'          => $startY + $r * ($slotH + $gapY),
-                    'w'          => $slotW,
-                    'h'          => $slotH,
-                    'pose_index' => $poseIndex,
-                ];
-                $idx++;
-            }
-        }
-
-        return $slots;
-    }
-
-    /**
-     * One-stop builder used by the Filament Create/Edit pages. Returns the full
-     * layout_config array (slots + pose metadata) for a declarative grid frame.
-     */
-    public static function buildGridLayoutConfig(
-        int $w,
-        int $h,
-        int $slotCount,
-        int $columns,
-        string $aspect,
-        string $rightOrderKey = 'identical'
-    ): array {
-        $poseCount  = self::computeGridPoseCount($slotCount, $columns);
-        $rightOrder = $columns >= 2 ? self::buildRightOrder($rightOrderKey, $poseCount) : null;
-        $slots      = self::generateGridSlots($w, $h, $slotCount, $columns, $aspect, $rightOrder);
-        $layoutType = $columns === 1 ? 'single' : 'grid';
-
-        return [
-            'layout_type'            => $layoutType,
-            'slot_count'             => count($slots),
-            'pose_count'             => $poseCount,
-            'columns'                => $columns,
-            'rows'                   => $poseCount,
-            'slot_aspect'            => $aspect,
-            'right_column_order_key' => $rightOrderKey,
-            'right_column_order'     => $rightOrder,
-            'slots'                  => $slots,
-            'dimensions'             => ['w' => $w, 'h' => $h],
-        ];
-    }
-
-    /**
-     * Human-readable label for a declarative grid layout (for tables / infolists).
-     */
-    public static function describeGridLayout(?array $layoutConfig, ?int $poseCount = null): string
-    {
-        $cfg     = $layoutConfig ?? [];
-        $slots   = $cfg['slot_count'] ?? count($cfg['slots'] ?? []);
-        $columns = $cfg['columns'] ?? null;
-        $aspect  = $cfg['slot_aspect'] ?? 'portrait';
-
-        // Legacy frames: infer columns from old layout_type keys.
-        if ($columns === null) {
-            $legacyType = $cfg['layout_type'] ?? 'single';
-            $columns    = in_array($legacyType, ['double_6', 'double_8']) ? 2 : 1;
-        }
-        $columns = max(1, min(3, (int) $columns));
-
-        if (!$slots) {
-            $slots = $poseCount ? $poseCount * $columns : 4;
-        }
-
-        $poses = $poseCount ?? ($cfg['pose_count'] ?? self::computeGridPoseCount((int) $slots, $columns));
-
-        $aspectLabel = match ($aspect) {
-            'square'    => 'Persegi',
-            'landscape' => 'Lanskap',
-            default     => 'Potret',
-        };
-
-        if ($columns <= 1) {
-            return "{$slots} Kotak • 1 Kolom • {$aspectLabel} ({$poses} Pose)";
-        }
-
-        return "{$slots} Kotak • {$columns} Kolom • {$aspectLabel} ({$poses} Pose)";
     }
 
     /**
