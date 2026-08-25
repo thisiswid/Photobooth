@@ -153,10 +153,10 @@ class MainActivity : FlutterActivity() {
 
             val printManager = getSystemService(Context.PRINT_SERVICE) as PrintManager
 
-            // Set atribut print: 4x6 inch, foto, warna
+            // Set atribut print: 4x6 inch, foto, warna, NO MARGINS (full bleed)
             val attrs = PrintAttributes.Builder()
                 .setMediaSize(MediaSize("4x6", "4x6 Photo", 4000, 6000))
-                .setResolution(Resolution("high", "High Quality", 300, 300))
+                .setResolution(Resolution("high", "High Quality", 600, 600))
                 .setColorMode(PrintAttributes.COLOR_MODE_COLOR)
                 .setMinMargins(Margins.NO_MARGINS)
                 .build()
@@ -173,12 +173,10 @@ class MainActivity : FlutterActivity() {
                         callback.onLayoutCancelled()
                         return
                     }
-
                     val info = PrintDocumentInfo.Builder(jobName)
                         .setContentType(PrintDocumentInfo.CONTENT_TYPE_PHOTO)
                         .setPageCount(1)
                         .build()
-
                     callback.onLayoutFinished(info, true)
                 }
 
@@ -189,49 +187,47 @@ class MainActivity : FlutterActivity() {
                     callback: WriteResultCallback
                 ) {
                     try {
-                        // Buat PDF document dengan ukuran 4x6 inch
                         val printAttrs = PrintAttributes.Builder()
                             .setMediaSize(MediaSize("4x6", "4x6 Photo", 4000, 6000))
-                            .setResolution(Resolution("photo", "Photo", 300, 300))
+                            .setResolution(Resolution("photo", "Photo", 600, 600))
                             .setColorMode(PrintAttributes.COLOR_MODE_COLOR)
                             .setMinMargins(Margins.NO_MARGINS)
                             .build()
 
                         val pdfDocument = PrintedPdfDocument(this@MainActivity, printAttrs)
 
-                        val pageInfo = PdfDocument.PageInfo.Builder(
-                            (4.0 * 72).toInt(),  // 4 inch @ 72 DPI (PDF points)
-                            (6.0 * 72).toInt(),  // 6 inch @ 72 DPI (PDF points)
-                            0
-                        ).create()
+                        // Canvas size dalam PDF points (1 point = 1/72 inch)
+                        val pageWidthPt  = (4.0 * 72).toInt()   // 288 pt
+                        val pageHeightPt = (6.0 * 72).toInt()   // 432 pt
 
+                        val pageInfo = PdfDocument.PageInfo.Builder(pageWidthPt, pageHeightPt, 0).create()
                         val page = pdfDocument.startPage(pageInfo)
                         val canvas = page.canvas
 
-                        // Gambar foto ke canvas, fit cover
-                        val scaleX = canvas.width.toFloat() / bitmap.width.toFloat()
+                        // Full bleed cover: isi seluruh canvas tanpa sisa putih
+                        val scaleX = canvas.width.toFloat()  / bitmap.width.toFloat()
                         val scaleY = canvas.height.toFloat() / bitmap.height.toFloat()
-                        val scale = maxOf(scaleX, scaleY)
+                        val scale  = maxOf(scaleX, scaleY)  // cover (bukan fit)
 
-                        val scaledWidth = bitmap.width * scale
+                        val scaledWidth  = bitmap.width  * scale
                         val scaledHeight = bitmap.height * scale
-                        val left = (canvas.width - scaledWidth) / 2f
-                        val top = (canvas.height - scaledHeight) / 2f
+                        val left = (canvas.width  - scaledWidth)  / 2f
+                        val top  = (canvas.height - scaledHeight) / 2f
 
                         canvas.save()
+                        // Clip ke batas canvas agar tidak ada overflow
+                        canvas.clipRect(0f, 0f, canvas.width.toFloat(), canvas.height.toFloat())
                         canvas.translate(left, top)
                         canvas.scale(scale, scale)
                         canvas.drawBitmap(bitmap, 0f, 0f, null)
                         canvas.restore()
 
                         pdfDocument.finishPage(page)
-
-                        // Tulis ke output
                         pdfDocument.writeTo(FileOutputStream(destination.fileDescriptor))
                         pdfDocument.close()
 
                         callback.onWriteFinished(arrayOf(PageRange.ALL_PAGES))
-                        Log.i(TAG, "✅ Print job written successfully")
+                        Log.i(TAG, "✅ Print job written successfully (full bleed)")
                     } catch (e: IOException) {
                         callback.onWriteFailed(e.message)
                         Log.e(TAG, "❌ Write failed: ${e.message}")

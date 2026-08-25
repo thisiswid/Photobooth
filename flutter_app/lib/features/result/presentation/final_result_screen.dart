@@ -470,25 +470,6 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
 
           SizedBox(height: 6.h),
 
-          // ── Link Pengaturan Printer Cepat (Tanpa Password) ──
-          TextButton.icon(
-            onPressed: () => PrinterSettingsModal.show(
-              context,
-              onPrinterConfigured: () => setState(() => _connectedPrinterName = 'Epson L8050'),
-            ),
-            icon: Icon(Icons.tune_rounded, size: 15.r, color: AppColors.brown),
-            label: Text(
-              _connectedPrinterName != null
-                  ? 'Printer: $_connectedPrinterName'
-                  : 'Pengaturan Printer',
-              style: TextStyle(
-                color: AppColors.brown,
-                fontSize: 11.5.sp,
-                fontWeight: FontWeight.w500,
-                decoration: TextDecoration.underline,
-              ),
-            ),
-          ),
         ],
       ),
     ).animate().slideX(begin: 0.05, delay: 200.ms);
@@ -512,27 +493,6 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
                     color: AppColors.darkBrown,
                   ),
                 ).animate().fadeIn(),
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
-                    side: const BorderSide(color: AppColors.gold, width: 1.2),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
-                    backgroundColor: AppColors.creamWhite.withValues(alpha: 0.6),
-                  ),
-                  onPressed: () => PrinterSettingsModal.show(
-                    context,
-                    onPrinterConfigured: () => setState(() => _connectedPrinterName = 'Epson L8050'),
-                  ),
-                  icon: Icon(Icons.print_rounded, size: 16.r, color: AppColors.darkBrown),
-                  label: Text(
-                    _connectedPrinterName != null ? _connectedPrinterName! : 'Set Printer',
-                    style: GoogleFonts.montserrat(
-                      fontSize: 11.5.sp,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.darkBrown,
-                    ),
-                  ),
-                ).animate().fadeIn(delay: 200.ms),
               ],
             ),
           ),
