@@ -294,6 +294,22 @@ class FrameSlotDetector
     }
 
     /**
+     * Human-readable label for a layout config (for tables / infolists).
+     */
+    public static function describeGridLayout(?array $layoutConfig, ?int $poseCount = null): string
+    {
+        $cfg   = $layoutConfig ?? [];
+        $slots = $cfg['slot_count'] ?? count($cfg['slots'] ?? []);
+        $poses = $poseCount ?? ($cfg['pose_count'] ?? ($slots ?: 4));
+
+        if (!$slots) {
+            $slots = $poses;
+        }
+
+        return "{$slots} Kotak Foto ({$poses} Pose)";
+    }
+
+    /**
      * Cut out / punch transparent rectangles into an image and save as PNG.
      */
     public static function punchTransparency(string $sourcePath, array $slots, ?string $targetPath = null): ?string

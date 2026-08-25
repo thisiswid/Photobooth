@@ -13,26 +13,6 @@ class CreateFrame extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        $layoutType = $data['layout_type'] ?? 'single';
-        $rightKey = $data['right_column_order'] ?? 'scrambled_1';
-        $poseCount = (int)($data['pose_count'] ?? ($layoutType === 'double_8' ? 4 : ($layoutType === 'double_6' ? 3 : 4)));
-        $isAiAllowed = \App\Models\AiSetting::isAiAvailable(auth()->user()?->cafe_id);
-        $useAi = $isAiAllowed && (!isset($data['use_ai_detection']) || (bool)$data['use_ai_detection']);
-
-        $rightOrder = match($rightKey) {
-            'scrambled_1' => ($layoutType === 'double_8') ? [3, 0, 1, 2] : [2, 0, 1],
-            'scrambled_2' => ($layoutType === 'double_8') ? [2, 3, 0, 1] : [1, 2, 0],
-            'reversed'    => ($layoutType === 'double_8') ? [3, 2, 1, 0] : [2, 1, 0],
-            'identical'   => ($layoutType === 'double_8') ? [0, 1, 2, 3] : [0, 1, 2],
-            default       => ($layoutType === 'double_8') ? [3, 0, 1, 2] : [2, 0, 1],
-        };
-
-        $slotCount = match($layoutType) {
-            'double_6' => 6,
-            'double_8' => 8,
-            default    => $poseCount,
-        };
-
         // Auto-assign event_id if empty and user belongs to a cafe
         if (empty($data['event_id']) && ($cafeId = auth()->user()?->cafe_id)) {
             $event = \App\Models\Event::where('cafe_id', $cafeId)->where('active', true)->first()
@@ -42,10 +22,10 @@ class CreateFrame extends CreateRecord
             }
         }
 
-        // Slot processing & dimensions
-        $detectedSlots = [];
-        $w = 1200;
+        $w = 600;
         $h = 1800;
+        $pngPath = null;
+        $imageInfo = null;
 
         if (!empty($data['asset_url'])) {
             $pngPath = Storage::disk('public')->path($data['asset_url']);
@@ -54,43 +34,45 @@ class CreateFrame extends CreateRecord
                 $w = $imageInfo[0];
                 $h = $imageInfo[1];
             }
+        }
 
-            if ($useAi) {
-                $analysis = FrameSlotDetector::analyze($pngPath, autoPunchTransparency: true);
-                if (!empty($analysis['punched']) && !empty($analysis['relative_path'])) {
-                    $data['asset_url'] = $analysis['relative_path'];
-                }
-               
-                 // Pakai slots dari AI selama tidak kosong
-                 if (!empty($analysis['slots'])) {
-                    $detectedSlots = $analysis['slots'];
-                }
-            } else {
-                // Mode Manual: Cek apakah file PNG sudah memiliki lubang transparan (Alpha Channel)
-                $isPng = ($imageInfo[2] ?? 0) === IMAGETYPE_PNG;
-                if ($isPng) {
-                    $alphaRes = FrameSlotDetector::detectAlphaCutouts($pngPath, $w, $h);
-                    if (!empty($alphaRes['success']) && !empty($alphaRes['slots'])) {
-                        $detectedSlots = $alphaRes['slots'];
-                    }
-                }
+        // Process layout_config from Visual Canvas Editor
+        $layoutConfig = $data['layout_config'] ?? [];
+        if (is_string($layoutConfig)) {
+            $layoutConfig = json_decode($layoutConfig, true) ?: [];
+        }
+
+        $slots = $layoutConfig['slots'] ?? [];
+        if (empty($slots)) {
+            // Default 4 slots fallback
+            $slots = FrameSlotDetector::generateStandardSlots($w, $h, 'single', 4);
+        }
+
+        // Compute pose_count based on unique/max pose_index assigned to slots
+        $maxPoseIndex = 0;
+        foreach ($slots as $s) {
+            $p = (int) ($s['pose_index'] ?? 0);
+            if ($p > $maxPoseIndex) {
+                $maxPoseIndex = $p;
             }
-            
-            if (empty($detectedSlots)) {
-                $detectedSlots = FrameSlotDetector::generateStandardSlots($w, $h, $layoutType, $poseCount, $rightOrder);
+        }
+        $poseCount = max(1, $maxPoseIndex + 1);
+
+        // Auto-punch transparency on the uploaded image using the slot coordinates
+        if ($pngPath && file_exists($pngPath) && !empty($slots)) {
+            $punched = FrameSlotDetector::punchTransparency($pngPath, $slots, $pngPath);
+            if ($punched) {
+                $data['asset_url'] = $punched;
             }
         }
 
-        // Ensure pose_index in slots accurately aligns with chosen rightOrder
-        $finalSlots = FrameSlotDetector::assignSlotPoses($detectedSlots, $layoutType, $rightOrder, $poseCount);
-
+        $data['pose_count'] = $poseCount;
         $data['layout_config'] = [
-            'layout_type'            => $layoutType,
-            'slot_count'             => count($finalSlots) ?: $slotCount,
-            'right_column_order_key' => $rightKey,
-            'right_column_order'     => $rightOrder,
-            'slots'                  => $finalSlots,
-            'dimensions'             => ['w' => $w, 'h' => $h],
+            'layout_type' => count($slots) <= 4 ? 'single' : 'grid',
+            'slot_count'  => count($slots),
+            'pose_count'  => $poseCount,
+            'slots'       => $slots,
+            'dimensions'  => ['w' => $w, 'h' => $h],
         ];
 
         return $data;
