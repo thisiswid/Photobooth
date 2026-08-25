@@ -116,4 +116,17 @@ class EditFrame extends EditRecord
 
         return $data;
     }
+
+    protected function getRedirectUrl(): string
+    {
+        return $this->getResource()::getUrl('index');
+    }
+
+    protected function getSavedNotification(): ?\Filament\Notifications\Notification
+    {
+        return \Filament\Notifications\Notification::make()
+            ->success()
+            ->title('Frame Berhasil Diperbarui')
+            ->body('Perubahan template frame telah disimpan.');
+    }
 }

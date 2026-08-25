@@ -117,4 +117,17 @@ class CreateFrame extends CreateRecord
 
         return $data;
     }
+
+    protected function getRedirectUrl(): string
+    {
+        return $this->getResource()::getUrl('index');
+    }
+
+    protected function getCreatedNotification(): ?\Filament\Notifications\Notification
+    {
+        return \Filament\Notifications\Notification::make()
+            ->success()
+            ->title('Frame Berhasil Dibuat')
+            ->body('Template frame telah berhasil disimpan dan siap digunakan.');
+    }
 }

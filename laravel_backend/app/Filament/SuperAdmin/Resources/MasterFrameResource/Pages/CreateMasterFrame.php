@@ -111,4 +111,12 @@ class CreateMasterFrame extends CreateRecord
     {
         return $this->getResource()::getUrl('index');
     }
+
+    protected function getCreatedNotification(): ?\Filament\Notifications\Notification
+    {
+        return \Filament\Notifications\Notification::make()
+            ->success()
+            ->title('Master Frame Berhasil Dibuat')
+            ->body('Template master frame telah disimpan dan tersedia untuk cafe.');
+    }
 }
