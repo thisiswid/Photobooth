@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Forms\Components\FrameCanvasEditor;
 use App\Filament\Resources\FrameResource\Pages;
 use App\Models\Frame;
+use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
@@ -39,7 +40,7 @@ class FrameResource extends Resource
     public static function form(Schema $schema): Schema
     {
         return $schema->components([
-            Section::make('Informasi Frame')->schema([
+            Section::make('1. Informasi & Upload File Desain Frame')->schema([
                 Select::make('event_id')
                     ->label('Event')
                     ->relationship(
@@ -57,9 +58,9 @@ class FrameResource extends Resource
 
                 FileUpload::make('asset_url')
                     ->label('File Desain Frame (PNG Transparan / Gambar Frame)')
-                    ->helperText('Upload desain frame Anda. Jika belum berlubang transparan, sistem akan melubanginya otomatis sesuai letak kotak foto di editor visual di bawah.')
+                    ->helperText('Begitu Anda memilih gambar, desain akan langsung muncul di kanvas studio di bawah! Anda tinggal menggeser kotak pose ke area foto yang diinginkan.')
                     ->image()
-                    ->imagePreviewHeight('280')
+                    ->imagePreviewHeight('240')
                     ->disk('public')
                     ->directory('frames')
                     ->acceptedFileTypes(['image/png', 'image/jpeg', 'image/webp'])
@@ -73,7 +74,7 @@ class FrameResource extends Resource
                     ->default(true),
             ])->columns(2),
 
-            Section::make('Visual Frame Builder (Atur Posisi, Ukuran & Urutan Pose Foto)')->schema([
+            Section::make('2. Studio Kanvas: Tempatkan Kotak Pose Foto di Atas Desain Frame')->schema([
                 FrameCanvasEditor::make('layout_config')
                     ->label('')
                     ->imageField('asset_url')
@@ -166,6 +167,11 @@ class FrameResource extends Resource
                     ->label('Status Aktif'),
             ])
             ->actions([
+                Action::make('studio')
+                    ->label('Studio Frame')
+                    ->icon('heroicon-o-sparkles')
+                    ->color('warning')
+                    ->url(fn (Frame $record) => Pages\EditFrame::getUrl(['record' => $record->id])),
                 ViewAction::make(),
                 EditAction::make(),
                 DeleteAction::make(),
