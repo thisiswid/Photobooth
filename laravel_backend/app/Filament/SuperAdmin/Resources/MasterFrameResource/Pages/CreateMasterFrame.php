@@ -46,9 +46,14 @@ class CreateMasterFrame extends CreateRecord
 
             if (!empty($data['asset_url'])) {
                 $pngPath = Storage::disk('public')->path($data['asset_url']);
-                $punchedPath = FrameSlotDetector::punchTransparency($pngPath, $detectedSlots);
-                if ($punchedPath) {
-                    $data['asset_url'] = $punchedPath;
+                $imageInfo = @getimagesize($pngPath);
+                if ($imageInfo) {
+                    $w = $imageInfo[0];
+                    $h = $imageInfo[1];
+                }
+                $chromaRes = FrameSlotDetector::removeGreenScreenAndDetectSlots($pngPath);
+                if (!empty($chromaRes['success']) && !empty($chromaRes['relative_path'])) {
+                    $data['asset_url'] = $chromaRes['relative_path'];
                 }
             }
         } elseif (!empty($data['asset_url'])) {
@@ -59,14 +64,24 @@ class CreateMasterFrame extends CreateRecord
                 $h = $imageInfo[1];
             }
 
-            // Mode 1: File Sudah Transparan Sendiri (Alpha Channel)
-            $isPng = ($imageInfo[2] ?? 0) === IMAGETYPE_PNG;
-            if ($isPng) {
-                $alphaRes = FrameSlotDetector::detectAlphaCutouts($pngPath, $w, $h);
-                if (!empty($alphaRes['success']) && !empty($alphaRes['slots'])) {
-                    $detectedSlots = $alphaRes['slots'];
-                    if (!empty($alphaRes['layout_type'])) {
-                        $layoutType = $alphaRes['layout_type'];
+            $chromaRes = FrameSlotDetector::removeGreenScreenAndDetectSlots($pngPath);
+            if (!empty($chromaRes['success']) && !empty($chromaRes['slots'])) {
+                if (!empty($chromaRes['relative_path'])) {
+                    $data['asset_url'] = $chromaRes['relative_path'];
+                }
+                $detectedSlots = $chromaRes['slots'];
+                if (!empty($chromaRes['layout_type'])) {
+                    $layoutType = $chromaRes['layout_type'];
+                }
+            } else {
+                $isPng = ($imageInfo[2] ?? 0) === IMAGETYPE_PNG;
+                if ($isPng) {
+                    $alphaRes = FrameSlotDetector::detectAlphaCutouts($pngPath, $w, $h);
+                    if (!empty($alphaRes['success']) && !empty($alphaRes['slots'])) {
+                        $detectedSlots = $alphaRes['slots'];
+                        if (!empty($alphaRes['layout_type'])) {
+                            $layoutType = $alphaRes['layout_type'];
+                        }
                     }
                 }
             }

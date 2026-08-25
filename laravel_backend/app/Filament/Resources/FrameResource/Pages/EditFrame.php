@@ -53,12 +53,17 @@ class EditFrame extends EditRecord
             $poseCount = max(1, count($detectedSlots));
             $layoutType = count($detectedSlots) <= 4 ? 'single' : 'grid';
 
-            // Ensure server image file has transparency punched in these slots
             if (!empty($data['asset_url'])) {
                 $pngPath = Storage::disk('public')->path($data['asset_url']);
-                $punchedPath = FrameSlotDetector::punchTransparency($pngPath, $detectedSlots);
-                if ($punchedPath) {
-                    $data['asset_url'] = $punchedPath;
+                $imageInfo = @getimagesize($pngPath);
+                if ($imageInfo) {
+                    $w = $imageInfo[0];
+                    $h = $imageInfo[1];
+                }
+                // If the user used green removal on canvas, run pixel-level chroma keying without destroying stickers/assets
+                $chromaRes = FrameSlotDetector::removeGreenScreenAndDetectSlots($pngPath);
+                if (!empty($chromaRes['success']) && !empty($chromaRes['relative_path'])) {
+                    $data['asset_url'] = $chromaRes['relative_path'];
                 }
             }
         } elseif (!empty($data['asset_url'])) {
@@ -69,14 +74,25 @@ class EditFrame extends EditRecord
                 $h = $imageInfo[1];
             }
 
-            // Mode 1: File Sudah Transparan Sendiri (Alpha Channel)
-            $isPng = ($imageInfo[2] ?? 0) === IMAGETYPE_PNG;
-            if ($isPng) {
-                $alphaRes = FrameSlotDetector::detectAlphaCutouts($pngPath, $w, $h);
-                if (!empty($alphaRes['success']) && !empty($alphaRes['slots'])) {
-                    $detectedSlots = $alphaRes['slots'];
-                    if (!empty($alphaRes['layout_type'])) {
-                        $layoutType = $alphaRes['layout_type'];
+            // Check if file is transparent PNG or has chroma green
+            $chromaRes = FrameSlotDetector::removeGreenScreenAndDetectSlots($pngPath);
+            if (!empty($chromaRes['success']) && !empty($chromaRes['slots'])) {
+                if (!empty($chromaRes['relative_path'])) {
+                    $data['asset_url'] = $chromaRes['relative_path'];
+                }
+                $detectedSlots = $chromaRes['slots'];
+                if (!empty($chromaRes['layout_type'])) {
+                    $layoutType = $chromaRes['layout_type'];
+                }
+            } else {
+                $isPng = ($imageInfo[2] ?? 0) === IMAGETYPE_PNG;
+                if ($isPng) {
+                    $alphaRes = FrameSlotDetector::detectAlphaCutouts($pngPath, $w, $h);
+                    if (!empty($alphaRes['success']) && !empty($alphaRes['slots'])) {
+                        $detectedSlots = $alphaRes['slots'];
+                        if (!empty($alphaRes['layout_type'])) {
+                            $layoutType = $alphaRes['layout_type'];
+                        }
                     }
                 }
             }

@@ -55,9 +55,46 @@ class FrameResource extends Resource
                     ->required()
                     ->maxLength(255),
 
+                Select::make('layout_type')
+                    ->label('Tipe Layout Frame')
+                    ->options([
+                        'single'   => 'Single Strip (1 Kolom memanjang — 3 atau 4 Pose)',
+                        'double_6' => 'Double Strip 6 Foto (2 Kolom — Ambil 3 Pose)',
+                        'double_8' => 'Double Strip 8 Foto (2 Kolom — Ambil 4 Pose)',
+                    ])
+                    ->default('single')
+                    ->live()
+                    ->afterStateUpdated(function ($state, callable $set) {
+                        if ($state === 'double_6') {
+                            $set('pose_count', 3);
+                        } elseif ($state === 'double_8') {
+                            $set('pose_count', 4);
+                        }
+                    }),
+
+                Select::make('right_column_order')
+                    ->label('Urutan Pose Kolom Kanan')
+                    ->options([
+                        'scrambled_1' => 'Pose 3, Pose 1, Pose 2 (Acak 1)',
+                        'scrambled_2' => 'Pose 2, Pose 3, Pose 1 (Acak 2)',
+                        'reversed'    => 'Pose 3, Pose 2, Pose 1 (Terbalik)',
+                        'identical'   => 'Pose 1, Pose 2, Pose 3 (Identik / Kembar)',
+                    ])
+                    ->default('scrambled_1')
+                    ->visible(fn ($get) => in_array($get('layout_type'), ['double_6', 'double_8'])),
+
+                TextInput::make('pose_count')
+                    ->label('Jumlah Pose yang Diambil Kamera')
+                    ->helperText('Berapa kali kamera akan menjepret foto (otomatis menyesuaikan jumlah lubang di kanvas).')
+                    ->numeric()
+                    ->default(4)
+                    ->minValue(1)
+                    ->maxValue(8)
+                    ->required(),
+
                 FileUpload::make('asset_url')
-                    ->label('File Desain Frame (PNG / JPG / WEBP)')
-                    ->helperText('Upload desain frame Anda. Gambar akan langsung muncul di Kanvas Pensil di bawah. Anda bisa mengklik warna kotak foto (misal hijau) untuk langsung melubanginya menjadi transparan!')
+                    ->label('File Desain Frame (PNG Transparan / Gambar Frame)')
+                    ->helperText('Upload desain frame Anda. Semua ornamen, stiker, dan tulisan di dalam frame akan 100% UTUH dan tidak akan terpotong!')
                     ->image()
                     ->imagePreviewHeight('200')
                     ->disk('public')
