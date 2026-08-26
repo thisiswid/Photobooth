@@ -259,7 +259,10 @@
                     });
 
                     // 3. Watch for Livewire / FilePond DOM image preview injection
+                    // Guard: only load if canvas has no image yet (hasImageLoaded=false),
+                    // to prevent FilePond's upload-complete DOM churn from wiping the canvas.
                     const observer = new MutationObserver(() => {
+                        if (this.hasImageLoaded) return; // canvas already has an image — don't clobber it
                         const filepondImg = document.querySelector('.filepond--image-preview-wrapper img, .filepond--item-preview img');
                         if (filepondImg && filepondImg.src && filepondImg.src !== this.imageUrl && filepondImg.src.startsWith('blob:')) {
                             this.imageUrl = filepondImg.src;
@@ -529,8 +532,17 @@
 
             onStateChange() {
                 const poseCount = this.slots.length > 0 ? Math.max(...this.slots.map(s => s.pose_index + 1)) : 4;
+                // Preserve user-selected layout_type from params — don't override with 'grid'
+                // based on slot count alone (double_8 has 8 slots but layout_type must stay 'double_8').
+                const userLayoutType = (params.initialConfig && params.initialConfig.layout_type) ? params.initialConfig.layout_type : null;
+                let layoutType;
+                if (userLayoutType && ['double_6', 'double_8'].includes(userLayoutType)) {
+                    layoutType = userLayoutType;
+                } else {
+                    layoutType = this.slots.length <= 4 ? 'single' : 'grid';
+                }
                 const layoutConfig = {
-                    layout_type: this.slots.length <= 4 ? 'single' : 'grid',
+                    layout_type: layoutType,
                     slot_count: this.slots.length,
                     pose_count: poseCount,
                     slots: this.slots,
