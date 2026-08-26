@@ -51,8 +51,14 @@ class CreateFrame extends CreateRecord
         $clientSlots = $data['layout_config']['slots'] ?? [];
         if (!empty($clientSlots) && is_array($clientSlots)) {
             $detectedSlots = $clientSlots;
-            $poseCount = max(1, count($detectedSlots));
-            $layoutType = count($detectedSlots) <= 4 ? 'single' : 'grid';
+            // Preserve user-selected layout_type for double layouts.
+            // double_8 = 4 poses (2 col × 4 row), double_6 = 3 poses — pose_count must NOT equal slot count.
+            if (!in_array($layoutType, ['double_6', 'double_8'])) {
+                $poseCount = max(1, count($detectedSlots));
+                if ($layoutType === 'single' && count($detectedSlots) > 4) {
+                    $layoutType = 'grid';
+                }
+            }
 
             if (!empty($data['asset_url'])) {
                 $pngPath = Storage::disk('public')->path($data['asset_url']);
@@ -82,7 +88,8 @@ class CreateFrame extends CreateRecord
                     $data['asset_url'] = $chromaRes['relative_path'];
                 }
                 $detectedSlots = $chromaRes['slots'];
-                if (!empty($chromaRes['layout_type'])) {
+                // Only override layout_type from auto-detection if user didn't explicitly pick double layout
+                if (!empty($chromaRes['layout_type']) && !in_array($layoutType, ['double_6', 'double_8'])) {
                     $layoutType = $chromaRes['layout_type'];
                 }
             } else {
@@ -91,7 +98,8 @@ class CreateFrame extends CreateRecord
                     $alphaRes = FrameSlotDetector::detectAlphaCutouts($pngPath, $w, $h);
                     if (!empty($alphaRes['success']) && !empty($alphaRes['slots'])) {
                         $detectedSlots = $alphaRes['slots'];
-                        if (!empty($alphaRes['layout_type'])) {
+                        // Only override layout_type from auto-detection if user didn't explicitly pick double layout
+                        if (!empty($alphaRes['layout_type']) && !in_array($layoutType, ['double_6', 'double_8'])) {
                             $layoutType = $alphaRes['layout_type'];
                         }
                     }
