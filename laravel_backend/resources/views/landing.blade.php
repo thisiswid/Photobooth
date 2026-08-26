@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SnapTechBooth — Solusi Photobooth Seru & Otomatis untuk Cafe & Event</title>
-    <meta name="description" content="Sistem operasi photobooth digital self-service: Kiosk Android, auto-print 300 DPI, download QR instan ke HP, filter estetik, dan pembayaran QRIS otomatis.">
+    <title>SnapTechBooth — Software Photobooth Self-Service untuk Cafe & Event</title>
+    <meta name="description" content="Software photobooth self-service: Kiosk Android, cetak otomatis 300 DPI, download QR ke smartphone, dan pembayaran QRIS mandiri untuk cafe dan event.">
     
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -48,16 +48,8 @@
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
-        .gradient-text-frame {
-            background: linear-gradient(135deg, #008B9B 0%, #FF5841 50%, #FFA234 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
         .gradient-bg-main {
             background: linear-gradient(135deg, #008B9B 0%, #E93C78 50%, #FFA234 100%);
-        }
-        .gradient-bg-card {
-            background: linear-gradient(135deg, #00C4D6 0%, #E93C78 100%);
         }
         .blob-1 {
             background: radial-gradient(circle, rgba(0, 196, 214, 0.15) 0%, rgba(255, 255, 255, 0) 70%);
@@ -72,7 +64,7 @@
 </head>
 <body class="antialiased selection:bg-[#E93C78] selection:text-white relative overflow-x-hidden">
 
-    <!-- Ambient Cheerful Soft Blobs (No Grid Lines) -->
+    <!-- Ambient Soft Blobs (No Grid Lines) -->
     <div class="fixed top-0 left-0 w-[550px] h-[550px] blob-1 pointer-events-none z-0 -translate-x-1/3 -translate-y-1/3"></div>
     <div class="fixed top-1/4 right-0 w-[600px] h-[600px] blob-2 pointer-events-none z-0 translate-x-1/4"></div>
     <div class="fixed bottom-10 left-1/3 w-[500px] h-[500px] blob-3 pointer-events-none z-0"></div>
@@ -88,7 +80,6 @@
                     class="w-11 h-11 rounded-2xl object-cover shadow-md shadow-[#008B9B]/20 border-2 border-white group-hover:scale-105 transition duration-300"
                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
                 />
-                <!-- Fallback SVG icon if image not found -->
                 <div class="w-11 h-11 rounded-2xl gradient-bg-main items-center justify-center text-white hidden shadow-md">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z"/>
@@ -97,13 +88,13 @@
                 </div>
                 <div class="flex flex-col">
                     <span class="text-xl font-black tracking-tight text-[#0A2B42]">SnapTech<span class="gradient-text-s">Booth</span></span>
-                    <span class="text-[10px] text-slate-500 font-bold -mt-1 tracking-wider uppercase">Photobooth System</span>
+                    <span class="text-[10px] text-slate-500 font-bold -mt-1 tracking-wider uppercase">Self-Photo Kiosk</span>
                 </div>
             </a>
 
             <!-- Nav Links -->
             <nav class="hidden md:flex items-center gap-8 text-sm font-bold text-slate-600">
-                <a href="#fitur" class="hover:text-[#008B9B] transition">Fitur Seru</a>
+                <a href="#fitur" class="hover:text-[#008B9B] transition">Fitur</a>
                 <a href="#cara-kerja" class="hover:text-[#E93C78] transition">Cara Kerja</a>
                 <a href="#harga" class="hover:text-[#FF5841] transition">Pilihan Paket</a>
                 <a href="#faq" class="hover:text-[#008B9B] transition">FAQ</a>
@@ -111,7 +102,7 @@
 
             <!-- Actions (Public Only) -->
             <div class="flex items-center gap-4">
-                <a href="https://wa.me/6281234567890?text=Halo%20SnapTechBooth,%20saya%20tertarik%20dengan%20layanan%20photobooth%20untuk%20bisnis%20saya" target="_blank" class="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-gradient-to-r from-[#008B9B] via-[#E93C78] to-[#FFA234] hover:opacity-95 text-white text-sm font-extrabold shadow-lg shadow-[#E93C78]/25 hover:shadow-xl hover:scale-[1.02] transition duration-200">
+                <a href="https://wa.me/6281234567890?text=Halo%20SnapTechBooth,%20saya%20tertarik%20dengan%20software%20photobooth%20untuk%20bisnis%20saya" target="_blank" class="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-gradient-to-r from-[#008B9B] via-[#E93C78] to-[#FFA234] hover:opacity-95 text-white text-sm font-extrabold shadow-lg shadow-[#E93C78]/25 hover:shadow-xl hover:scale-[1.02] transition duration-200">
                     <span>Konsultasi WhatsApp</span>
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/>
@@ -125,20 +116,20 @@
     <section class="relative pt-16 pb-20 z-10">
         <div class="max-w-7xl mx-auto px-6">
             <div class="max-w-3xl mx-auto text-center">
-                <!-- Fun Chip Badge -->
-                <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-slate-200/80 text-xs font-extrabold text-[#008B9B] shadow-sm mb-6">
+                <!-- Clean Badge -->
+                <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-slate-200/80 text-xs font-bold text-[#008B9B] shadow-sm mb-6">
                     <span class="w-2 h-2 rounded-full bg-[#E93C78] animate-ping"></span>
-                    Sistem Operasi Photobooth Ceria & All-in-One
+                    Software Photobooth Self-Service untuk Cafe & Event
                 </div>
 
                 <!-- Main Headline -->
                 <h1 class="text-4xl sm:text-5xl lg:text-6xl font-black text-[#0A2B42] tracking-tight leading-[1.18] mb-6">
-                    Bikin Cafe & Event Kamu Makin Rame dengan <span class="gradient-text-s">SnapTechBooth</span>
+                    Bikin Cafe & Event Kamu Makin Ramai dengan <span class="gradient-text-s">SnapTechBooth</span>
                 </h1>
 
                 <!-- Subheadline -->
                 <p class="text-base sm:text-lg text-slate-600 leading-relaxed mb-10 max-w-2xl mx-auto font-medium">
-                    Photobooth digital self-service yang seru, instan, dan estetik! Pengunjung bebas berpose, cetak photo strip berkualitas tinggi, download video & GIF ke HP, dan bayar praktis via QRIS.
+                    Software photobooth otomatis yang mudah dipakai: pengunjung foto mandiri, cetak foto strip instan, unduh video & GIF ke HP via QR, serta bayar praktis lewat QRIS.
                 </p>
 
                 <!-- CTA Buttons -->
@@ -150,7 +141,7 @@
                         <span>Konsultasi & Demo Gratis</span>
                     </a>
                     <a href="#harga" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-white hover:bg-slate-50 text-[#0A2B42] border-2 border-slate-200 font-extrabold text-sm shadow-sm transition duration-200">
-                        <span>Lihat Paket Berlangganan</span>
+                        <span>Lihat Pilihan Paket</span>
                         <svg class="w-4 h-4 text-[#FFA234]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
                         </svg>
@@ -158,10 +149,9 @@
                 </div>
             </div>
 
-            <!-- Colorful Interactive Showcase Mockup -->
+            <!-- Showcase Preview Cards -->
             <div class="relative max-w-5xl mx-auto">
                 <div class="rounded-3xl border-2 border-white bg-white/90 p-5 sm:p-7 shadow-2xl shadow-slate-200/80 backdrop-blur-xl">
-                    <!-- Top Window Bar -->
                     <div class="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
                         <div class="flex items-center gap-2">
                             <div class="w-3.5 h-3.5 rounded-full bg-[#E93C78]"></div>
@@ -170,15 +160,14 @@
                         </div>
                         <div class="text-xs font-bold text-slate-500 flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
                             <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-                            Kiosk Mode Aktif • Siap Pakai di Layar Android
+                            Kiosk Android Mode • Siap Dipasang di Tablet
                         </div>
                         <div class="text-xs font-bold text-[#008B9B] hidden sm:block">SnapTech Experience</div>
                     </div>
 
-                    <!-- 3 Cheerful Steps/Cards -->
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
                         
-                        <!-- Card 1: Serunya Berpose -->
+                        <!-- Card 1: Foto Mandiri -->
                         <div class="bg-gradient-to-b from-[#00C4D6]/10 to-[#008B9B]/5 border-2 border-[#00C4D6]/30 rounded-2xl p-6 flex flex-col justify-between">
                             <div>
                                 <div class="w-10 h-10 rounded-xl bg-[#00C4D6]/20 flex items-center justify-center text-[#008B9B] mb-4">
@@ -187,16 +176,16 @@
                                     </svg>
                                 </div>
                                 <span class="text-[11px] font-extrabold uppercase tracking-wider text-[#008B9B]">Langkah 01</span>
-                                <h3 class="text-base font-extrabold text-[#0A2B42] mt-1 mb-2">Pose Asyik & Countdown</h3>
-                                <p class="text-xs text-slate-600 leading-relaxed">Pengunjung pilih frame estetik, foto dipandu hitungan suara interaktif, dan bebas retake pose.</p>
+                                <h3 class="text-base font-extrabold text-[#0A2B42] mt-1 mb-2">Foto Mandiri & Pilihan Frame</h3>
+                                <p class="text-xs text-slate-600 leading-relaxed">Pengunjung memilih desain frame, berpose dengan aba-aba hitungan otomatis, dan bebas retake foto jika belum pas.</p>
                             </div>
                             <div class="mt-4 pt-3 border-t border-[#00C4D6]/20 flex items-center justify-between text-xs font-bold text-[#008B9B]">
                                 <span>Multi-Pose Capture</span>
-                                <span class="px-2 py-0.5 rounded-full bg-[#00C4D6]/20 text-[10px]">Cepat & Responsif</span>
+                                <span class="px-2 py-0.5 rounded-full bg-[#00C4D6]/20 text-[10px]">Cepat & Praktis</span>
                             </div>
                         </div>
 
-                        <!-- Card 2: Hasil Cetak Strip Cantik -->
+                        <!-- Card 2: Cetak Strip & Media -->
                         <div class="bg-gradient-to-b from-[#E93C78]/10 to-[#8C206B]/5 border-2 border-[#E93C78]/30 rounded-2xl p-6 flex flex-col justify-between shadow-lg shadow-[#E93C78]/10">
                             <div>
                                 <div class="w-10 h-10 rounded-xl bg-[#E93C78]/20 flex items-center justify-center text-[#E93C78] mb-4">
@@ -205,16 +194,16 @@
                                     </svg>
                                 </div>
                                 <span class="text-[11px] font-extrabold uppercase tracking-wider text-[#E93C78]">Langkah 02</span>
-                                <h3 class="text-base font-extrabold text-[#0A2B42] mt-1 mb-2">Cetak 300 DPI + GIF & Video</h3>
-                                <p class="text-xs text-slate-600 leading-relaxed">Langsung menghasilkan 3 aset lengkap: Cetak fisik tajam, GIF animasi bergerak, dan rekaman video MP4.</p>
+                                <h3 class="text-base font-extrabold text-[#0A2B42] mt-1 mb-2">Cetak Cepat 300 DPI + GIF & Video</h3>
+                                <p class="text-xs text-slate-600 leading-relaxed">Satu kali sesi foto langsung menghasilkan cetak fisik tajam, animasi GIF bergerak, dan file video MP4.</p>
                             </div>
                             <div class="mt-4 pt-3 border-t border-[#E93C78]/20 flex items-center justify-between text-xs font-bold text-[#E93C78]">
-                                <span>Auto-Print Precision</span>
-                                <span class="px-2 py-0.5 rounded-full bg-[#E93C78]/20 text-[10px]">High Quality</span>
+                                <span>Auto-Print Support</span>
+                                <span class="px-2 py-0.5 rounded-full bg-[#E93C78]/20 text-[10px]">Kualitas Tinggi</span>
                             </div>
                         </div>
 
-                        <!-- Card 3: Scan QR Langsung ke HP -->
+                        <!-- Card 3: Scan QR Download -->
                         <div class="bg-gradient-to-b from-[#FFA234]/15 to-[#FF5841]/5 border-2 border-[#FFA234]/40 rounded-2xl p-6 flex flex-col justify-between">
                             <div>
                                 <div class="w-10 h-10 rounded-xl bg-[#FFA234]/20 flex items-center justify-center text-[#FF5841] mb-4">
@@ -223,8 +212,8 @@
                                     </svg>
                                 </div>
                                 <span class="text-[11px] font-extrabold uppercase tracking-wider text-[#FF5841]">Langkah 03</span>
-                                <h3 class="text-base font-extrabold text-[#0A2B42] mt-1 mb-2">Scan & Simpan ke HP</h3>
-                                <p class="text-xs text-slate-600 leading-relaxed">Pengunjung tinggal scan QR di layar untuk unduh semua foto & video tanpa perlu instal aplikasi.</p>
+                                <h3 class="text-base font-extrabold text-[#0A2B42] mt-1 mb-2">Scan QR Langsung ke HP</h3>
+                                <p class="text-xs text-slate-600 leading-relaxed">Pengunjung scan QR code di layar booth untuk simpan semua foto dan video tanpa harus download aplikasi.</p>
                             </div>
                             <div class="mt-4 pt-3 border-t border-[#FFA234]/20 flex items-center justify-between text-xs font-bold text-[#FF5841]">
                                 <span>Instant Cloud Download</span>
@@ -242,8 +231,8 @@
     <section id="fitur" class="py-24 z-10 relative bg-white border-t border-b border-slate-100">
         <div class="max-w-7xl mx-auto px-6">
             <div class="max-w-2xl mx-auto text-center mb-16">
-                <span class="px-3.5 py-1.5 rounded-full bg-[#008B9B]/10 text-xs font-extrabold text-[#008B9B] uppercase tracking-wider">Fitur Unggulan</span>
-                <h2 class="text-3xl sm:text-4xl font-black text-[#0A2B42] tracking-tight mt-3">Segala Kemudahan untuk Bisnis Photobooth Anda</h2>
+                <span class="px-3.5 py-1.5 rounded-full bg-[#008B9B]/10 text-xs font-extrabold text-[#008B9B] uppercase tracking-wider">Fitur Utama</span>
+                <h2 class="text-3xl sm:text-4xl font-black text-[#0A2B42] tracking-tight mt-3">Semua Kebutuhan Photobooth dalam Satu Aplikasi</h2>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -254,8 +243,8 @@
                             <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3"/>
                         </svg>
                     </div>
-                    <h3 class="text-lg font-extrabold text-[#0A2B42] mb-2">Aplikasi Kiosk Android Ringan</h3>
-                    <p class="text-sm text-slate-600 leading-relaxed">Tinggal pasang di tablet Android atau Smart Display. Layar full-screen otomatis terkunci tanpa takut diotak-atik pengunjung.</p>
+                    <h3 class="text-lg font-extrabold text-[#0A2B42] mb-2">Aplikasi Kiosk Android</h3>
+                    <p class="text-sm text-slate-600 leading-relaxed">Cukup pasang di tablet atau layar Android. Tampilan full-screen yang simpel dan siap melayani pengunjung seharian.</p>
                 </div>
 
                 <!-- Feature 2: Frame Editor & Green Eraser -->
@@ -265,8 +254,8 @@
                             <path stroke-linecap="round" stroke-linejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0l2.77-2.77m-2.77 2.77l-1.5 1.5m6.77-6.77l2.77-2.77a2.25 2.25 0 000-3.182l-1.364-1.364a2.25 2.25 0 00-3.182 0l-2.77 2.77m4.546 4.546l-4.546-4.546m0 0L3.75 14.25v3.75h3.75l9.25-9.25z"/>
                         </svg>
                     </div>
-                    <h3 class="text-lg font-extrabold text-[#0A2B42] mb-2">Alat Pensil & Green Screen Remover</h3>
-                    <p class="text-sm text-slate-600 leading-relaxed">Upload frame PNG transparan atau cukup gunakan alat pensil sekali klik untuk melubangi kotak hijau penanda foto dengan presisi 100%.</p>
+                    <h3 class="text-lg font-extrabold text-[#0A2B42] mb-2">Frame Builder & Hapus Warna Hijau</h3>
+                    <p class="text-sm text-slate-600 leading-relaxed">Bebas upload template frame PNG atau gunakan alat pensil sekali klik untuk melubangi area foto secara otomatis.</p>
                 </div>
 
                 <!-- Feature 3: Auto-Print -->
@@ -277,7 +266,7 @@
                         </svg>
                     </div>
                     <h3 class="text-lg font-extrabold text-[#0A2B42] mb-2">Cetak Otomatis (Auto-Print)</h3>
-                    <p class="text-sm text-slate-600 leading-relaxed">Mendukung printer DNP, Canon Selphy, Epson, dan printer thermal. Sesi selesai, foto langsung terpotong rapi dan tercetak otomatis.</p>
+                    <p class="text-sm text-slate-600 leading-relaxed">Mendukung berbagai printer foto (DNP, Canon Selphy, Epson). Begitu sesi selesai, foto langsung dicetak otomatis.</p>
                 </div>
 
                 <!-- Feature 4: QRIS Self-Payment -->
@@ -287,8 +276,8 @@
                             <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z"/>
                         </svg>
                     </div>
-                    <h3 class="text-lg font-extrabold text-[#0A2B42] mb-2">Bayar Mandiri via QRIS</h3>
-                    <p class="text-sm text-slate-600 leading-relaxed">Pengunjung bayar mandiri dengan Gopay, OVO, Dana, ShopeePay, atau m-Banking. Sesi foto otomatis terbuka tanpa perlu dijaga kasir.</p>
+                    <h3 class="text-lg font-extrabold text-[#0A2B42] mb-2">Pembayaran QRIS Mandiri</h3>
+                    <p class="text-sm text-slate-600 leading-relaxed">Terhubung langsung dengan QRIS (Gopay, OVO, Dana, BCA, dll). Sesi foto otomatis terbuka begitu pembayaran diterima.</p>
                 </div>
 
                 <!-- Feature 5: Cloud Dashboard -->
@@ -298,8 +287,8 @@
                             <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/>
                         </svg>
                     </div>
-                    <h3 class="text-lg font-extrabold text-[#0A2B42] mb-2">Pantau Omset Realtime</h3>
-                    <p class="text-sm text-slate-600 leading-relaxed">Cek total sesi, omset harian, jam ramai pengunjung, dan kelola semua frame foto dari mana saja lewat smartphone Anda.</p>
+                    <h3 class="text-lg font-extrabold text-[#0A2B42] mb-2">Dashboard Penjualan Real-Time</h3>
+                    <p class="text-sm text-slate-600 leading-relaxed">Pantau laporan transaksi, jumlah sesi per hari, dan atur katalog frame langsung dari HP atau laptop Anda.</p>
                 </div>
 
                 <!-- Feature 6: Filter Preset Estetik -->
@@ -309,8 +298,8 @@
                             <path stroke-linecap="round" stroke-linejoin="round" d="M4.098 19.902a3.75 3.75 0 005.304 0l6.401-6.402M6.75 21A3.75 3.75 0 013 17.25V4.125C3 3.504 3.504 3 4.125 3h5.25c.621 0 1.125.504 1.125 1.125v4.072M6.75 21a3.75 3.75 0 003.75-3.75V8.197M6.75 21h13.125c.621 0 1.125-.504 1.125-1.125v-5.25c0-.621-.504-1.125-1.125-1.125h-4.072M10.5 8.197l9.402 9.402"/>
                         </svg>
                     </div>
-                    <h3 class="text-lg font-extrabold text-[#0A2B42] mb-2">Preset Filter Warna Hits</h3>
-                    <p class="text-sm text-slate-600 leading-relaxed">Tersedia filter Black & White Classic, Warm Vintage, Fresh Pastel, hingga Moody Glow yang membuat foto selalu siap upload ke Instagram & TikTok.</p>
+                    <h3 class="text-lg font-extrabold text-[#0A2B42] mb-2">Pilihan Filter Foto</h3>
+                    <p class="text-sm text-slate-600 leading-relaxed">Dilengkapi filter warna populer seperti Black & White, Warm Vintage, dan Soft Tone untuk hasil foto yang menarik.</p>
                 </div>
             </div>
         </div>
@@ -371,7 +360,7 @@
                     </a>
                 </div>
 
-                <!-- Plan 2: Pro Cafe (Paling Populer) -->
+                <!-- Plan 2: Pro Cafe (Paling Favorit) -->
                 <div class="rounded-3xl bg-white border-2 border-[#E93C78] p-8 flex flex-col justify-between relative shadow-2xl shadow-[#E93C78]/20 scale-105 z-20">
                     <div class="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-[#E93C78] to-[#FF5841] rounded-full text-[10px] font-black uppercase tracking-wider text-white shadow-md">
                         Paling Favorit
@@ -483,7 +472,7 @@
                 </div>
                 <div class="p-6 rounded-2xl bg-[#FAFAFD] border-2 border-slate-100">
                     <h3 class="text-sm font-extrabold text-[#0A2B42] mb-2">Bagaimana cara kerja pembayaran QRIS di booth?</h3>
-                    <p class="text-xs text-slate-600 leading-relaxed">Sistem terhubung langsung dengan Payment Gateway (Midtrans/Xendit). QRIS dinamis muncul di layar kiosk. Begitu tamu scan dan bayar, sesi foto otomatis terbuka tanpa perlu konfirmasi kasir.</p>
+                    <p class="text-xs text-slate-600 leading-relaxed">Sistem terhubung langsung dengan QRIS dinamis di layar kiosk. Begitu tamu scan dan bayar, sesi foto otomatis terbuka tanpa perlu konfirmasi kasir.</p>
                 </div>
                 <div class="p-6 rounded-2xl bg-[#FAFAFD] border-2 border-slate-100">
                     <h3 class="text-sm font-extrabold text-[#0A2B42] mb-2">Apakah saya bisa ganti desain frame foto sendiri?</h3>
@@ -522,7 +511,7 @@
             </div>
 
             <div class="flex items-center gap-8 text-xs font-bold text-slate-500">
-                <a href="#fitur" class="hover:text-[#008B9B] transition">Fitur Seru</a>
+                <a href="#fitur" class="hover:text-[#008B9B] transition">Fitur</a>
                 <a href="#cara-kerja" class="hover:text-[#E93C78] transition">Cara Kerja</a>
                 <a href="#harga" class="hover:text-[#FFA234] transition">Pilihan Paket</a>
                 <a href="#faq" class="hover:text-[#008B9B] transition">FAQ</a>
