@@ -4,7 +4,7 @@ use App\Http\Controllers\Web\DownloadController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
-    return redirect('/admin');
+    return view('landing');
 });
 
 // ── Customer QR Code Download Portal ─────────────────────────────────────────
