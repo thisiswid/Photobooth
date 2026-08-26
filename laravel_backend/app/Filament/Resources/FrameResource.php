@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Forms\Components\FramePencilEditor;
 use App\Filament\Resources\FrameResource\Pages;
 use App\Models\Frame;
 use Filament\Actions\DeleteAction;
@@ -10,7 +11,6 @@ use Filament\Actions\ViewAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Forms\Components\FileUpload;
-use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -39,106 +39,83 @@ class FrameResource extends Resource
     public static function form(Schema $schema): Schema
     {
         return $schema->components([
-            Select::make('event_id')
-                ->label('Event')
-                ->relationship(
-                    name: 'event',
-                    titleAttribute: 'name',
-                    modifyQueryUsing: fn ($query) => auth()->user()?->cafe_id ? $query->where('cafe_id', auth()->user()->cafe_id)->orWhereNull('cafe_id') : $query
-                )
-                ->searchable()
-                ->preload(),
+            Section::make('1. Informasi & Upload File Frame')->schema([
+                Select::make('event_id')
+                    ->label('Event')
+                    ->relationship(
+                        name: 'event',
+                        titleAttribute: 'name',
+                        modifyQueryUsing: fn ($query) => auth()->user()?->cafe_id ? $query->where('cafe_id', auth()->user()->cafe_id)->orWhereNull('cafe_id') : $query
+                    )
+                    ->searchable()
+                    ->preload(),
 
-            TextInput::make('name')
-                ->label('Nama Frame')
-                ->required()
-                ->maxLength(255),
+                TextInput::make('name')
+                    ->label('Nama Frame')
+                    ->required()
+                    ->maxLength(255),
 
-            Select::make('layout_type')
-                ->label('Tipe Layout Frame')
-                ->options([
-                    'single'   => 'Single Strip (1 Kolom memanjang 600×1800 px — 4 Pose)',
-                    'double_6' => 'Double Strip 6 Foto (2 Kolom 1200×1800 px — Ambil 3 Pose)',
-                    'double_8' => 'Double Strip 8 Foto (2 Kolom 1200×1800 px — Ambil 4 Pose)',
-                ])
-                ->default('single')
-                ->live()
-                ->helperText('Ukuran standar cetak 300 DPI: Double Strip (1200×1800 px), Single Strip (600×1800 px).')
-                ->afterStateUpdated(function ($state, callable $set) {
-                    if ($state === 'double_6') {
-                        $set('pose_count', 3);
-                    } elseif ($state === 'double_8') {
-                        $set('pose_count', 4);
-                    }
-                })
-                ->afterStateHydrated(function ($component, $state, $record) {
-                    if ($record && !empty($record->layout_config['layout_type'])) {
-                        $component->state($record->layout_config['layout_type']);
-                    }
-                }),
+                Select::make('layout_type')
+                    ->label('Tipe Layout Frame')
+                    ->options([
+                        'single'   => 'Single Strip (1 Kolom memanjang — 3 atau 4 Pose)',
+                        'double_6' => 'Double Strip 6 Foto (2 Kolom — Ambil 3 Pose)',
+                        'double_8' => 'Double Strip 8 Foto (2 Kolom — Ambil 4 Pose)',
+                    ])
+                    ->default('single')
+                    ->live()
+                    ->afterStateUpdated(function ($state, callable $set) {
+                        if ($state === 'double_6') {
+                            $set('pose_count', 3);
+                        } elseif ($state === 'double_8') {
+                            $set('pose_count', 4);
+                        }
+                    }),
 
-            Select::make('right_column_order')
-                ->label('Urutan Pose Kolom Kanan')
-                ->options([
-                    'scrambled_1' => 'Pose 3, Pose 1, Pose 2 (Acak 1)',
-                    'scrambled_2' => 'Pose 2, Pose 3, Pose 1 (Acak 2)',
-                    'reversed'    => 'Pose 3, Pose 2, Pose 1 (Terbalik)',
-                    'identical'   => 'Pose 1, Pose 2, Pose 3 (Identik / Kembar)',
-                ])
-                ->default('scrambled_1')
-                ->visible(fn ($get) => in_array($get('layout_type'), ['double_6', 'double_8']))
-                ->afterStateHydrated(function ($component, $state, $record) {
-                    if ($record && !empty($record->layout_config['right_column_order_key'])) {
-                        $component->state($record->layout_config['right_column_order_key']);
-                    }
-                }),
+                Select::make('right_column_order')
+                    ->label('Urutan Pose Kolom Kanan')
+                    ->options([
+                        'scrambled_1' => 'Pose 3, Pose 1, Pose 2 (Acak 1)',
+                        'scrambled_2' => 'Pose 2, Pose 3, Pose 1 (Acak 2)',
+                        'reversed'    => 'Pose 3, Pose 2, Pose 1 (Terbalik)',
+                        'identical'   => 'Pose 1, Pose 2, Pose 3 (Identik / Kembar)',
+                    ])
+                    ->default('scrambled_1')
+                    ->visible(fn ($get) => in_array($get('layout_type'), ['double_6', 'double_8'])),
 
-            TextInput::make('pose_count')
-                ->label('Jumlah Pose yang Diambil Kamera')
-                ->helperText('Berapa kali kamera akan menjepret foto untuk frame ini.')
-                ->numeric()
-                ->default(4)
-                ->minValue(1)
-                ->maxValue(8)
-                ->required(),
+                TextInput::make('pose_count')
+                    ->label('Jumlah Pose yang Diambil Kamera')
+                    ->helperText('Berapa kali kamera akan menjepret foto (otomatis menyesuaikan jumlah lubang di kanvas).')
+                    ->numeric()
+                    ->default(4)
+                    ->minValue(1)
+                    ->maxValue(8)
+                    ->required(),
 
-            Toggle::make('use_ai_detection')
-                ->label('Mode AI (Auto-Detect Layout & Auto-Punch Transparan)')
-                ->helperText('Aktifkan agar AI otomatis mendeteksi posisi kotak foto dan melubangi transparansi saat disimpan.')
-                ->default(fn () => \App\Models\AiSetting::isAiAvailable(auth()->user()?->cafe_id))
-                ->visible(fn () => \App\Models\AiSetting::isAiAvailable(auth()->user()?->cafe_id)),
+                FileUpload::make('asset_url')
+                    ->label('File Desain Frame (PNG Transparan / Gambar Frame)')
+                    ->helperText('Upload desain frame Anda. Semua ornamen, stiker, dan tulisan di dalam frame akan 100% UTUH dan tidak akan terpotong!')
+                    ->image()
+                    ->imagePreviewHeight('200')
+                    ->disk('public')
+                    ->directory('frames')
+                    ->acceptedFileTypes(['image/png', 'image/jpeg', 'image/webp'])
+                    ->maxSize(51200)
+                    ->live()
+                    ->columnSpanFull()
+                    ->required(),
 
-            FileUpload::make('asset_url')
-                ->label('File Frame Template (PNG Transparan / Gambar Frame)')
-                ->helperText(function (callable $get) {
-                    $layout = $get('layout_type') ?? 'single';
-                    $dimGuide = match($layout) {
-                        'double_6' => '📐 Rekomendasi Kanvas: 1200×1800 px (300 DPI 4R). Ukuran kotak foto: ~504×477 px.',
-                        'double_8' => '📐 Rekomendasi Kanvas: 1200×1800 px (300 DPI 4R). Ukuran kotak foto: ~504×360 px.',
-                        default    => '📐 Rekomendasi Kanvas: 600×1800 px (300 DPI 2x6"). Ukuran kotak foto: ~528×360 px.',
-                    };
+                Toggle::make('active')
+                    ->label('Status Aktif')
+                    ->default(true),
+            ])->columns(2),
 
-                    $isAiAllowed = \App\Models\AiSetting::isAiAvailable(auth()->user()?->cafe_id);
-                    if (!$isAiAllowed) {
-                        return "$dimGuide\n📁 Mode Manual: File frame PNG transparan akan diproses dengan pemetaan slot presisi.";
-                    }
-                    $isAi = $get('use_ai_detection') ?? true;
-                    if ($isAi) {
-                        return "$dimGuide\n✨ Mode AI Aktif: Sistem AI akan otomatis mendeteksi posisi kotak foto & melubangi transparansi saat disimpan.";
-                    }
-                    return "$dimGuide\n📁 Mode Frame Manual: File frame PNG transparan Anda akan dibaca langsung tanpa campur tangan AI.";
-                })
-                ->image()
-                ->imagePreviewHeight('300')
-                ->disk('public')
-                ->directory('frames')
-                ->acceptedFileTypes(['image/png', 'image/jpeg', 'image/webp'])
-                ->maxSize(51200)
-                ->columnSpanFull(),
-
-            Toggle::make('active')
-                ->label('Aktif')
-                ->default(true),
+            Section::make('2. Kanvas Pensil Interaktif (Klik Warna untuk Melubangi Jadi Transparan)')->schema([
+                FramePencilEditor::make('layout_config')
+                    ->label('')
+                    ->imageField('asset_url')
+                    ->columnSpanFull(),
+            ]),
         ]);
     }
 
@@ -158,20 +135,18 @@ class FrameResource extends Resource
                     ->schema([
                         TextEntry::make('name')->label('Nama Frame'),
                         TextEntry::make('event.name')->label('Event')->default('Main Booth'),
-                        TextEntry::make('pose_count')->label('Jumlah Pose'),
+                        TextEntry::make('pose_count')->label('Jumlah Pose')->suffix(' Pose'),
                         TextEntry::make('layout_type_display')
-                            ->label('Tipe Layout')
-                            ->state(fn ($record) => match($record->layout_config['layout_type'] ?? 'single') {
-                                'double_6' => 'Double Strip 6 Foto (2 Kolom × 3)',
-                                'double_8' => 'Double Strip 8 Foto (2 Kolom × 4)',
-                                default    => 'Single Strip',
-                            })
+                            ->label('Layout')
+                            ->state(fn ($record) => \App\Services\FrameSlotDetector::describeGridLayout(
+                                $record->layout_config ?? [],
+                                $record->pose_count
+                            ))
                             ->badge()
                             ->color('info'),
                         IconEntry::make('active')->label('Aktif')->boolean(),
                         TextEntry::make('created_at')->label('Dibuat')->dateTime('d M Y H:i'),
-                    ])
-                    ->columns(3),
+                    ])->columns(3),
             ]);
     }
 
@@ -181,12 +156,9 @@ class FrameResource extends Resource
             ->columns([
                 ImageColumn::make('asset_url')
                     ->label('Preview')
-                    ->height(75)
-                    ->width(55)
                     ->disk('public')
-                    ->extraImgAttributes([
-                        'style' => 'object-fit: contain; background: repeating-conic-gradient(#e0e0e0 0% 25%, #fff 0% 50%) 0 0 / 10px 10px; border-radius: 4px;',
-                    ]),
+                    ->height(60)
+                    ->square(),
 
                 TextColumn::make('name')
                     ->label('Nama Frame')
@@ -196,23 +168,29 @@ class FrameResource extends Resource
 
                 TextColumn::make('event.name')
                     ->label('Event')
+                    ->default('Main Booth')
                     ->sortable()
+                    ->badge()
+                    ->color('primary'),
+
+                TextColumn::make('layout_display')
+                    ->label('Layout Slot')
+                    ->state(fn ($record) => \App\Services\FrameSlotDetector::describeGridLayout(
+                        $record->layout_config ?? [],
+                        $record->pose_count
+                    ))
                     ->badge()
                     ->color('info'),
 
-                TextColumn::make('pose_info')
-                    ->label('Tipe & Pose')
-                    ->state(fn ($record) => match($record->layout_config['layout_type'] ?? 'single') {
-                        'double_6' => '3 Pose (6 Slot)',
-                        'double_8' => '4 Pose (8 Slot)',
-                        default    => "{$record->pose_count} Pose",
-                    })
-                    ->badge()
-                    ->color('success'),
+                TextColumn::make('pose_count')
+                    ->label('Pose Kamera')
+                    ->suffix(' Pose')
+                    ->sortable(),
 
                 IconColumn::make('active')
                     ->label('Aktif')
-                    ->boolean(),
+                    ->boolean()
+                    ->sortable(),
 
                 TextColumn::make('created_at')
                     ->label('Dibuat')
@@ -220,31 +198,20 @@ class FrameResource extends Resource
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
-            ->defaultSort('created_at', 'desc')
             ->filters([
-                TernaryFilter::make('active')->label('Aktif'),
+                TernaryFilter::make('active')
+                    ->label('Status Aktif'),
             ])
             ->actions([
-                ViewAction::make()->label('Lihat'),
-                EditAction::make()->label('Edit'),
-                DeleteAction::make()->label('Hapus'),
+                ViewAction::make(),
+                EditAction::make(),
+                DeleteAction::make(),
             ])
             ->bulkActions([
-                BulkActionGroup::make([DeleteBulkAction::make()]),
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
+                ]),
             ]);
-    }
-
-    public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
-    {
-        $query = parent::getEloquentQuery();
-        if ($cafeId = auth()->user()?->cafe_id) {
-            $query->where(function ($q) use ($cafeId) {
-                $q->whereHas('event', fn ($eq) => $eq->where('cafe_id', $cafeId))
-                  ->orWhereHas('event', fn ($eq) => $eq->whereNull('cafe_id'))
-                  ->orWhereNull('event_id');
-            });
-        }
-        return $query;
     }
 
     public static function getPages(): array
@@ -252,7 +219,6 @@ class FrameResource extends Resource
         return [
             'index'  => Pages\ListFrames::route('/'),
             'create' => Pages\CreateFrame::route('/create'),
-            'view'   => Pages\ViewFrame::route('/{record}'),
             'edit'   => Pages\EditFrame::route('/{record}/edit'),
         ];
     }

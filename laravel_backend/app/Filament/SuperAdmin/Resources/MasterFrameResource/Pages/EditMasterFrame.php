@@ -45,7 +45,26 @@ class EditMasterFrame extends EditRecord
         $w = 1200;
         $h = 1800;
 
-        if (!empty($data['asset_url'])) {
+        // Check if user clicked and punched slots on the interactive canvas
+        $clientSlots = $data['layout_config']['slots'] ?? [];
+        if (!empty($clientSlots) && is_array($clientSlots)) {
+            $detectedSlots = $clientSlots;
+            $poseCount = max(1, count($detectedSlots));
+            $layoutType = count($detectedSlots) <= 4 ? 'single' : 'grid';
+
+            if (!empty($data['asset_url'])) {
+                $pngPath = Storage::disk('public')->path($data['asset_url']);
+                $imageInfo = @getimagesize($pngPath);
+                if ($imageInfo) {
+                    $w = $imageInfo[0];
+                    $h = $imageInfo[1];
+                }
+                $chromaRes = FrameSlotDetector::removeGreenScreenAndDetectSlots($pngPath);
+                if (!empty($chromaRes['success']) && !empty($chromaRes['relative_path'])) {
+                    $data['asset_url'] = $chromaRes['relative_path'];
+                }
+            }
+        } elseif (!empty($data['asset_url'])) {
             $pngPath = Storage::disk('public')->path($data['asset_url']);
             $imageInfo = @getimagesize($pngPath);
             if ($imageInfo) {
@@ -53,19 +72,24 @@ class EditMasterFrame extends EditRecord
                 $h = $imageInfo[1];
             }
 
-            if ($useAi) {
-                $analysis = FrameSlotDetector::analyze($pngPath, autoPunchTransparency: true);
-                if (!empty($analysis['punched']) && !empty($analysis['relative_path'])) {
-                    $data['asset_url'] = $analysis['relative_path'];
+            $chromaRes = FrameSlotDetector::removeGreenScreenAndDetectSlots($pngPath);
+            if (!empty($chromaRes['success']) && !empty($chromaRes['slots'])) {
+                if (!empty($chromaRes['relative_path'])) {
+                    $data['asset_url'] = $chromaRes['relative_path'];
                 }
-
-                // Accept slots from AI/alpha detection even if layout_type differs —
-                // the detected slot count is more trustworthy than the user's manual selection.
-                if (!empty($analysis['slots'])) {
-                    $detectedSlots = $analysis['slots'];
-                    if (!empty($analysis['layout_type']) && !empty($analysis['slot_count'])) {
-                        $layoutType = $analysis['layout_type'];
-                        $poseCount  = $analysis['pose_count'] ?? $poseCount;
+                $detectedSlots = $chromaRes['slots'];
+                if (!empty($chromaRes['layout_type'])) {
+                    $layoutType = $chromaRes['layout_type'];
+                }
+            } else {
+                $isPng = ($imageInfo[2] ?? 0) === IMAGETYPE_PNG;
+                if ($isPng) {
+                    $alphaRes = FrameSlotDetector::detectAlphaCutouts($pngPath, $w, $h);
+                    if (!empty($alphaRes['success']) && !empty($alphaRes['slots'])) {
+                        $detectedSlots = $alphaRes['slots'];
+                        if (!empty($alphaRes['layout_type'])) {
+                            $layoutType = $alphaRes['layout_type'];
+                        }
                     }
                 }
             }
@@ -78,10 +102,33 @@ class EditMasterFrame extends EditRecord
         // Ensure pose_index in slots accurately aligns with chosen rightOrder
         $finalSlots = FrameSlotDetector::assignSlotPoses($detectedSlots, $layoutType, $rightOrder, $poseCount);
 
+        // Validation Checks
+        if (empty($finalSlots)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'asset_url' => 'Frame belum memiliki lubang transparan untuk foto! Silakan gunakan Alat Pensil pada kanvas di bawah untuk mengklik kotak warna foto atau gunakan tombol "Lubangi Hijau Otomatis".',
+            ]);
+        }
+
+        // Auto-align layout_type if detected slot structure is clearly different from user choice
+        $actualSlotCount = count($finalSlots);
+        if ($actualSlotCount === 6 && $layoutType === 'single') {
+            $layoutType = 'double_6';
+            $poseCount = 3;
+        } elseif ($actualSlotCount === 8 && $layoutType === 'single') {
+            $layoutType = 'double_8';
+            $poseCount = 4;
+        } elseif ($actualSlotCount <= 4 && in_array($layoutType, ['double_6', 'double_8'])) {
+            $layoutType = 'single';
+            $poseCount = $actualSlotCount;
+        }
+
         $data['layout_type'] = $layoutType;
+        $data['pose_count']  = $poseCount;
+
         $data['layout_config'] = [
             'layout_type'            => $layoutType,
-            'slot_count'             => count($finalSlots) ?: $slotCount,
+            'slot_count'             => $actualSlotCount,
+            'pose_count'             => $poseCount,
             'right_column_order_key' => $rightKey,
             'right_column_order'     => $rightOrder,
             'slots'                  => $finalSlots,
@@ -99,5 +146,13 @@ class EditMasterFrame extends EditRecord
     protected function getRedirectUrl(): string
     {
         return $this->getResource()::getUrl('index');
+    }
+
+    protected function getSavedNotification(): ?\Filament\Notifications\Notification
+    {
+        return \Filament\Notifications\Notification::make()
+            ->success()
+            ->title('Master Frame Berhasil Diperbarui')
+            ->body('Perubahan master frame telah disimpan dan disinkronkan ke cafe.');
     }
 }

@@ -9,6 +9,24 @@ use Illuminate\Support\Facades\Storage;
 class FrameSlotDetector
 {
     /**
+     * Human-readable label for frame layout configuration.
+     */
+    public static function describeGridLayout(array $layoutConfig = [], int $poseCount = 4): string
+    {
+        $type = $layoutConfig['layout_type'] ?? 'single';
+        $slots = $layoutConfig['slots'] ?? [];
+        $count = count($slots) ?: ($layoutConfig['slot_count'] ?? $poseCount);
+
+        return match ($type) {
+            'double_6' => "Double Strip 6 Foto (2 Kolom)",
+            'double_8' => "Double Strip 8 Foto (2 Kolom)",
+            'grid'     => "Grid {$count} Foto",
+            'single'   => "Single Strip ({$count} Foto)",
+            default    => "Layout {$count} Foto ({$poseCount} Pose)",
+        };
+    }
+
+    /**
      * Resolve the absolute filesystem path from Filament/Livewire upload state.
      */
     public static function resolveRealPath(mixed $state): ?string
@@ -366,6 +384,139 @@ class FrameSlotDetector
     }
 
     /**
+     * Removes green screen (Chroma Key) or custom clicked color areas from an image, turning them 100% transparent.
+     * Saves the resulting image as a PNG and detects the natural bounding box slots automatically from the frame.
+     */
+    public static function removeGreenScreenAndDetectSlots(string $sourcePath, ?string $targetHexColor = null, int $tolerance = 50, ?string $targetPath = null): array
+    {
+        if (!file_exists($sourcePath)) {
+            return ['success' => false, 'message' => 'File tidak ditemukan', 'slots' => []];
+        }
+
+        $imageInfo = @getimagesize($sourcePath);
+        if (!$imageInfo) {
+            return ['success' => false, 'message' => 'Format gambar tidak valid', 'slots' => []];
+        }
+
+        $w = $imageInfo[0];
+        $h = $imageInfo[1];
+        $type = $imageInfo[2];
+
+        $src = match ($type) {
+            IMAGETYPE_PNG  => @imagecreatefrompng($sourcePath),
+            IMAGETYPE_JPEG => @imagecreatefromjpeg($sourcePath),
+            IMAGETYPE_WEBP => @imagecreatefromwebp($sourcePath),
+            default        => null,
+        };
+
+        if (!$src) {
+            return ['success' => false, 'message' => 'Gagal membaca gambar', 'slots' => []];
+        }
+
+        $dest = imagecreatetruecolor($w, $h);
+        imagealphablending($dest, false);
+        imagesavealpha($dest, true);
+
+        $transparent = imagecolorallocatealpha($dest, 0, 0, 0, 127);
+
+        // Parse target color if provided (e.g. from pipette click)
+        $hasCustomColor = !empty($targetHexColor);
+        $tr = 0; $tg = 255; $tb = 0;
+        if ($hasCustomColor) {
+            $hex = ltrim($targetHexColor, '#');
+            if (strlen($hex) === 6) {
+                $tr = hexdec(substr($hex, 0, 2));
+                $tg = hexdec(substr($hex, 2, 2));
+                $tb = hexdec(substr($hex, 4, 2));
+            } elseif (strlen($hex) === 3) {
+                $tr = hexdec(str_repeat(substr($hex, 0, 1), 2));
+                $tg = hexdec(str_repeat(substr($hex, 1, 1), 2));
+                $tb = hexdec(str_repeat(substr($hex, 2, 1), 2));
+            }
+        }
+
+        // Convert target color pixels to transparent
+        for ($y = 0; $y < $h; $y++) {
+            for ($x = 0; $x < $w; $x++) {
+                $rgb = imagecolorat($src, $x, $y);
+                $r = ($rgb >> 16) & 0xFF;
+                $g = ($rgb >> 8) & 0xFF;
+                $b = $rgb & 0xFF;
+                $alpha = ($rgb & 0x7F000000) >> 24;
+
+                // If already transparent in PNG, preserve transparency
+                if ($type === IMAGETYPE_PNG && $alpha > 64) {
+                    imagesetpixel($dest, $x, $y, $transparent);
+                    continue;
+                }
+
+                $isMatch = false;
+                if ($hasCustomColor) {
+                    // Match specific clicked pipette color with tolerance distance
+                    $dist = sqrt(($r - $tr) ** 2 + ($g - $tg) ** 2 + ($b - $tb) ** 2);
+                    if ($dist <= max(30, $tolerance)) {
+                        $isMatch = true;
+                    }
+                } else {
+                    // Default Chroma Green auto-detection (#00FF00, #00E000, #00FF11, #39FF14, etc.)
+                    if ($g > 110 && $g > ($r + 30) && $g > ($b + 30)) {
+                        $isMatch = true;
+                    } else {
+                        $dist = sqrt($r * $r + (255 - $g) * (255 - $g) + $b * $b);
+                        if ($dist < 135) {
+                            $isMatch = true;
+                        }
+                    }
+                }
+
+                if ($isMatch) {
+                    imagesetpixel($dest, $x, $y, $transparent);
+                } else {
+                    $color = imagecolorallocatealpha($dest, $r, $g, $b, $alpha);
+                    imagesetpixel($dest, $x, $y, $color);
+                }
+            }
+        }
+
+        // Save output file as PNG
+        $targetDir = storage_path('app/public/frames');
+        if (!file_exists($targetDir)) {
+            @mkdir($targetDir, 0755, true);
+        }
+
+        if (!$targetPath) {
+            $filename = 'chroma_' . uniqid() . '.png';
+            $targetPath = $targetDir . DIRECTORY_SEPARATOR . $filename;
+            $relativeReturn = 'frames/' . $filename;
+        } else {
+            if (!str_ends_with(strtolower($targetPath), '.png')) {
+                $targetPath = preg_replace('/\.[^.]+$/', '.png', $targetPath);
+            }
+            $relativeReturn = str_replace([storage_path('app/public/'), storage_path('app/public\\')], '', $targetPath);
+        }
+
+        imagepng($dest, $targetPath, 8);
+
+        if (PHP_VERSION_ID < 80000) {
+            @imagedestroy($src);
+            @imagedestroy($dest);
+        }
+
+        // Run alpha cutout detection on the resulting transparent PNG
+        $alphaRes = self::detectAlphaCutouts($targetPath, $w, $h);
+
+        return [
+            'success'       => true,
+            'relative_path' => $relativeReturn,
+            'absolute_path' => $targetPath,
+            'slots'         => $alphaRes['slots'] ?? [],
+            'slot_count'    => $alphaRes['slot_count'] ?? 0,
+            'layout_type'   => $alphaRes['layout_type'] ?? 'single',
+            'dimensions'    => ['w' => $w, 'h' => $h],
+        ];
+    }
+
+    /**
      * Computer vision scanner for transparent bounding boxes in PNG.
      */
     public static function detectAlphaCutouts(string $pngPath, int $w, int $h): array
@@ -450,6 +601,32 @@ class FrameSlotDetector
             }
             return $slots;
         };
+
+        // Check if transparent cutouts cross the center vertical axis (Single column vs Double column)
+        $centerSamples = array_filter($transparentGrid, fn($p) => abs($p['x'] - $midX) <= max(10, (int)($w * 0.04)));
+        $hasCenterCutout = count($centerSamples) >= 10;
+
+        if ($hasCenterCutout) {
+            $fullWidthSlots = $detectColumnClusters($transparentGrid);
+            if (!empty($fullWidthSlots)) {
+                $avgW = array_sum(array_column($fullWidthSlots, 'w')) / count($fullWidthSlots);
+                if ($avgW >= ($w * 0.48)) {
+                    $count = count($fullWidthSlots);
+                    $combinedSlots = self::assignSlotPoses($fullWidthSlots, 'single', [], $count);
+                    return [
+                        'success'      => true,
+                        'layout_type'  => 'single',
+                        'layout_label' => "Single Strip {$count} Foto",
+                        'pose_count'   => $count,
+                        'slot_count'   => $count,
+                        'slots'        => $combinedSlots,
+                        'dimensions'   => ['w' => $w, 'h' => $h],
+                        'method'       => 'alpha_contour',
+                        'confidence'   => 'high',
+                    ];
+                }
+            }
+        }
 
         $leftSlots = $detectColumnClusters($leftSamples);
         $rightSlots = $detectColumnClusters($rightSamples);
