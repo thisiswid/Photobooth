@@ -70,29 +70,29 @@
     <div class="fixed bottom-10 left-1/3 w-[500px] h-[500px] blob-3 pointer-events-none z-0"></div>
 
     <!-- Navigation Header -->
-    <header class="sticky top-0 z-50 backdrop-blur-lg bg-white/85 border-b border-slate-100 shadow-sm">
-        <div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+    <header class="sticky top-0 z-50 backdrop-blur-lg bg-white/90 border-b border-slate-100 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between gap-2">
             <!-- Brand Logo -->
-            <a href="/" class="flex items-center gap-3 group">
+            <a href="/" class="flex items-center gap-2 sm:gap-3 group shrink-0">
                 <img 
                     src="/logo/logo-snaptech.jpg" 
                     alt="SnapTechBooth Logo" 
-                    class="w-11 h-11 rounded-2xl object-cover shadow-md shadow-[#008B9B]/20 border-2 border-white group-hover:scale-105 transition duration-300"
+                    class="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl object-cover shadow-md shadow-[#008B9B]/20 border-2 border-white group-hover:scale-105 transition duration-300"
                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
                 />
-                <div class="w-11 h-11 rounded-2xl gradient-bg-main items-center justify-center text-white hidden shadow-md">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <div class="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl gradient-bg-main items-center justify-center text-white hidden shadow-md">
+                    <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z"/>
                         <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z"/>
                     </svg>
                 </div>
                 <div class="flex flex-col">
-                    <span class="text-xl font-black tracking-tight text-[#0A2B42]">SnapTech<span class="gradient-text-s">Booth</span></span>
-                    <span class="text-[10px] text-slate-500 font-bold -mt-1 tracking-wider uppercase">Self-Photo Kiosk</span>
+                    <span class="text-base sm:text-xl font-black tracking-tight text-[#0A2B42]">SnapTech<span class="gradient-text-s">Booth</span></span>
+                    <span class="text-[9px] sm:text-[10px] text-slate-500 font-bold -mt-0.5 sm:-mt-1 tracking-wider uppercase">Self-Photo Kiosk</span>
                 </div>
             </a>
 
-            <!-- Nav Links -->
+            <!-- Nav Links (Desktop) -->
             <nav class="hidden md:flex items-center gap-8 text-sm font-bold text-slate-600">
                 <a href="#fitur" class="hover:text-[#008B9B] transition">Fitur</a>
                 <a href="#cara-kerja" class="hover:text-[#E93C78] transition">Cara Kerja</a>
@@ -100,11 +100,12 @@
                 <a href="#faq" class="hover:text-[#008B9B] transition">FAQ</a>
             </nav>
 
-            <!-- Actions (Public Only) -->
-            <div class="flex items-center gap-4">
-                <a href="https://wa.me/6287877946981?text=Halo%20SnapTechBooth,%20saya%20tertarik%20dengan%20software%20photobooth%20untuk%20bisnis%20saya" target="_blank" class="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-gradient-to-r from-[#008B9B] via-[#E93C78] to-[#FFA234] hover:opacity-95 text-white text-sm font-extrabold shadow-lg shadow-[#E93C78]/25 hover:shadow-xl hover:scale-[1.02] transition duration-200">
-                    <span>Konsultasi WhatsApp</span>
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <!-- Actions (Mobile & Desktop Friendly) -->
+            <div class="flex items-center gap-2 sm:gap-4 shrink-0">
+                <a href="https://wa.me/6287877946981?text=Halo%20SnapTechBooth,%20saya%20tertarik%20dengan%20software%20photobooth%20untuk%20bisnis%20saya" target="_blank" class="inline-flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-6 py-2 sm:py-2.5 rounded-full bg-gradient-to-r from-[#008B9B] via-[#E93C78] to-[#FFA234] hover:opacity-95 text-white text-xs sm:text-sm font-extrabold shadow-md sm:shadow-lg shadow-[#E93C78]/25 hover:shadow-xl hover:scale-[1.02] transition duration-200 whitespace-nowrap">
+                    <span class="hidden sm:inline">Konsultasi WhatsApp</span>
+                    <span class="inline sm:hidden">Chat WA</span>
+                    <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/>
                     </svg>
                 </a>
