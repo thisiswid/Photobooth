@@ -317,15 +317,15 @@
             <!-- Pricing Cards Grid -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
                 
-                <!-- Plan 1: Starter -->
+                <!-- Plan 1: Starter Pro (800k) -->
                 <div class="rounded-3xl bg-white border-2 border-slate-200/80 p-8 flex flex-col justify-between hover:border-[#008B9B] hover:shadow-xl hover:shadow-[#008B9B]/10 transition duration-300">
                     <div>
-                        <div class="text-xs font-extrabold text-[#008B9B] uppercase tracking-wider mb-2">Starter</div>
+                        <div class="text-xs font-extrabold text-[#008B9B] uppercase tracking-wider mb-2">Starter Cafe</div>
                         <div class="flex items-baseline gap-1 mb-4">
-                            <span class="text-3xl sm:text-4xl font-black text-[#0A2B42] tracking-tight">Rp 500.000</span>
+                            <span class="text-3xl sm:text-4xl font-black text-[#0A2B42] tracking-tight">Rp 800.000</span>
                             <span class="text-xs text-slate-500 font-bold">/ bulan</span>
                         </div>
-                        <p class="text-xs text-slate-600 leading-relaxed mb-6 font-medium">Pilihan hemat untuk cafe pemula atau stand photobooth tunggal.</p>
+                        <p class="text-xs text-slate-600 leading-relaxed mb-6 font-medium">Pilihan mandiri untuk 1 outlet cafe atau booth tetap yang ingin sistem photobooth stabil.</p>
 
                         <div class="border-t border-slate-100 pt-6 space-y-3.5 mb-8">
                             <div class="flex items-start gap-3 text-xs font-semibold text-slate-700">
@@ -342,7 +342,7 @@
                             </div>
                             <div class="flex items-start gap-3 text-xs font-semibold text-slate-700">
                                 <svg class="w-4 h-4 text-[#008B9B] shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
-                                <span>Hingga 15 Frame Kustom Aktif</span>
+                                <span>Hingga 20 Frame Kustom Aktif</span>
                             </div>
                             <div class="flex items-start gap-3 text-xs font-semibold text-slate-700">
                                 <svg class="w-4 h-4 text-[#008B9B] shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
@@ -350,17 +350,17 @@
                             </div>
                             <div class="flex items-start gap-3 text-xs font-semibold text-slate-700">
                                 <svg class="w-4 h-4 text-[#008B9B] shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
-                                <span>Masa Simpan Download 7 Hari</span>
+                                <span>Masa Simpan Unduhan Cloud 14 Hari</span>
                             </div>
                         </div>
                     </div>
 
-                    <a href="https://wa.me/6281234567890?text=Halo%20SnapTechBooth,%20saya%20tertarik%20dengan%20Paket%20Starter%20(500k/bulan)" target="_blank" class="w-full py-3.5 px-4 rounded-full bg-slate-100 hover:bg-[#008B9B] hover:text-white text-[#0A2B42] text-xs font-extrabold text-center transition duration-200">
-                        Pilih Paket Starter
+                    <a href="https://wa.me/6281234567890?text=Halo%20SnapTechBooth,%20saya%20tertarik%20dengan%20Paket%20Starter%20Cafe%20(800k/bulan)" target="_blank" class="w-full py-3.5 px-4 rounded-full bg-slate-100 hover:bg-[#008B9B] hover:text-white text-[#0A2B42] text-xs font-extrabold text-center transition duration-200">
+                        Pilih Paket Starter Cafe
                     </a>
                 </div>
 
-                <!-- Plan 2: Pro Cafe (Paling Favorit - Tengah) -->
+                <!-- Plan 2: Pro Cafe (Paling Favorit - Tengah - 550k) -->
                 <div class="rounded-3xl bg-white border-2 border-[#E93C78] p-8 flex flex-col justify-between relative shadow-2xl shadow-[#E93C78]/20 scale-105 z-20">
                     <div class="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-[#E93C78] to-[#FF5841] rounded-full text-[10px] font-black uppercase tracking-wider text-white shadow-md">
                         Paling Favorit
@@ -411,20 +411,24 @@
                     </a>
                 </div>
 
-                <!-- Plan 3: Bisnis & Event Pro (Samping Kanan - 800k) -->
+                <!-- Plan 3: Bisnis & Event Enterprise (Samping Kanan - 1.3jt) -->
                 <div class="rounded-3xl bg-white border-2 border-slate-200/80 p-8 flex flex-col justify-between hover:border-[#FFA234] hover:shadow-xl hover:shadow-[#FFA234]/10 transition duration-300">
                     <div>
-                        <div class="text-xs font-extrabold text-[#FFA234] uppercase tracking-wider mb-2">Bisnis & Event Pro</div>
+                        <div class="text-xs font-extrabold text-[#FFA234] uppercase tracking-wider mb-2">Bisnis & Event Enterprise</div>
                         <div class="flex items-baseline gap-1 mb-4">
-                            <span class="text-3xl sm:text-4xl font-black text-[#0A2B42] tracking-tight">Rp 800.000</span>
+                            <span class="text-3xl sm:text-4xl font-black text-[#0A2B42] tracking-tight">Rp 1.300.000</span>
                             <span class="text-xs text-slate-500 font-bold">/ bulan</span>
                         </div>
-                        <p class="text-xs text-slate-600 leading-relaxed mb-6 font-medium">Fitur terlengkap untuk multi-booth, rental event pernikahan/expo, atau cafe multi-lantai.</p>
+                        <p class="text-xs text-slate-600 leading-relaxed mb-6 font-medium">Fitur terlengkap untuk multi-booth, rental event pernikahan/expo, atau jaringan cafe multi-cabang.</p>
 
                         <div class="border-t border-slate-100 pt-6 space-y-3.5 mb-8">
                             <div class="flex items-start gap-3 text-xs font-semibold text-slate-700">
                                 <svg class="w-4 h-4 text-[#FFA234] shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
-                                <span><strong>Hingga 4 Device Kiosk Aktif</strong></span>
+                                <span><strong>Hingga 6 Device Kiosk Aktif</strong></span>
+                            </div>
+                            <div class="flex items-start gap-3 text-xs font-semibold text-slate-700">
+                                <svg class="w-4 h-4 text-[#FFA234] shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
+                                <span><strong>Multi-Branch & Sinkronisasi Master Frame</strong></span>
                             </div>
                             <div class="flex items-start gap-3 text-xs font-semibold text-slate-700">
                                 <svg class="w-4 h-4 text-[#FFA234] shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
@@ -444,7 +448,7 @@
                             </div>
                             <div class="flex items-start gap-3 text-xs font-semibold text-slate-700">
                                 <svg class="w-4 h-4 text-[#FFA234] shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
-                                <span>Masa Simpan Unduhan Cloud Lebih Panjang (30 Hari)</span>
+                                <span>Masa Simpan Unduhan Cloud 30 Hari</span>
                             </div>
                             <div class="flex items-start gap-3 text-xs font-semibold text-slate-700">
                                 <svg class="w-4 h-4 text-[#FFA234] shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
@@ -453,8 +457,8 @@
                         </div>
                     </div>
 
-                    <a href="https://wa.me/6281234567890?text=Halo%20SnapTechBooth,%20saya%20tertarik%20dengan%20Paket%20Bisnis%20Event%20(800k/bulan)" target="_blank" class="w-full py-3.5 px-4 rounded-full bg-slate-100 hover:bg-[#FFA234] hover:text-white text-[#0A2B42] text-xs font-extrabold text-center transition duration-200">
-                        Pilih Paket Bisnis Pro
+                    <a href="https://wa.me/6281234567890?text=Halo%20SnapTechBooth,%20saya%20tertarik%20dengan%20Paket%20Enterprise%20(1.3jt/bulan)" target="_blank" class="w-full py-3.5 px-4 rounded-full bg-slate-100 hover:bg-[#FFA234] hover:text-white text-[#0A2B42] text-xs font-extrabold text-center transition duration-200">
+                        Pilih Paket Enterprise
                     </a>
                 </div>
             </div>
