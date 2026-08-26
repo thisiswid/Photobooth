@@ -4,13 +4,16 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\ResultResource\Pages;
 use App\Models\Result;
-use Filament\Schemas\Schema;
-use Filament\Schemas\Components\Section;
+use Filament\Actions\Action;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\ViewAction;
 use Filament\Infolists\Components\ImageEntry;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Resources\Resource;
-use Filament\Actions\Action;
-use Filament\Actions\ViewAction;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -135,6 +138,19 @@ class ResultResource extends Resource
                     ->color('success')
                     ->url(fn ($record) => url('/d/' . $record->qr_token))
                     ->openUrlInNewTab(),
+                DeleteAction::make()
+                    ->label('Hapus')
+                    ->modalHeading('Hapus Hasil Foto')
+                    ->modalDescription('Apakah Anda yakin ingin menghapus hasil foto ini beserta file gambarnya? Tindakan ini tidak dapat dibatalkan.')
+                    ->successNotificationTitle('Hasil foto berhasil dihapus.'),
+            ])
+            ->bulkActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make()
+                        ->label('Hapus Terpilih')
+                        ->modalHeading('Hapus Hasil Foto Terpilih')
+                        ->successNotificationTitle('Hasil foto terpilih berhasil dihapus.'),
+                ]),
             ]);
     }
 

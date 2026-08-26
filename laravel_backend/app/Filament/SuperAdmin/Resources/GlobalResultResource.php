@@ -5,6 +5,9 @@ namespace App\Filament\SuperAdmin\Resources;
 use App\Filament\SuperAdmin\Resources\GlobalResultResource\Pages;
 use App\Models\Result;
 use Filament\Actions\Action;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\ViewAction;
 use Filament\Infolists\Components\ImageEntry;
 use Filament\Infolists\Components\TextEntry;
@@ -113,6 +116,19 @@ class GlobalResultResource extends Resource
                     ->color('success')
                     ->url(fn ($record) => url('/d/' . $record->qr_token))
                     ->openUrlInNewTab(),
+                DeleteAction::make()
+                    ->label('Hapus')
+                    ->modalHeading('Hapus Hasil Foto')
+                    ->modalDescription('Apakah Anda yakin ingin menghapus hasil foto ini beserta filenya? Tindakan ini tidak dapat dibatalkan.')
+                    ->successNotificationTitle('Hasil foto berhasil dihapus.'),
+            ])
+            ->bulkActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make()
+                        ->label('Hapus Terpilih')
+                        ->modalHeading('Hapus Hasil Foto Terpilih')
+                        ->successNotificationTitle('Hasil foto terpilih berhasil dihapus.'),
+                ]),
             ]);
     }
 
