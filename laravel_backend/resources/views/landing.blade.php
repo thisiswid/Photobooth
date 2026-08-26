@@ -102,7 +102,7 @@
 
             <!-- Actions (Public Only) -->
             <div class="flex items-center gap-4">
-                <a href="https://wa.me/6281234567890?text=Halo%20SnapTechBooth,%20saya%20tertarik%20dengan%20software%20photobooth%20untuk%20bisnis%20saya" target="_blank" class="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-gradient-to-r from-[#008B9B] via-[#E93C78] to-[#FFA234] hover:opacity-95 text-white text-sm font-extrabold shadow-lg shadow-[#E93C78]/25 hover:shadow-xl hover:scale-[1.02] transition duration-200">
+                <a href="https://wa.me/6287877946981?text=Halo%20SnapTechBooth,%20saya%20tertarik%20dengan%20software%20photobooth%20untuk%20bisnis%20saya" target="_blank" class="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-gradient-to-r from-[#008B9B] via-[#E93C78] to-[#FFA234] hover:opacity-95 text-white text-sm font-extrabold shadow-lg shadow-[#E93C78]/25 hover:shadow-xl hover:scale-[1.02] transition duration-200">
                     <span>Konsultasi WhatsApp</span>
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/>
@@ -134,7 +134,7 @@
 
                 <!-- CTA Buttons -->
                 <div class="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
-                    <a href="https://wa.me/6281234567890?text=Halo%20SnapTechBooth,%20saya%20ingin%20tanya%20detail%20setup%20photobooth" target="_blank" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-gradient-to-r from-[#008B9B] via-[#E93C78] to-[#FF5841] hover:opacity-95 text-white font-extrabold text-sm shadow-xl shadow-[#E93C78]/30 hover:scale-[1.02] transition duration-200">
+                    <a href="https://wa.me/6287877946981?text=Halo%20SnapTechBooth,%20saya%20ingin%20tanya%20detail%20setup%20photobooth" target="_blank" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-gradient-to-r from-[#008B9B] via-[#E93C78] to-[#FF5841] hover:opacity-95 text-white font-extrabold text-sm shadow-xl shadow-[#E93C78]/30 hover:scale-[1.02] transition duration-200">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z"/>
                         </svg>
@@ -355,7 +355,7 @@
                         </div>
                     </div>
 
-                    <a href="https://wa.me/6281234567890?text=Halo%20SnapTechBooth,%20saya%20tertarik%20dengan%20Paket%20Starter%20Cafe%20(800k/bulan)" target="_blank" class="w-full py-3.5 px-4 rounded-full bg-slate-100 hover:bg-[#008B9B] hover:text-white text-[#0A2B42] text-xs font-extrabold text-center transition duration-200">
+                    <a href="https://wa.me/6287877946981?text=Halo%20SnapTechBooth,%20saya%20tertarik%20dengan%20Paket%20Starter%20Cafe%20(800k/bulan)" target="_blank" class="w-full py-3.5 px-4 rounded-full bg-slate-100 hover:bg-[#008B9B] hover:text-white text-[#0A2B42] text-xs font-extrabold text-center transition duration-200">
                         Pilih Paket Starter Cafe
                     </a>
                 </div>
@@ -406,7 +406,7 @@
                         </div>
                     </div>
 
-                    <a href="https://wa.me/6281234567890?text=Halo%20SnapTechBooth,%20saya%20tertarik%20dengan%20Paket%20Pro%20Cafe%20(550k/bulan)" target="_blank" class="w-full py-4 px-4 rounded-full bg-gradient-to-r from-[#E93C78] via-[#FF5841] to-[#FFA234] hover:opacity-95 text-white text-xs font-black text-center shadow-lg shadow-[#E93C78]/25 transition duration-200">
+                    <a href="https://wa.me/6287877946981?text=Halo%20SnapTechBooth,%20saya%20tertarik%20dengan%20Paket%20Pro%20Cafe%20(550k/bulan)" target="_blank" class="w-full py-4 px-4 rounded-full bg-gradient-to-r from-[#E93C78] via-[#FF5841] to-[#FFA234] hover:opacity-95 text-white text-xs font-black text-center shadow-lg shadow-[#E93C78]/25 transition duration-200">
                         Pilih Paket Pro Cafe
                     </a>
                 </div>
@@ -457,7 +457,7 @@
                         </div>
                     </div>
 
-                    <a href="https://wa.me/6281234567890?text=Halo%20SnapTechBooth,%20saya%20tertarik%20dengan%20Paket%20Enterprise%20(1.3jt/bulan)" target="_blank" class="w-full py-3.5 px-4 rounded-full bg-slate-100 hover:bg-[#FFA234] hover:text-white text-[#0A2B42] text-xs font-extrabold text-center transition duration-200">
+                    <a href="https://wa.me/6287877946981?text=Halo%20SnapTechBooth,%20saya%20tertarik%20dengan%20Paket%20Enterprise%20(1.3jt/bulan)" target="_blank" class="w-full py-3.5 px-4 rounded-full bg-slate-100 hover:bg-[#FFA234] hover:text-white text-[#0A2B42] text-xs font-extrabold text-center transition duration-200">
                         Pilih Paket Enterprise
                     </a>
                 </div>
@@ -500,7 +500,7 @@
             <h2 class="text-3xl sm:text-4xl font-black tracking-tight mb-4">Siap Bikin Photobooth Sendiri di Cafe Kamu?</h2>
             <p class="text-sm text-white/90 mb-8 max-w-xl mx-auto font-medium">Konsultasikan kebutuhan tempat dan konsep bisnismu bersama tim kami. Dapatkan panduan setup hardware dan uji coba sistem secara gratis!</p>
             <div class="flex items-center justify-center">
-                <a href="https://wa.me/6281234567890?text=Halo%20SnapTechBooth,%20saya%20mau%20konsultasi%20paket%20photobooth" target="_blank" class="inline-flex items-center justify-center gap-2 px-9 py-4 rounded-full bg-white hover:bg-slate-50 text-[#0A2B42] font-black text-sm shadow-2xl hover:scale-105 transition duration-200">
+                <a href="https://wa.me/6287877946981?text=Halo%20SnapTechBooth,%20saya%20mau%20konsultasi%20paket%20photobooth" target="_blank" class="inline-flex items-center justify-center gap-2 px-9 py-4 rounded-full bg-white hover:bg-slate-50 text-[#0A2B42] font-black text-sm shadow-2xl hover:scale-105 transition duration-200">
                     <span>Chat WhatsApp Sekarang</span>
                     <svg class="w-4 h-4 text-[#E93C78]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/>
@@ -523,7 +523,7 @@
                 <a href="#cara-kerja" class="hover:text-[#E93C78] transition">Cara Kerja</a>
                 <a href="#harga" class="hover:text-[#FFA234] transition">Pilihan Paket</a>
                 <a href="#faq" class="hover:text-[#008B9B] transition">FAQ</a>
-                <a href="https://wa.me/6281234567890" target="_blank" class="text-[#E93C78] hover:underline">Kontak Tim Sales</a>
+                <a href="https://wa.me/6287877946981" target="_blank" class="text-[#E93C78] hover:underline">Kontak Tim Sales</a>
             </div>
         </div>
     </footer>
