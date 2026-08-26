@@ -9,6 +9,7 @@ import '../../features/camera/presentation/camera_screen.dart';
 import '../../features/preview/presentation/photo_preview_screen.dart';
 import '../../features/filter/presentation/filter_screen.dart';
 import '../../features/result/presentation/final_result_screen.dart';
+import '../../features/settings/presentation/device_settings_screen.dart';
 import '../../features/provisioning/presentation/provisioning_screen.dart';
 import '../../features/provisioning/providers/tenant_provider.dart';
 import '../../features/session/providers/session_provider.dart';
@@ -20,15 +21,16 @@ part 'app_router.g.dart';
 /// Canonical flow:
 /// provisioning (if setup) → welcome → tutorial → payment → frame → camera → preview → filter → result
 abstract final class AppRoutes {
-  static const provisioning = '/provisioning';
-  static const welcome  = '/';
-  static const tutorial = '/tutorial';
-  static const payment  = '/payment';
-  static const frame    = '/frame';
-  static const camera   = '/camera';
-  static const preview  = '/preview';
-  static const filter   = '/filter';
-  static const result   = '/result';
+  static const provisioning   = '/provisioning';
+  static const welcome        = '/';
+  static const tutorial       = '/tutorial';
+  static const payment        = '/payment';
+  static const frame          = '/frame';
+  static const camera         = '/camera';
+  static const preview        = '/preview';
+  static const filter         = '/filter';
+  static const result         = '/result';
+  static const deviceSettings = '/device-settings';
 }
 
 // ── Refresh notifier ──────────────────────────────────────────────────────────
@@ -59,7 +61,7 @@ GoRouter appRouter(AppRouterRef ref) {
       if (location == AppRoutes.provisioning) return null;
 
       // Open routes — no session required.
-      const openRoutes = {AppRoutes.welcome, AppRoutes.tutorial, AppRoutes.payment};
+      const openRoutes = {AppRoutes.welcome, AppRoutes.tutorial, AppRoutes.payment, AppRoutes.deviceSettings};
       if (openRoutes.contains(location)) return null;
 
       final session = ref.read(sessionNotifierProvider);
@@ -82,15 +84,16 @@ GoRouter appRouter(AppRouterRef ref) {
     },
 
     routes: [
-      GoRoute(path: AppRoutes.provisioning, builder: (_, __) => const ProvisioningScreen()),
-      GoRoute(path: AppRoutes.welcome,  builder: (_, __) => const WelcomeScreen()),
-      GoRoute(path: AppRoutes.tutorial, builder: (_, __) => const TutorialScreen()),
-      GoRoute(path: AppRoutes.payment,  builder: (_, __) => const PaymentScreen()),
-      GoRoute(path: AppRoutes.frame,    builder: (_, __) => const FrameSelectionScreen()),
-      GoRoute(path: AppRoutes.camera,   builder: (_, __) => const CameraScreen()),
-      GoRoute(path: AppRoutes.preview,  builder: (_, __) => const PhotoPreviewScreen()),
-      GoRoute(path: AppRoutes.filter,   builder: (_, __) => const FilterScreen()),
-      GoRoute(path: AppRoutes.result,   builder: (_, __) => const FinalResultScreen()),
+      GoRoute(path: AppRoutes.provisioning,   builder: (_, __) => const ProvisioningScreen()),
+      GoRoute(path: AppRoutes.welcome,        builder: (_, __) => const WelcomeScreen()),
+      GoRoute(path: AppRoutes.tutorial,       builder: (_, __) => const TutorialScreen()),
+      GoRoute(path: AppRoutes.payment,        builder: (_, __) => const PaymentScreen()),
+      GoRoute(path: AppRoutes.frame,          builder: (_, __) => const FrameSelectionScreen()),
+      GoRoute(path: AppRoutes.camera,         builder: (_, __) => const CameraScreen()),
+      GoRoute(path: AppRoutes.preview,        builder: (_, __) => const PhotoPreviewScreen()),
+      GoRoute(path: AppRoutes.filter,         builder: (_, __) => const FilterScreen()),
+      GoRoute(path: AppRoutes.result,         builder: (_, __) => const FinalResultScreen()),
+      GoRoute(path: AppRoutes.deviceSettings, builder: (_, __) => const DeviceSettingsScreen()),
     ],
 
     errorBuilder: (context, state) => _ErrorPage(error: state.error),

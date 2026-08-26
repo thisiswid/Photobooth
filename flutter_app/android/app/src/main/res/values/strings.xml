@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accessibility_service_description">SnapTechBooth Kiosk — otomatis tap tombol Print di PrintActivity agar cetak berjalan tanpa interaksi user.</string>
+</resources>

@@ -64,6 +64,12 @@ class GlobalFrameResource extends Resource
                     ])
                     ->default('single')
                     ->live()
+                    ->afterStateHydrated(function ($component, $state, $record) {
+                        if ($record) {
+                            $type = $record->layout_config['layout_type'] ?? 'single';
+                            $component->state($type);
+                        }
+                    })
                     ->afterStateUpdated(function ($state, callable $set) {
                         if ($state === 'double_6') {
                             $set('pose_count', 3);
@@ -74,14 +80,29 @@ class GlobalFrameResource extends Resource
 
                 Select::make('right_column_order')
                     ->label('Urutan Pose Kolom Kanan')
-                    ->options([
-                        'scrambled_1' => 'Pose 3, Pose 1, Pose 2 (Acak 1)',
-                        'scrambled_2' => 'Pose 2, Pose 3, Pose 1 (Acak 2)',
-                        'reversed'    => 'Pose 3, Pose 2, Pose 1 (Terbalik)',
-                        'identical'   => 'Pose 1, Pose 2, Pose 3 (Identik / Kembar)',
-                    ])
+                    ->options(fn ($get) => match ($get('layout_type')) {
+                        'double_8' => [
+                            'scrambled_1' => 'Pose 4, Pose 1, Pose 2, Pose 3 (Acak 1)',
+                            'scrambled_2' => 'Pose 3, Pose 4, Pose 1, Pose 2 (Acak 2)',
+                            'scrambled_3' => 'Pose 2, Pose 3, Pose 4, Pose 1 (Acak 3)',
+                            'reversed'    => 'Pose 4, Pose 3, Pose 2, Pose 1 (Terbalik)',
+                            'identical'   => 'Pose 1, Pose 2, Pose 3, Pose 4 (Identik / Kembar)',
+                        ],
+                        default => [
+                            'scrambled_1' => 'Pose 3, Pose 1, Pose 2 (Acak 1)',
+                            'scrambled_2' => 'Pose 2, Pose 3, Pose 1 (Acak 2)',
+                            'reversed'    => 'Pose 3, Pose 2, Pose 1 (Terbalik)',
+                            'identical'   => 'Pose 1, Pose 2, Pose 3 (Identik / Kembar)',
+                        ],
+                    })
                     ->default('scrambled_1')
-                    ->visible(fn ($get) => in_array($get('layout_type'), ['double_6', 'double_8'])),
+                    ->live()
+                    ->visible(fn ($get) => in_array($get('layout_type'), ['double_6', 'double_8']))
+                    ->afterStateHydrated(function ($component, $state, $record) {
+                        if ($record && !empty($record->layout_config['right_column_order_key'])) {
+                            $component->state($record->layout_config['right_column_order_key']);
+                        }
+                    }),
 
                 TextInput::make('pose_count')
                     ->label('Jumlah Pose yang Diambil Kamera')

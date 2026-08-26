@@ -14,7 +14,6 @@ import '../../../core/services/camera_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../shared/widgets/corner_decorations.dart';
-import '../../../shared/widgets/kiosk_settings_dialog.dart';
 import '../../../shared/widgets/responsive_button.dart';
 import '../../../shared/widgets/responsive_layout_builder.dart';
 import '../../provisioning/providers/tenant_provider.dart';
@@ -31,10 +30,10 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
   CameraController? _cameraController;
   bool _isCameraReady = false;
 
-  // Kontrol visibilitas tombol setting (dapat disinkronkan dari Super Admin)
-  final bool _showSettingsIcon = true;
+  // Kontrol visibilitas tombol setting (Disembunyikan 100% dari customer)
+  final bool _showSettingsIcon = false;
 
-  // Emergency gesture (tap 5x pada logo jika icon disembunyikan Super Admin)
+  // Emergency gesture (tap 5x pada logo)
   int _secretTapCount = 0;
   DateTime? _lastTapTime;
 
@@ -77,7 +76,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
     } catch (_) {}
   }
 
-  /// Membuka dialog pengaturan kiosk dengan verifikasi PIN pengelola (default: 1234)
+  /// Membuka Hidden Device Settings dengan verifikasi PIN pengelola (default: 1234)
   Future<void> _promptSettingsPin() async {
     final pinController = TextEditingController();
     final isAuthorized = await showDialog<bool>(
@@ -108,7 +107,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Masukkan PIN Administrator untuk mengubah konfigurasi kamera dan printer:',
+              'Masukkan PIN Administrator untuk mengakses Hidden Device Settings:',
               style: TextStyle(color: AppColors.creamWhite.withValues(alpha: 0.8), fontSize: 12.sp),
             ),
             SizedBox(height: 14.h),
@@ -162,17 +161,14 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                 );
               }
             },
-            child: const Text('Buka Pengaturan'),
+            child: const Text('Buka Device Settings'),
           ),
         ],
       ),
     );
 
     if (isAuthorized == true && mounted) {
-      KioskSettingsDialog.show(
-        context,
-        onCameraChanged: _initCamera,
-      );
+      context.go(AppRoutes.deviceSettings);
     }
   }
 

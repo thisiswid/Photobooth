@@ -47,7 +47,8 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
   String? _connectedPrinterName;
   int _printRetryCount = 0;
   bool _hasAutoPrinted = false;
-  bool _isPrinting = false; // Guard tambahan agar tidak print ganda
+  bool _isPrinting = false;
+  bool _showPrintOverlay = false; // Overlay fullscreen saat PrintActivity aktif
 
   @override
   void initState() {
@@ -147,6 +148,7 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
     setState(() {
       _printStatus = PrintUiStatus.printing;
       _printStatusMessage = 'Mengirim data ke printer Epson L8050...';
+      _showPrintOverlay = true; // Tampilkan overlay fullscreen
     });
 
     try {
@@ -221,6 +223,9 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
       }
     } finally {
       _isPrinting = false;
+      if (mounted) {
+        setState(() => _showPrintOverlay = false); // Sembunyikan overlay
+      }
     }
   }
 
@@ -265,6 +270,10 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
 
     final isMobile = context.isMobile;
     final isPortrait = context.isPortrait;
+
+    // Gunakan finalUrl dari backend jika sudah tersedia, fallback ke PhotoStripWidget
+    final finalUrl = session?.finalUrl;
+    final hasFinalUrl = finalUrl != null && finalUrl.trim().isNotEmpty;
 
     final previewContent = Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -355,11 +364,35 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
         Expanded(
           child: Center(
             child: !_showMotionPreview
-                ? PhotoStripWidget(
-                    photos: photos,
-                    frame: frame,
-                    colorFilter: sessionState.selectedFilter?.colorFilter,
-                  )
+                ? (hasFinalUrl
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(8.r),
+                        child: Image.network(
+                          _getStorageUrl(finalUrl!),
+                          fit: BoxFit.contain,
+                          loadingBuilder: (context, child, progress) {
+                            if (progress == null) return child;
+                            return Center(
+                              child: CircularProgressIndicator(
+                                color: AppColors.gold,
+                                value: progress.expectedTotalBytes != null
+                                    ? progress.cumulativeBytesLoaded / progress.expectedTotalBytes!
+                                    : null,
+                              ),
+                            );
+                          },
+                          errorBuilder: (_, __, ___) => PhotoStripWidget(
+                            photos: photos,
+                            frame: frame,
+                            colorFilter: sessionState.selectedFilter?.colorFilter,
+                          ),
+                        ),
+                      )
+                    : PhotoStripWidget(
+                        photos: photos,
+                        frame: frame,
+                        colorFilter: sessionState.selectedFilter?.colorFilter,
+                      ))
                 : _MotionPlayerWidget(
                     photos: photos,
                     colorFilter: sessionState.selectedFilter?.colorFilter,
@@ -442,32 +475,15 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
 
           SizedBox(height: 6.h),
 
-          // ── Link Pengaturan Printer Cepat (Tanpa Password) ──
-          TextButton.icon(
-            onPressed: () => PrinterSettingsModal.show(
-              context,
-              onPrinterConfigured: () => setState(() => _connectedPrinterName = 'Epson L8050'),
-            ),
-            icon: Icon(Icons.tune_rounded, size: 15.r, color: AppColors.brown),
-            label: Text(
-              _connectedPrinterName != null
-                  ? 'Printer: $_connectedPrinterName'
-                  : 'Pengaturan Printer',
-              style: TextStyle(
-                color: AppColors.brown,
-                fontSize: 11.5.sp,
-                fontWeight: FontWeight.w500,
-                decoration: TextDecoration.underline,
-              ),
-            ),
-          ),
         ],
       ),
     ).animate().slideX(begin: 0.05, delay: 200.ms);
 
-    return PhotoboothLayout(
-      header: const CustomerHeader(),
-      child: Column(
+    return Stack(
+      children: [
+        PhotoboothLayout(
+          header: const CustomerHeader(),
+          child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // "Hasil Foto" & Tombol Setting Printer di bawah header
@@ -484,27 +500,6 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
                     color: AppColors.darkBrown,
                   ),
                 ).animate().fadeIn(),
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
-                    side: const BorderSide(color: AppColors.gold, width: 1.2),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
-                    backgroundColor: AppColors.creamWhite.withValues(alpha: 0.6),
-                  ),
-                  onPressed: () => PrinterSettingsModal.show(
-                    context,
-                    onPrinterConfigured: () => setState(() => _connectedPrinterName = 'Epson L8050'),
-                  ),
-                  icon: Icon(Icons.print_rounded, size: 16.r, color: AppColors.darkBrown),
-                  label: Text(
-                    _connectedPrinterName != null ? _connectedPrinterName! : 'Set Printer',
-                    style: GoogleFonts.montserrat(
-                      fontSize: 11.5.sp,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.darkBrown,
-                    ),
-                  ),
-                ).animate().fadeIn(delay: 200.ms),
               ],
             ),
           ),
@@ -551,6 +546,47 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
           SizedBox(height: isMobile ? 6.h : 12.h),
         ],
       ),
+        ),
+
+        // ── Overlay fullscreen saat PrintActivity aktif ──
+        if (_showPrintOverlay)
+          Positioned.fill(
+            child: Material(
+              color: AppColors.darkBrown.withValues(alpha: 0.92),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 72.r,
+                    height: 72.r,
+                    child: CircularProgressIndicator(
+                      color: AppColors.gold,
+                      strokeWidth: 3,
+                    ),
+                  ),
+                  SizedBox(height: 28.h),
+                  Text(
+                    'Sedang Mencetak...',
+                    style: GoogleFonts.cormorantGaramond(
+                      color: AppColors.creamWhite,
+                      fontSize: 26.sp,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  SizedBox(height: 10.h),
+                  Text(
+                    'Mohon tunggu, foto sedang dicetak',
+                    style: GoogleFonts.montserrat(
+                      color: AppColors.creamWhite.withValues(alpha: 0.7),
+                      fontSize: 13.sp,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
     );
   }
 

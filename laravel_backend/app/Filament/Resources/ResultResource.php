@@ -51,7 +51,17 @@ class ResultResource extends Resource
                 TextEntry::make('status_aktif')
                     ->label('Status Kedaluwarsa')
                     ->badge()
-                    ->state(fn ($record) => now()->greaterThan($record->expires_at) ? 'Expired (Lewat 7 Hari)' : 'Aktif')
+                    ->state(function ($record) {
+                        if (!$record->expires_at || now()->greaterThanOrEqualTo($record->expires_at)) {
+                            return 'Expired (0 Hari)';
+                        }
+                        $days = max(0, (int) now()->diffInDays($record->expires_at, false));
+                        if ($days === 0) {
+                            $hours = max(0, (int) now()->diffInHours($record->expires_at, false));
+                            return $hours > 0 ? "Aktif ({$hours} Jam Lagi)" : 'Expired (0 Hari)';
+                        }
+                        return "Aktif ({$days} Hari Lagi)";
+                    })
                     ->color(fn ($state) => str_contains($state, 'Aktif') ? 'success' : 'danger'),
             ])->columns(3),
 
@@ -99,14 +109,18 @@ class ResultResource extends Resource
                     ->color('primary')
                     ->limit(28),
                 TextColumn::make('expires_at')
-                    ->label('Status 7 Hari')
+                    ->label('Status Masa Aktif')
                     ->badge()
                     ->state(function ($record) {
-                        if (now()->greaterThan($record->expires_at)) {
-                            return 'Expired';
+                        if (!$record->expires_at || now()->greaterThanOrEqualTo($record->expires_at)) {
+                            return 'Expired (0 Hari)';
                         }
                         $days = max(0, (int) now()->diffInDays($record->expires_at, false));
-                        return "Aktif ({$days} hari lagi)";
+                        if ($days === 0) {
+                            $hours = max(0, (int) now()->diffInHours($record->expires_at, false));
+                            return $hours > 0 ? "Aktif ({$hours} Jam Lagi)" : 'Expired (0 Hari)';
+                        }
+                        return "Aktif ({$days} Hari Lagi)";
                     })
                     ->color(fn ($state) => str_contains($state, 'Aktif') ? 'success' : 'danger')
                     ->sortable(),

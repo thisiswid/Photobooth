@@ -24,7 +24,7 @@ class DownloadController extends Controller
             return view('download_not_found');
         }
 
-        $isExpired = now()->greaterThan($result->expires_at);
+        $isExpired = !$result->expires_at || now()->greaterThanOrEqualTo($result->expires_at) || $result->expires_at->isPast();
         $session = $result->session;
         $event = $session ? $session->event : null;
         $hasFilter = $session && $session->filter_id;
