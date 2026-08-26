@@ -249,7 +249,7 @@
                         }
                     }, true);
 
-                    // 2. FilePond global event listener
+                    // 2. FilePond global event listener (fires when file is added/picked)
                     window.addEventListener('FilePond:addfile', (e) => {
                         if (e.detail && e.detail.file && e.detail.file.file) {
                             const blobUrl = URL.createObjectURL(e.detail.file.file);
@@ -270,6 +270,27 @@
                         }
                     });
                     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
+
+                    // 4. Watch Livewire asset_url state change (fires after upload completes & server saves path)
+                    // This is the reliable trigger for "upload 100% done" — Livewire pushes the final
+                    // storage path back to the client. We reload canvas from that URL.
+                    this.$watch('$wire.{{ $imageFieldName }}', (newVal) => {
+                        if (!newVal) return;
+                        const resolvedVal = Array.isArray(newVal) ? newVal[0] : newVal;
+                        if (!resolvedVal || typeof resolvedVal !== 'string') return;
+                        let url;
+                        if (resolvedVal.startsWith('http://') || resolvedVal.startsWith('https://') || resolvedVal.startsWith('blob:')) {
+                            url = resolvedVal;
+                        } else {
+                            url = '/storage/' + resolvedVal.replace(/^\//, '');
+                        }
+                        // Only reload if it's a new URL (avoid loops on same path)
+                        if (url && url !== this.imageUrl) {
+                            this.imageUrl = url;
+                            this.hasImageLoaded = false; // allow reload
+                            this.loadImage(url);
+                        }
+                    });
                 });
             },
 
