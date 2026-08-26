@@ -229,10 +229,12 @@ class PrinterService {
   }) async {
     if (!Platform.isAndroid) return false;
     try {
-      debugPrint('🖨️ Mengirim foto via Android PrintManager (Epson Print Service)...');
+      final borderless = await getBorderless();
+      debugPrint('🖨️ Mengirim foto via Android PrintManager (borderless: $borderless)...');
       final success = await _channel.invokeMethod<bool>('printPhoto', {
         'imageBytes': imageBytes,
         'jobName': jobName,
+        'borderless': borderless,
       });
       return success ?? false;
     } catch (e) {
@@ -396,161 +398,77 @@ Future<Uint8List> _buildTestPdf(int _) async {
   const pageHeight = 6.0 * PdfPageFormat.inch;
   const pageFormat = PdfPageFormat(pageWidth, pageHeight, marginAll: 0);
 
-  // Warna tema photobooth
-  const darkBrown = PdfColor.fromInt(0xFF2C1A0E);
-  const cream = PdfColor.fromInt(0xFFF3E6D0);
-  const gold = PdfColor.fromInt(0xFFD4A853);
-  const lightGrey = PdfColor.fromInt(0xFFCCCCCC);
+  const black = PdfColors.black;
+  const grey = PdfColors.grey400;
 
   doc.addPage(
     pw.Page(
       pageFormat: pageFormat,
-      build: (context) => pw.Stack(
-        children: [
-          // Background cream
-          pw.Container(
-            width: pageWidth,
-            height: pageHeight,
-            color: cream,
-          ),
-
-          pw.Padding(
-            padding: const pw.EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.center,
-              children: [
-                // ── Header ──
-                pw.Container(
-                  width: double.infinity,
-                  padding: const pw.EdgeInsets.symmetric(vertical: 10),
-                  decoration: const pw.BoxDecoration(
-                    color: darkBrown,
-                    borderRadius: pw.BorderRadius.all(pw.Radius.circular(8)),
-                  ),
-                  child: pw.Column(
-                    children: [
-                      pw.Text(
-                        'FAKULTAS KOPI',
-                        style: pw.TextStyle(
-                          color: gold,
-                          fontSize: 18,
-                          fontWeight: pw.FontWeight.bold,
-                          letterSpacing: 2,
-                        ),
-                        textAlign: pw.TextAlign.center,
-                      ),
-                      pw.SizedBox(height: 2),
-                      pw.Text(
-                        'PHOTOBOOTH',
-                        style: pw.TextStyle(
-                          color: cream,
-                          fontSize: 10,
-                          letterSpacing: 3,
-                        ),
-                        textAlign: pw.TextAlign.center,
-                      ),
-                    ],
-                  ),
+      build: (context) => pw.Padding(
+        padding: const pw.EdgeInsets.all(20),
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            // ── Header tipis ──
+            pw.Container(
+              width: double.infinity,
+              padding: const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: black, width: 1),
+              ),
+              child: pw.Text(
+                'TEST PAGE — FAKULTAS KOPI PHOTOBOOTH',
+                style: pw.TextStyle(
+                  fontSize: 10,
+                  fontWeight: pw.FontWeight.bold,
+                  color: black,
                 ),
-
-                pw.SizedBox(height: 14),
-
-                // ── 3 slot foto placeholder ──
-                pw.Column(
-                  children: List.generate(3, (i) => pw.Padding(
-                    padding: const pw.EdgeInsets.only(bottom: 8),
-                    child: pw.Container(
-                      width: double.infinity,
-                      height: 80,
-                      decoration: pw.BoxDecoration(
-                        color: lightGrey,
-                        border: pw.Border.all(color: darkBrown, width: 1),
-                        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
-                      ),
-                      child: pw.Center(
-                        child: pw.Column(
-                          mainAxisAlignment: pw.MainAxisAlignment.center,
-                          children: [
-                            pw.Text(
-                              'FOTO ${i + 1}',
-                              style: pw.TextStyle(
-                                color: darkBrown,
-                                fontSize: 13,
-                                fontWeight: pw.FontWeight.bold,
-                              ),
-                            ),
-                            pw.SizedBox(height: 3),
-                            pw.Text(
-                              '[ slot foto ]',
-                              style: pw.TextStyle(
-                                color: const PdfColor.fromInt(0xFF888888),
-                                fontSize: 9,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  )),
-                ),
-
-                pw.SizedBox(height: 6),
-
-                // ── Info test ──
-                pw.Container(
-                  width: double.infinity,
-                  padding: const pw.EdgeInsets.all(10),
-                  decoration: pw.BoxDecoration(
-                    border: pw.Border.all(color: gold, width: 1),
-                    borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
-                  ),
-                  child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Text(
-                        '✓ HALAMAN UJI PRINTER',
-                        style: pw.TextStyle(
-                          color: darkBrown,
-                          fontSize: 9,
-                          fontWeight: pw.FontWeight.bold,
-                        ),
-                      ),
-                      pw.SizedBox(height: 4),
-                      pw.Text('Printer  : Epson L8050',
-                          style: const pw.TextStyle(color: darkBrown, fontSize: 8)),
-                      pw.Text('Kertas   : 4 × 6 inch (10 × 15 cm)',
-                          style: const pw.TextStyle(color: darkBrown, fontSize: 8)),
-                      pw.Text('Jalur    : PrintManager → Epson Print Service',
-                          style: const pw.TextStyle(color: darkBrown, fontSize: 8)),
-                      pw.SizedBox(height: 4),
-                      pw.Text(
-                        'Jika halaman ini tercetak dengan benar,\nprinter siap digunakan.',
-                        style: const pw.TextStyle(color: darkBrown, fontSize: 8),
-                      ),
-                    ],
-                  ),
-                ),
-
-                pw.Spacer(),
-
-                // ── Footer ──
-                pw.Text(
-                  'snaptech • test page',
-                  style: pw.TextStyle(
-                    color: const PdfColor.fromInt(0xFF888888),
-                    fontSize: 7,
-                    letterSpacing: 1,
-                  ),
-                  textAlign: pw.TextAlign.center,
-                ),
-              ],
+              ),
             ),
-          ),
-        ],
+
+            pw.SizedBox(height: 12),
+
+            // ── 3 slot kosong (outline only, no fill) ──
+            ...List.generate(3, (i) => pw.Padding(
+              padding: const pw.EdgeInsets.only(bottom: 8),
+              child: pw.Container(
+                width: double.infinity,
+                height: 90,
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: grey, width: 0.8),
+                ),
+                child: pw.Center(
+                  child: pw.Text(
+                    'SLOT FOTO ${i + 1}',
+                    style: pw.TextStyle(
+                      fontSize: 9,
+                      color: grey,
+                    ),
+                  ),
+                ),
+              ),
+            )),
+
+            pw.SizedBox(height: 8),
+
+            // ── Info minimal ──
+            pw.Text('Printer : Epson L8050',
+                style: const pw.TextStyle(fontSize: 8, color: black)),
+            pw.Text('Kertas  : 4 x 6 inch',
+                style: const pw.TextStyle(fontSize: 8, color: black)),
+            pw.Text('Status  : OK — hemat tinta',
+                style: const pw.TextStyle(fontSize: 8, color: black)),
+
+            pw.Spacer(),
+
+            // ── Footer ──
+            pw.Divider(color: grey, thickness: 0.5),
+            pw.Text('snaptech test page — no ink waste',
+                style: pw.TextStyle(fontSize: 7, color: grey)),
+          ],
+        ),
       ),
     ),
   );
   return doc.save();
 }
-
-

@@ -31,8 +31,9 @@ class MainActivity : FlutterActivity() {
                 "printPhoto" -> {
                     val imageBytes = call.argument<ByteArray>("imageBytes")
                     val jobName = call.argument<String>("jobName") ?: "Photobooth_Print"
+                    val borderless = call.argument<Boolean>("borderless") ?: true
                     if (imageBytes != null) {
-                        printPhoto(imageBytes, jobName, result)
+                        printPhoto(imageBytes, jobName, borderless, result)
                     } else {
                         result.error("INVALID_ARGS", "imageBytes is null", null)
                     }
@@ -143,7 +144,7 @@ class MainActivity : FlutterActivity() {
      * Akan menggunakan Epson Print Enabler yang sudah terpasang.
      * Ukuran kertas 4×6 inch, kualitas foto.
      */
-    private fun printPhoto(imageBytes: ByteArray, jobName: String, result: MethodChannel.Result) {
+    private fun printPhoto(imageBytes: ByteArray, jobName: String, borderless: Boolean, result: MethodChannel.Result) {
         try {
             val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
             if (bitmap == null) {
@@ -153,13 +154,18 @@ class MainActivity : FlutterActivity() {
 
             val printManager = getSystemService(Context.PRINT_SERVICE) as PrintManager
 
-            // Set atribut print: 4x6 inch, foto, warna, NO MARGINS (full bleed)
+            // Margin sesuai setting borderless
+            val margins = if (borderless) Margins.NO_MARGINS
+                          else Margins(500, 500, 500, 500) // 5mm border jika non-borderless
+
             val attrs = PrintAttributes.Builder()
                 .setMediaSize(MediaSize("4x6", "4x6 Photo", 4000, 6000))
                 .setResolution(Resolution("high", "High Quality", 600, 600))
                 .setColorMode(PrintAttributes.COLOR_MODE_COLOR)
-                .setMinMargins(Margins.NO_MARGINS)
+                .setMinMargins(margins)
                 .build()
+
+            Log.i(TAG, "🖨️ printPhoto — borderless=$borderless, margins=$margins")
 
             printManager.print(jobName, object : PrintDocumentAdapter() {
                 override fun onLayout(

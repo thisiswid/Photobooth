@@ -47,7 +47,8 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
   String? _connectedPrinterName;
   int _printRetryCount = 0;
   bool _hasAutoPrinted = false;
-  bool _isPrinting = false; // Guard tambahan agar tidak print ganda
+  bool _isPrinting = false;
+  bool _showPrintOverlay = false; // Overlay fullscreen saat PrintActivity aktif
 
   @override
   void initState() {
@@ -147,6 +148,7 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
     setState(() {
       _printStatus = PrintUiStatus.printing;
       _printStatusMessage = 'Mengirim data ke printer Epson L8050...';
+      _showPrintOverlay = true; // Tampilkan overlay fullscreen
     });
 
     try {
@@ -221,6 +223,9 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
       }
     } finally {
       _isPrinting = false;
+      if (mounted) {
+        setState(() => _showPrintOverlay = false); // Sembunyikan overlay
+      }
     }
   }
 
@@ -474,9 +479,11 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
       ),
     ).animate().slideX(begin: 0.05, delay: 200.ms);
 
-    return PhotoboothLayout(
-      header: const CustomerHeader(),
-      child: Column(
+    return Stack(
+      children: [
+        PhotoboothLayout(
+          header: const CustomerHeader(),
+          child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // "Hasil Foto" & Tombol Setting Printer di bawah header
@@ -539,6 +546,47 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
           SizedBox(height: isMobile ? 6.h : 12.h),
         ],
       ),
+        ),
+
+        // ── Overlay fullscreen saat PrintActivity aktif ──
+        if (_showPrintOverlay)
+          Positioned.fill(
+            child: Material(
+              color: AppColors.darkBrown.withValues(alpha: 0.92),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 72.r,
+                    height: 72.r,
+                    child: CircularProgressIndicator(
+                      color: AppColors.gold,
+                      strokeWidth: 3,
+                    ),
+                  ),
+                  SizedBox(height: 28.h),
+                  Text(
+                    'Sedang Mencetak...',
+                    style: GoogleFonts.cormorantGaramond(
+                      color: AppColors.creamWhite,
+                      fontSize: 26.sp,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  SizedBox(height: 10.h),
+                  Text(
+                    'Mohon tunggu, foto sedang dicetak',
+                    style: GoogleFonts.montserrat(
+                      color: AppColors.creamWhite.withValues(alpha: 0.7),
+                      fontSize: 13.sp,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
     );
   }
 
