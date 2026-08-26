@@ -368,29 +368,28 @@
 <body>
 
 <div class="container">
-    <!-- Header -->
-    <header class="brand-header">
-        <div class="brand-pill">
-            <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-            FAKULTAS KOPI PHOTOBOOTH
-        </div>
-        <h1 class="brand-title">Hasil Foto & Video</h1>
-        <p class="brand-subtitle">Simpan dan bagikan momen bahagiamu</p>
-    </header>
-
     @if($isExpired)
-        <!-- Masa Aktif Habis -->
-        <div class="expired-card">
-            <svg class="icon expired-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-            <h2 class="expired-title">Masa Aktif Foto Berakhir</h2>
-            <p style="font-size: 13px; color: var(--text-muted); line-height: 1.6; margin-top: 8px;">
-                Foto sesi ini disimpan selama <strong>7 hari</strong> demi privasi dan manajemen ruang penyimpanan.
-            </p>
-            <p style="font-size: 12px; color: var(--text-muted); margin-top: 14px;">
-                Silakan hubungi staf booth jika Anda memerlukan bantuan.
-            </p>
+        <!-- Masa Aktif Habis (0 Hari Aktif / Expired) -->
+        <div style="min-height: 70vh; display: flex; align-items: center; justify-content: center; width: 100%;">
+            <div class="expired-card" style="width: 100%; margin: 0;">
+                <svg class="icon expired-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                <h2 class="expired-title">Masa Aktif Foto Berakhir</h2>
+                <p style="font-size: 13px; color: var(--text-muted); line-height: 1.6; margin-top: 8px;">
+                    Foto dan video dari sesi ini sudah tidak tersedia karena telah melewati masa aktif penyimpanan (0 hari).
+                </p>
+            </div>
         </div>
     @else
+        <!-- Header (Hanya muncul jika foto masih aktif) -->
+        <header class="brand-header">
+            <div class="brand-pill">
+                <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                FAKULTAS KOPI PHOTOBOOTH
+            </div>
+            <h1 class="brand-title">Hasil Foto & Video</h1>
+            <p class="brand-subtitle">Simpan dan bagikan momen bahagiamu</p>
+        </header>
+
         <!-- Expiry countdown info -->
         <div class="expiry-card">
             <div class="expiry-info">
@@ -398,7 +397,7 @@
                 <div>
                     <div style="font-weight: 700; color: var(--dark-coffee);">Tersedia 7 Hari</div>
                     <div style="font-size: 11px; color: var(--text-muted);">
-                        Hingga {{ $result->expires_at->translatedFormat('d M Y, H:i') }}
+                        Hingga {{ $result->expires_at ? $result->expires_at->translatedFormat('d M Y, H:i') : '-' }}
                     </div>
                 </div>
             </div>

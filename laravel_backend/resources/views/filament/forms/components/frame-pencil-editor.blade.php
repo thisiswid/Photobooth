@@ -14,7 +14,7 @@
         if (is_string($imageVal)) {
             if (str_starts_with($imageVal, 'http://') || str_starts_with($imageVal, 'https://') || str_starts_with($imageVal, 'blob:')) {
                 $initialImageUrl = $imageVal;
-            } else {
+            } elseif (!str_starts_with($imageVal, 'livewire-file:') && !str_starts_with($imageVal, 'livewire-tmp/')) {
                 $initialImageUrl = '/storage/' . ltrim($imageVal, '/');
             }
         }
@@ -40,6 +40,7 @@
 </style>
 
 <div
+    wire:ignore
     x-data="framePencilEditor({
         state: $wire.entangle('{{ $statePath }}'),
         initialConfig: @js($initialState),
@@ -210,6 +211,7 @@
         return {
             state: params.state,
             imageUrl: params.imageUrl,
+            currentBlobUrl: null,
             canvasW: 600,
             canvasH: 1800,
             displayW: 340,
@@ -242,73 +244,128 @@
                     // 1. Delegated change listener on document (captures all file inputs)
                     document.addEventListener('change', (e) => {
                         if (e.target && e.target.type === 'file' && e.target.files && e.target.files[0]) {
-                            const file = e.target.files[0];
-                            const blobUrl = URL.createObjectURL(file);
-                            this.imageUrl = blobUrl;
-                            this.loadImage(blobUrl);
+                            this.handleSelectedFile(e.target.files[0]);
                         }
                     }, true);
 
                     // 2. FilePond global event listener (fires when file is added/picked)
                     window.addEventListener('FilePond:addfile', (e) => {
                         if (e.detail && e.detail.file && e.detail.file.file) {
-                            const blobUrl = URL.createObjectURL(e.detail.file.file);
-                            this.imageUrl = blobUrl;
-                            this.loadImage(blobUrl);
+                            this.handleSelectedFile(e.detail.file.file);
                         }
                     });
 
-                    // 3. Watch for Livewire / FilePond DOM image preview injection
-                    // Guard: only load if canvas has no image yet (hasImageLoaded=false),
-                    // to prevent FilePond's upload-complete DOM churn from wiping the canvas.
+                    // 3. FilePond file removal listener (fires when file is cleared)
+                    window.addEventListener('FilePond:removefile', (e) => {
+                        setTimeout(() => {
+                            const pondWrapper = document.querySelector('.filepond--root');
+                            const hasFiles = pondWrapper && pondWrapper.querySelector('.filepond--item');
+                            if (!hasFiles) {
+                                this.clearCanvas();
+                            }
+                        }, 100);
+                    });
+
+                    // 4. Watch for Livewire / FilePond DOM image preview injection fallback
                     const observer = new MutationObserver(() => {
-                        if (this.hasImageLoaded) return; // canvas already has an image — don't clobber it
+                        if (this.hasImageLoaded) return;
                         const filepondImg = document.querySelector('.filepond--image-preview-wrapper img, .filepond--item-preview img');
-                        if (filepondImg && filepondImg.src && filepondImg.src !== this.imageUrl && filepondImg.src.startsWith('blob:')) {
+                        if (filepondImg && filepondImg.src && filepondImg.src.startsWith('blob:') && filepondImg.src !== this.imageUrl) {
                             this.imageUrl = filepondImg.src;
                             this.loadImage(filepondImg.src);
                         }
                     });
                     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
 
-                    // 4. Watch Livewire asset_url state change (fires after upload completes & server saves path)
-                    // This is the reliable trigger for "upload 100% done" — Livewire pushes the final
-                    // storage path back to the client. We reload canvas from that URL.
-                    this.$watch('$wire.{{ $imageFieldName }}', (newVal) => {
-                        if (!newVal) return;
-                        const resolvedVal = Array.isArray(newVal) ? newVal[0] : newVal;
-                        if (!resolvedVal || typeof resolvedVal !== 'string') return;
-                        let url;
-                        if (resolvedVal.startsWith('http://') || resolvedVal.startsWith('https://') || resolvedVal.startsWith('blob:')) {
-                            url = resolvedVal;
-                        } else {
-                            url = '/storage/' + resolvedVal.replace(/^\//, '');
-                        }
-                        // Only reload if it's a new URL (avoid loops on same path)
-                        if (url && url !== this.imageUrl) {
-                            this.imageUrl = url;
-                            this.hasImageLoaded = false; // allow reload
-                            this.loadImage(url);
+                    // 5. Watch for layout_type / right_column_order select dropdown changes
+                    document.addEventListener('change', (e) => {
+                        if (e.target && (e.target.name === 'right_column_order' || (e.target.getAttribute && e.target.getAttribute('wire:model')?.includes('right_column_order')))) {
+                            this.updateSlotPoseIndices();
                         }
                     });
                 });
             },
 
+            getRightColumnOrder(count) {
+                let key = (params.initialConfig && params.initialConfig.right_column_order_key) || 'scrambled_1';
+                try {
+                    const selectEl = document.querySelector('select[name*="right_column_order"]') || document.querySelector('[wire\\:model*="right_column_order"]');
+                    if (selectEl && selectEl.value) {
+                        key = selectEl.value;
+                    }
+                } catch (e) {}
+
+                if (count === 4) {
+                    switch (key) {
+                        case 'scrambled_2': return [2, 3, 0, 1];
+                        case 'scrambled_3': return [1, 2, 3, 0];
+                        case 'reversed':    return [3, 2, 1, 0];
+                        case 'identical':   return [0, 1, 2, 3];
+                        case 'scrambled_1':
+                        default:            return [3, 0, 1, 2];
+                    }
+                } else {
+                    switch (key) {
+                        case 'scrambled_2': return [1, 2, 0];
+                        case 'reversed':    return [2, 1, 0];
+                        case 'identical':   return [0, 1, 2];
+                        case 'scrambled_1':
+                        default:            return [2, 0, 1];
+                    }
+                }
+            },
+
+            updateSlotPoseIndices() {
+                if (this.slots.length < 6) return;
+                const half = Math.round(this.slots.length / 2);
+                const rightOrder = this.getRightColumnOrder(this.slots.length - half);
+                this.slots.forEach((s, idx) => {
+                    if (idx < half) {
+                        s.pose_index = idx;
+                    } else {
+                        const rIdx = idx - half;
+                        s.pose_index = rightOrder[rIdx] !== undefined ? rightOrder[rIdx] : rIdx;
+                    }
+                });
+                this.onStateChange();
+            },
+
+            handleSelectedFile(file) {
+                if (!file || !(file instanceof Blob)) return;
+                if (this.currentBlobUrl) {
+                    URL.revokeObjectURL(this.currentBlobUrl);
+                }
+                this.currentBlobUrl = URL.createObjectURL(file);
+                this.imageUrl = this.currentBlobUrl;
+                this.loadImage(this.currentBlobUrl);
+            },
+
+            clearCanvas() {
+                this.hasImageLoaded = false;
+                this.imageUrl = null;
+                this.slots = [];
+                this.originalImageObj = null;
+                if (this.currentBlobUrl) {
+                    URL.revokeObjectURL(this.currentBlobUrl);
+                    this.currentBlobUrl = null;
+                }
+                const canvas = this.$refs.frameCanvas;
+                if (canvas) {
+                    const ctx = canvas.getContext('2d');
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                }
+                this.onStateChange();
+            },
+
             onLocalFileChosen(event) {
                 if (event.target.files && event.target.files[0]) {
-                    const file = event.target.files[0];
-                    const blobUrl = URL.createObjectURL(file);
-                    this.imageUrl = blobUrl;
-                    this.loadImage(blobUrl);
+                    this.handleSelectedFile(event.target.files[0]);
                 }
             },
 
             handleDrop(event) {
                 if (event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0]) {
-                    const file = event.dataTransfer.files[0];
-                    const blobUrl = URL.createObjectURL(file);
-                    this.imageUrl = blobUrl;
-                    this.loadImage(blobUrl);
+                    this.handleSelectedFile(event.dataTransfer.files[0]);
                 }
             },
 
@@ -358,6 +415,9 @@
                             this.detectHolesFromCanvas();
                         }
                     });
+                };
+                img.onerror = (err) => {
+                    console.warn('FramePencilEditor: Gagal memuat gambar dari URL:', src, err);
                 };
                 img.src = src;
             },
@@ -542,8 +602,11 @@
                     const rightPts = transparentSamples.filter(p => p.x >= midX);
                     const leftSlots = clusterPoints(leftPts);
                     const rightSlots = clusterPoints(rightPts);
+                    const rightOrder = this.getRightColumnOrder(rightSlots.length);
                     leftSlots.forEach((s, idx) => { s.pose_index = idx; });
-                    rightSlots.forEach((s, idx) => { s.pose_index = idx; });
+                    rightSlots.forEach((s, idx) => {
+                        s.pose_index = rightOrder[idx] !== undefined ? rightOrder[idx] : idx;
+                    });
                     detected = [...leftSlots, ...rightSlots];
                 }
 
@@ -553,14 +616,12 @@
 
             onStateChange() {
                 const poseCount = this.slots.length > 0 ? Math.max(...this.slots.map(s => s.pose_index + 1)) : 4;
-                // Preserve user-selected layout_type from params — don't override with 'grid'
-                // based on slot count alone (double_8 has 8 slots but layout_type must stay 'double_8').
                 const userLayoutType = (params.initialConfig && params.initialConfig.layout_type) ? params.initialConfig.layout_type : null;
                 let layoutType;
                 if (userLayoutType && ['double_6', 'double_8'].includes(userLayoutType)) {
                     layoutType = userLayoutType;
                 } else {
-                    layoutType = this.slots.length <= 4 ? 'single' : 'grid';
+                    layoutType = this.slots.length <= 4 ? 'single' : (this.slots.length === 6 ? 'double_6' : (this.slots.length === 8 ? 'double_8' : 'grid'));
                 }
                 const layoutConfig = {
                     layout_type: layoutType,

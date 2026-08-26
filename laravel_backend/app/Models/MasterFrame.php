@@ -99,6 +99,7 @@ class MasterFrame extends Model
         $rightOrder = match($rightKey) {
             'scrambled_1' => ($layoutType === 'double_8') ? [3, 0, 1, 2] : [2, 0, 1],
             'scrambled_2' => ($layoutType === 'double_8') ? [2, 3, 0, 1] : [1, 2, 0],
+            'scrambled_3' => ($layoutType === 'double_8') ? [1, 2, 3, 0] : [2, 0, 1],
             'reversed'    => ($layoutType === 'double_8') ? [3, 2, 1, 0] : [2, 1, 0],
             'identical'   => ($layoutType === 'double_8') ? [0, 1, 2, 3] : [0, 1, 2],
             default       => ($layoutType === 'double_8') ? [3, 0, 1, 2] : [2, 0, 1],
@@ -156,6 +157,7 @@ class MasterFrame extends Model
         $rightOrder = match($rightKey) {
             'scrambled_1' => ($layoutType === 'double_8') ? [3, 0, 1, 2] : [2, 0, 1],
             'scrambled_2' => ($layoutType === 'double_8') ? [2, 3, 0, 1] : [1, 2, 0],
+            'scrambled_3' => ($layoutType === 'double_8') ? [1, 2, 3, 0] : [2, 0, 1],
             'reversed'    => ($layoutType === 'double_8') ? [3, 2, 1, 0] : [2, 1, 0],
             'identical'   => ($layoutType === 'double_8') ? [0, 1, 2, 3] : [0, 1, 2],
             default       => ($layoutType === 'double_8') ? [3, 0, 1, 2] : [2, 0, 1],
