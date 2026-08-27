@@ -170,13 +170,19 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
               if (_previewController != null && _previewController!.value.isInitialized)
                 Container(
                   clipBehavior: Clip.hardEdge,
+                  height: 220.h,
+                  width: double.infinity,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(8.r),
                     border: Border.all(color: Colors.white24),
                   ),
-                  child: AspectRatio(
-                    aspectRatio: _previewController!.value.aspectRatio,
-                    child: CameraPreview(_previewController!),
+                  child: FittedBox(
+                    fit: BoxFit.cover,
+                    child: SizedBox(
+                      width: _previewController!.value.previewSize?.height ?? 1280,
+                      height: _previewController!.value.previewSize?.width ?? 720,
+                      child: CameraPreview(_previewController!),
+                    ),
                   ),
                 )
               else if (_previewController != null)
