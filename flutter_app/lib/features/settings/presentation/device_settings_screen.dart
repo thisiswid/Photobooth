@@ -6,9 +6,9 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/router/app_router.dart';
-import '../../../core/services/camera_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../features/provisioning/providers/tenant_provider.dart';
+import 'widgets/camera_settings_tab.dart';
 import 'widgets/printer_settings_tab.dart';
 
 /// Halaman Hidden Device Settings khusus Operator (Akses via Hidden Gesture Logo 5x di Welcome Screen)
@@ -78,65 +78,10 @@ class _DeviceSettingsScreenState extends ConsumerState<DeviceSettingsScreen> wit
         controller: _tabController,
         children: const [
           PrinterSettingsTab(),
-          _CameraSettingsTab(),
+          CameraSettingsTab(),
           _SystemSettingsTab(),
         ],
       ),
-    );
-  }
-}
-
-class _CameraSettingsTab extends StatefulWidget {
-  const _CameraSettingsTab();
-
-  @override
-  State<_CameraSettingsTab> createState() => _CameraSettingsTabState();
-}
-
-class _CameraSettingsTabState extends State<_CameraSettingsTab> {
-  bool _isLoading = true;
-  List<dynamic> _cameras = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _loadCameras();
-  }
-
-  Future<void> _loadCameras() async {
-    setState(() => _isLoading = true);
-    final cameras = await CameraService.getAvailableCamerasList();
-    if (mounted) {
-      setState(() {
-        _cameras = cameras;
-        _isLoading = false;
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.gold));
-    }
-
-    return ListView(
-      padding: EdgeInsets.all(16.r),
-      children: [
-        Text(
-          'KAMERA KIOSK',
-          style: GoogleFonts.montserrat(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 12.sp),
-        ),
-        SizedBox(height: 10.h),
-        ..._cameras.map((cam) => Card(
-              color: Colors.black.withValues(alpha: 0.3),
-              child: ListTile(
-                leading: const Icon(Icons.camera_alt_rounded, color: AppColors.gold),
-                title: Text(cam.name, style: const TextStyle(color: Colors.white)),
-                subtitle: Text('Arah Lens: ${cam.lensDirection.name}', style: const TextStyle(color: Colors.white54)),
-              ),
-            )),
-      ],
     );
   }
 }
