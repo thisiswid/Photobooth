@@ -425,6 +425,30 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
               ),
             ),
             const Divider(color: Colors.white12),
+          ] else ...[
+            SizedBox(height: 6.h),
+            Container(
+              padding: EdgeInsets.all(10.r),
+              decoration: BoxDecoration(
+                color: Colors.amber.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8.r),
+                border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.info_outline_rounded, color: Colors.amberAccent, size: 18.r),
+                  SizedBox(width: 8.w),
+                  Expanded(
+                    child: Text(
+                      'Jika kamera sudah dicolok:\n1. Buka Pengaturan Tablet → USB Preferences: ubah "USB controlled by" ke "This device" (Mode Host).\n2. Atau hubungkan kamera lewat USB Type-C Hub / OTG Adapter.',
+                      style: GoogleFonts.montserrat(color: Colors.amberAccent, fontSize: 10.5.sp, height: 1.4),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(color: Colors.white12),
           ],
 
           // Row 3: Permission Status

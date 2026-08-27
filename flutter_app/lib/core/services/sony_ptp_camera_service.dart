@@ -12,6 +12,7 @@ class SonyCameraStatus {
   final int? productId;
   final String? devicePath;
   final String? serialNumber;
+  final int totalUsbDevices;
 
   const SonyCameraStatus({
     required this.isDetected,
@@ -22,6 +23,7 @@ class SonyCameraStatus {
     this.productId,
     this.devicePath,
     this.serialNumber,
+    this.totalUsbDevices = 0,
   });
 
   factory SonyCameraStatus.fromMap(Map<dynamic, dynamic>? map) {
@@ -41,6 +43,7 @@ class SonyCameraStatus {
       productId: map['productId'] as int?,
       devicePath: map['devicePath'] as String?,
       serialNumber: map['serialNumber'] as String?,
+      totalUsbDevices: (map['totalUsbDevices'] as num?)?.toInt() ?? 0,
     );
   }
 }

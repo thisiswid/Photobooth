@@ -80,11 +80,25 @@ class SonyPtpCameraManager(private val context: Context) {
 
     fun findSonyCamera(): UsbDevice? {
         val deviceList = usbManager.deviceList
+        Log.i(TAG, "🔍 Memeriksa USB Host: ditemukan ${deviceList.size} perangkat:")
         for (device in deviceList.values) {
+            Log.i(TAG, "   - ${device.deviceName}: ${device.productName ?: "Unknown"} (VID=${device.vendorId}, PID=${device.productId}, Interfaces=${device.interfaceCount})")
+            
+            // Match Sony VID (0x054C / 1356)
             if (device.vendorId == SONY_VENDOR_ID) {
-                Log.i(TAG, "📸 Ditemukan kamera Sony: ${device.productName ?: "ZV-E10"} (VID=${device.vendorId}, PID=${device.productId})")
+                Log.i(TAG, "📸 Match Sony Vendor ID: ${device.productName ?: "ZV-E10"} (VID=${device.vendorId}, PID=${device.productId})")
                 usbDevice = device
                 return device
+            }
+
+            // Match PTP Class 6, Subclass 1, Protocol 1
+            for (i in 0 until device.interfaceCount) {
+                val iface = device.getInterface(i)
+                if (iface.interfaceClass == 6 && iface.interfaceSubclass == 1 && iface.interfaceProtocol == 1) {
+                    Log.i(TAG, "📸 Match PTP Interface: ${device.productName ?: "PTP Camera"} (VID=${device.vendorId}, PID=${device.productId})")
+                    usbDevice = device
+                    return device
+                }
             }
         }
         usbDevice = null
@@ -102,7 +116,8 @@ class SonyPtpCameraManager(private val context: Context) {
             "vendorId" to dev?.vendorId,
             "productId" to dev?.productId,
             "devicePath" to dev?.deviceName,
-            "serialNumber" to (if (hasPerm) dev?.serialNumber else null)
+            "serialNumber" to (if (hasPerm) dev?.serialNumber else null),
+            "totalUsbDevices" to usbManager.deviceList.size
         )
     }
 
@@ -127,7 +142,9 @@ class SonyPtpCameraManager(private val context: Context) {
                 if (intent?.action == ACTION_USB_PERMISSION) {
                     val granted = intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)
                     Log.i(TAG, "USB Permission result: granted=$granted")
-                    context?.unregisterReceiver(this)
+                    try {
+                        context?.unregisterReceiver(this)
+                    } catch (_: Exception) {}
                     onResult(granted)
                 }
             }
@@ -141,13 +158,15 @@ class SonyPtpCameraManager(private val context: Context) {
 
         val filter = IntentFilter(ACTION_USB_PERMISSION)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            context.registerReceiver(permissionReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            context.registerReceiver(permissionReceiver, filter, Context.RECEIVER_EXPORTED)
         } else {
             context.registerReceiver(permissionReceiver, filter)
         }
 
-        val pendingIntent = PendingIntent.getBroadcast(context, 0, Intent(ACTION_USB_PERMISSION), flags)
+        val intent = Intent(ACTION_USB_PERMISSION).setPackage(context.packageName)
+        val pendingIntent = PendingIntent.getBroadcast(context, 0, intent, flags)
         usbManager.requestPermission(dev, pendingIntent)
+        Log.i(TAG, "📢 usbManager.requestPermission dikirim untuk ${dev.deviceName}")
     }
 
     // ─── 3. Open Connection & Claim Interface ──────────────────────────────────
