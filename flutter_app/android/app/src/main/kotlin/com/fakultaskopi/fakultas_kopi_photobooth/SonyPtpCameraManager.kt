@@ -354,8 +354,11 @@ class SonyPtpCameraManager(private val context: Context) {
                 sendPtpCommand(PTP_OP_INITIATE_CAPTURE, listOf(0, 0))
             } catch (_: Exception) {}
 
-            // 4. Download JPEG image dari buffer USB kamera
-            val capturedFile = readCapturedImageFromUsb()
+            // 4. Tunggu kamera simpan ke memory card (~1.5 detik)
+            delay(1500)
+
+            // 5. Download JPEG via PTP GetObjectHandles → GetObject
+            val capturedFile = downloadLatestImageViaPtp()
             if (capturedFile != null && capturedFile.exists() && capturedFile.length() > 10000) {
                 Log.i(TAG, "✅ [Sony ZV-E10] Foto berhasil diambil & ditransfer: ${capturedFile.absolutePath} (${capturedFile.length() / 1024} KB)")
                 return@withContext mapOf(
@@ -367,7 +370,7 @@ class SonyPtpCameraManager(private val context: Context) {
             } else {
                 return@withContext mapOf(
                     "success" to false,
-                    "message" to "Shutter terpicu namun data gambar tidak berhasil dibaca dari USB buffer."
+                    "message" to "Shutter terpicu namun gagal download foto via PTP GetObject."
                 )
             }
 
@@ -411,6 +414,75 @@ class SonyPtpCameraManager(private val context: Context) {
      * Membaca stream byte JPEG dari USB Bulk In Endpoint (0x81).
      * Format JPEG dimulai dengan magic bytes 0xFF, 0xD8 dan diakhiri dengan 0xFF, 0xD9.
      */
+    /**
+     * Download foto terbaru dari kamera Sony via PTP standard:
+     * 1. GetObjectHandles (0x1007) — dapat list semua object di storage
+     * 2. Ambil handle terakhir (foto paling baru)
+     * 3. GetObject (0x1009) — download JPEG bytes
+     *
+     * Ini adalah cara yang benar untuk Sony ZV-E10 — kamera tidak push
+     * raw JPEG ke bulk-in, melainkan menyimpan ke memory card dulu.
+     */
+    private fun downloadLatestImageViaPtp(): File? {
+        val conn = usbConnection ?: return null
+
+        // 1. GetObjectHandles: param1=0xFFFFFFFF (all storage),
+        //    param2=0x00000000 (all formats), param3=0xFFFFFFFF (all objects)
+        Log.i(TAG, "📂 PTP GetObjectHandles...")
+        val handlesResp = sendPtpCommand(
+            PTP_OP_GET_OBJECT_HANDLES,
+            listOf(0xFFFFFFFF.toInt(), 0x00000000, 0xFFFFFFFF.toInt())
+        )
+
+        val handlesData = handlesResp.data
+        if (handlesData == null || handlesData.size < 4) {
+            Log.w(TAG, "GetObjectHandles: data kosong atau terlalu kecil (${handlesData?.size ?: 0} bytes)")
+            return null
+        }
+
+        // Parse array of handles: [count(4)] [handle1(4)] [handle2(4)] ...
+        val bb = ByteBuffer.wrap(handlesData).order(ByteOrder.LITTLE_ENDIAN)
+        val count = bb.int
+        Log.i(TAG, "GetObjectHandles: $count object ditemukan")
+
+        if (count <= 0) {
+            Log.w(TAG, "GetObjectHandles: tidak ada object di kamera")
+            return null
+        }
+
+        // Ambil handle terakhir (foto paling baru)
+        val handles = IntArray(count) { bb.int }
+        val latestHandle = handles.last()
+        Log.i(TAG, "📷 Mengambil object handle terbaru: 0x${latestHandle.toString(16)}")
+
+        // 2. GetObject: download JPEG bytes untuk handle ini
+        Log.i(TAG, "⬇️ PTP GetObject (0x${latestHandle.toString(16)})...")
+        val objectResp = sendPtpCommand(PTP_OP_GET_OBJECT, listOf(latestHandle))
+
+        val jpegBytes = objectResp.data
+        if (jpegBytes == null || jpegBytes.size < 10000) {
+            Log.w(TAG, "GetObject: data JPEG terlalu kecil atau kosong (${jpegBytes?.size ?: 0} bytes)")
+            return null
+        }
+
+        // Verifikasi SOI marker JPEG (0xFF 0xD8)
+        if ((jpegBytes[0].toInt() and 0xFF) != 0xFF || (jpegBytes[1].toInt() and 0xFF) != 0xD8) {
+            Log.w(TAG, "GetObject: data tidak diawali JPEG SOI marker")
+            return null
+        }
+
+        Log.i(TAG, "✅ JPEG valid: ${jpegBytes.size / 1024} KB")
+
+        // Simpan ke file cache internal
+        val photoDir = File(context.cacheDir, "sony_photos")
+        if (!photoDir.exists()) photoDir.mkdirs()
+        val photoFile = File(photoDir, "sony_capture_${System.currentTimeMillis()}.jpg")
+        FileOutputStream(photoFile).use { it.write(jpegBytes) }
+
+        Log.i(TAG, "💾 Foto disimpan: ${photoFile.absolutePath}")
+        return photoFile
+    }
+
     private fun readCapturedImageFromUsb(): File? {
         val conn = usbConnection ?: return null
         val epIn = endpointIn ?: return null

@@ -12,6 +12,7 @@ import 'package:uuid/uuid.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/services/camera_service.dart';
 import '../../../core/services/error_logger.dart';
+import '../../../core/services/sony_ptp_camera_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../features/frame/domain/models/frame_model.dart';
 import '../../../features/session/domain/models/session_model.dart';
@@ -50,6 +51,9 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   CameraController? _cameraController;
   bool _isCameraReady = false;
 
+  // ── Sony USB PTP ──────────────────────────────────────────────────────────
+  bool _isSonyConnected = false;
+
   // ── Flow state ────────────────────────────────────────────────────────────
   _CaptureStep _step = _CaptureStep.initialPreview;
   int _countdownValue = _countdownSeconds;
@@ -66,6 +70,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   void initState() {
     super.initState();
     _initCamera();
+    _initSonyCamera();
     _uiRefreshTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
@@ -77,7 +82,38 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     _countdownTimer?.cancel();
     _cameraController?.dispose();
     _cameraController = null;
+    SonyPtpCameraService.disconnect();
     super.dispose();
+  }
+
+  // ── Sony USB PTP init ─────────────────────────────────────────────────────
+
+  Future<void> _initSonyCamera() async {
+    try {
+      final status = await SonyPtpCameraService.getStatus();
+      if (!status.isDetected) {
+        debugPrint('📷 [CameraScreen] Sony tidak terdeteksi di USB');
+        return;
+      }
+      // Minta permission kalau belum punya
+      if (!status.hasPermission) {
+        final granted = await SonyPtpCameraService.requestPermission();
+        if (!granted) {
+          debugPrint('⚠️ [CameraScreen] Permission USB Sony ditolak');
+          return;
+        }
+      }
+      // Connect + handshake PTP
+      final connected = await SonyPtpCameraService.connect();
+      if (mounted) {
+        setState(() => _isSonyConnected = connected);
+        debugPrint(connected
+            ? '✅ [CameraScreen] Sony USB PTP terhubung — akan dipakai untuk capture'
+            : '⚠️ [CameraScreen] Sony terdeteksi tapi gagal connect PTP');
+      }
+    } catch (e) {
+      debugPrint('⚠️ [CameraScreen] _initSonyCamera error: $e');
+    }
   }
 
   // ── Camera init ───────────────────────────────────────────────────────────
@@ -134,17 +170,26 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     if (!mounted) return;
 
     try {
-      if (_cameraController != null && _isCameraReady) {
-        final rawFile = await _cameraController!.takePicture();
+      if (_isSonyConnected) {
+        // ── Sony ZV-E10 via USB PTP ────────────────────────────────────────
+        final result = await SonyPtpCameraService.capturePhoto();
         if (!mounted) return;
-
-        final processedFile = await _processCapturedPhoto(rawFile, _isMirrorEnabled);
-
-        if (!mounted) return;
-        setState(() {
-          _lastCaptured = processedFile;
-          _step = _CaptureStep.result;
-        });
+        if (result.isSuccess && result.filePath != null) {
+          final xfile = XFile(result.filePath!);
+          final processedFile = await _processCapturedPhoto(xfile, _isMirrorEnabled);
+          if (!mounted) return;
+          setState(() {
+            _lastCaptured = processedFile;
+            _step = _CaptureStep.result;
+          });
+        } else {
+          debugPrint('⚠️ [CameraScreen] Sony capture gagal: ${result.message} — fallback ke kamera tab');
+          // Fallback ke kamera tab kalau Sony gagal
+          await _captureFromTabCamera();
+        }
+      } else if (_cameraController != null && _isCameraReady) {
+        // ── Kamera tablet (fallback / default) ────────────────────────────
+        await _captureFromTabCamera();
       } else {
         await Future<void>.delayed(const Duration(milliseconds: 600));
         if (!mounted) return;
@@ -165,6 +210,27 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
         _step = _CaptureStep.result;
       });
     }
+  }
+
+  /// Capture menggunakan kamera bawaan tablet (fallback dari Sony).
+  Future<void> _captureFromTabCamera() async {
+    if (_cameraController == null || !_isCameraReady) {
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+      if (!mounted) return;
+      setState(() {
+        _lastCaptured = null;
+        _step = _CaptureStep.result;
+      });
+      return;
+    }
+    final rawFile = await _cameraController!.takePicture();
+    if (!mounted) return;
+    final processedFile = await _processCapturedPhoto(rawFile, _isMirrorEnabled);
+    if (!mounted) return;
+    setState(() {
+      _lastCaptured = processedFile;
+      _step = _CaptureStep.result;
+    });
   }
 
   Future<XFile> _processCapturedPhoto(XFile rawFile, bool isMirrored) async {
