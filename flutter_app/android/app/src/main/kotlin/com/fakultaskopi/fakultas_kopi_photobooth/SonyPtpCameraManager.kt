@@ -273,26 +273,39 @@ class SonyPtpCameraManager(private val context: Context) {
     private fun initPtpSession(): Boolean {
         transactionId = 1
 
-        // 1. Standar PTP OpenSession
-        Log.i(TAG, "PTP -> Mengirim OpenSession (0x1002)...")
-        val respOpen = sendPtpCommand(PTP_OP_OPEN_SESSION, listOf(1))
+        // 1. Standar PTP OpenSession (SessionID=1, TransactionID=0 per PTP spec)
+        Log.i(TAG, "PTP -> Mengirim OpenSession (0x1002, SessionID=1, TID=0)...")
+        val respOpen = sendPtpCommand(PTP_OP_OPEN_SESSION, listOf(1), explicitTid = 0)
         if (respOpen.responseCode == PTP_RC_OK || respOpen.responseCode == PTP_RC_SESSION_ALREADY_OPEN) {
-            Log.i(TAG, "✅ PTP OpenSession Berhasil!")
+            Log.i(TAG, "✅ PTP OpenSession Berhasil! (Response=0x${respOpen.responseCode.toString(16)})")
             isSessionOpen = true
         } else {
-            Log.w(TAG, "PTP OpenSession response code: 0x${respOpen.responseCode.toString(16)}")
+            Log.w(TAG, "PTP OpenSession response: 0x${respOpen.responseCode.toString(16)}")
+            // Tetap coba lanjutkan jika kamera sudah dalam state aktif
+            isSessionOpen = true
         }
 
-        // 2. Sony SDIO Handshake Phase 1 & 2 (0x9201)
+        Thread.sleep(50)
+
+        // 2. Sony SDIO Handshake Phase 1 (0x9201, param1=1, param2=0) -> Membaca Data + Response
         try {
             Log.i(TAG, "Sony PTP -> Mengirim SonySDIOConnect (Phase 1)...")
-            sendPtpCommand(SONY_OP_SDIO_CONNECT, listOf(1, 0))
-            
-            Log.i(TAG, "Sony PTP -> Mengirim SonySDIOConnect (Phase 2)...")
-            sendPtpCommand(SONY_OP_SDIO_CONNECT, listOf(2, 0))
+            val res1 = sendPtpCommand(SONY_OP_SDIO_CONNECT, listOf(1, 0))
+            Log.i(TAG, "   Phase 1 Response: 0x${res1.responseCode.toString(16)}, DataSize=${res1.data?.size ?: 0}")
 
-            Log.i(TAG, "Sony PTP -> Mengirim SonyGetExtDeviceInfo (0x9202)...")
-            sendPtpCommand(SONY_OP_GET_EXT_DEVICE_INFO, listOf(0x012C, 0))
+            Thread.sleep(50)
+
+            // Sony SDIO Handshake Phase 2 (0x9201, param1=2, param2=0)
+            Log.i(TAG, "Sony PTP -> Mengirim SonySDIOConnect (Phase 2)...")
+            val res2 = sendPtpCommand(SONY_OP_SDIO_CONNECT, listOf(2, 0))
+            Log.i(TAG, "   Phase 2 Response: 0x${res2.responseCode.toString(16)}, DataSize=${res2.data?.size ?: 0}")
+
+            Thread.sleep(50)
+
+            // Sony SDIO Handshake Phase 3 (0x9201, param1=3, param2=0)
+            Log.i(TAG, "Sony PTP -> Mengirim SonySDIOConnect (Phase 3)...")
+            val res3 = sendPtpCommand(SONY_OP_SDIO_CONNECT, listOf(3, 0))
+            Log.i(TAG, "   Phase 3 Response: 0x${res3.responseCode.toString(16)}")
         } catch (e: Exception) {
             Log.w(TAG, "Sony extension handshake note: ${e.message}")
         }
@@ -317,16 +330,23 @@ class SonyPtpCameraManager(private val context: Context) {
         try {
             Log.i(TAG, "📸 [Sony ZV-E10] Memulai Remote Shutter Capture via PTP...")
 
-            // 1. Shutter Press Phase 1: Half-Press (AF-Lock)
-            sendPtpCommand(SONY_OP_DO_CONTROL, listOf(0x0001, 0))
+            // Drain any pending data on endpoints first
+            drainEndpoints()
+
+            // 1. Shutter Press Phase 1: Half-Press (AF-Lock) -> SonyDoControl (0x9207, param1=0x0001, param2=0)
+            Log.i(TAG, "⚡ S1: Shutter Half-Press (AF-Lock)...")
+            val r1 = sendPtpCommand(SONY_OP_DO_CONTROL, listOf(0x0001, 0))
+            Log.i(TAG, "   S1 Response: 0x${r1.responseCode.toString(16)}")
             delay(150)
 
-            // 2. Shutter Press Phase 2: Full-Press (Shutter Release Trigger!)
-            sendPtpCommand(SONY_OP_DO_CONTROL, listOf(0x0002, 0))
-            Log.i(TAG, "⚡ Shutter Release signal sent!")
+            // 2. Shutter Press Phase 2: Full-Press (Shutter Release Trigger!) -> (0x9207, param1=0x0002, param2=0)
+            Log.i(TAG, "⚡ S2: Shutter Full-Release (Take Photo!)...")
+            val r2 = sendPtpCommand(SONY_OP_DO_CONTROL, listOf(0x0002, 0))
+            Log.i(TAG, "   S2 Response: 0x${r2.responseCode.toString(16)}")
             delay(300)
 
-            // 3. Shutter Release Off (Kembali ke standby)
+            // 3. Shutter Release Off (Standby) -> (0x9207, param1=0x0000, param2=0)
+            Log.i(TAG, "⚡ S0: Shutter Release Off...")
             sendPtpCommand(SONY_OP_DO_CONTROL, listOf(0x0000, 0))
 
             // Fallback juga kirim Standard InitiateCapture jika kamera di-set standard PTP
@@ -360,6 +380,21 @@ class SonyPtpCameraManager(private val context: Context) {
         }
     }
 
+    private fun drainEndpoints() {
+        try {
+            val conn = usbConnection ?: return
+            val epIn = endpointIn ?: return
+            val epInt = endpointInt
+            val buf = ByteArray(1024)
+            // Drain bulk in
+            while (conn.bulkTransfer(epIn, buf, buf.size, 50) > 0) {}
+            // Drain interrupt in
+            if (epInt != null) {
+                while (conn.bulkTransfer(epInt, buf, epInt.maxPacketSize, 50) > 0) {}
+            }
+        } catch (_: Exception) {}
+    }
+
     /**
      * Membaca stream byte JPEG dari USB Bulk In Endpoint (0x81).
      * Format JPEG dimulai dengan magic bytes 0xFF, 0xD8 dan diakhiri dengan 0xFF, 0xD9.
@@ -368,10 +403,10 @@ class SonyPtpCameraManager(private val context: Context) {
         val conn = usbConnection ?: return null
         val epIn = endpointIn ?: return null
 
-        val buffer = ByteArray(32768) // 32 KB chunk
+        val buffer = ByteArray(65536) // 64 KB chunk
         val outputStream = ByteArrayOutputStream()
         val startTime = System.currentTimeMillis()
-        val timeoutMs = 7000 // Max 7 detik membaca full-res photo
+        val timeoutMs = 8000 // Max 8 detik membaca full-res photo
 
         var foundJpegHeader = false
         var totalBytesRead = 0
@@ -429,16 +464,20 @@ class SonyPtpCameraManager(private val context: Context) {
         return photoFile
     }
 
-    // ─── 6. Low-Level PTP Packet Helper ────────────────────────────────────────
+    // ─── 6. Low-Level PTP Multi-Phase Packet Engine ─────────────────────────────
 
     private data class PtpResponse(val responseCode: Short, val data: ByteArray?)
 
-    private fun sendPtpCommand(opCode: Short, params: List<Int> = emptyList()): PtpResponse {
+    /**
+     * Mengirim Command PTP dan membaca seluruh fasenya (Command -> Optional Data -> Response).
+     * Menangani USB Pipe Stall dengan clearHalt otomatis.
+     */
+    private fun sendPtpCommand(opCode: Short, params: List<Int> = emptyList(), explicitTid: Int? = null): PtpResponse {
         val conn = usbConnection ?: return PtpResponse(0, null)
         val epOut = endpointOut ?: return PtpResponse(0, null)
         val epIn = endpointIn ?: return PtpResponse(0, null)
 
-        val tid = transactionId++
+        val tid = explicitTid ?: transactionId++
         val length = 12 + (params.size * 4)
 
         val bb = ByteBuffer.allocate(length).order(ByteOrder.LITTLE_ENDIAN)
@@ -451,23 +490,69 @@ class SonyPtpCameraManager(private val context: Context) {
         }
 
         val cmdBytes = bb.array()
-        val outRes = conn.bulkTransfer(epOut, cmdBytes, cmdBytes.size, 1500)
+        var outRes = conn.bulkTransfer(epOut, cmdBytes, cmdBytes.size, 1500)
         if (outRes < 0) {
-            Log.w(TAG, "Gagal mengirim PTP command 0x${opCode.toString(16)}")
-            return PtpResponse(0, null)
+            Log.w(TAG, "⚠️ Endpoint OUT stalled on 0x${opCode.toString(16)}, clearing halt...")
+            try {
+                conn.clearHalt(epOut)
+                outRes = conn.bulkTransfer(epOut, cmdBytes, cmdBytes.size, 1500)
+            } catch (_: Exception) {}
+            if (outRes < 0) {
+                Log.e(TAG, "❌ Gagal mengirim PTP command 0x${opCode.toString(16)} setelah retry.")
+                return PtpResponse(0, null)
+            }
         }
 
-        // Baca Response Container
-        val respBuffer = ByteArray(512)
-        val inRes = conn.bulkTransfer(epIn, respBuffer, respBuffer.size, 2000)
-        if (inRes >= 12) {
-            val rbb = ByteBuffer.wrap(respBuffer, 0, inRes).order(ByteOrder.LITTLE_ENDIAN)
-            val rLen = rbb.int
-            val rType = rbb.short
-            val rCode = rbb.short
-            return PtpResponse(rCode, respBuffer.copyOf(inRes))
+        // Baca Response / Data Phases
+        val inBuffer = ByteArray(65536)
+        var responseCode: Short = 0
+        val accumulatedData = ByteArrayOutputStream()
+
+        var attempts = 0
+        while (attempts < 5) {
+            attempts++
+            val inRes = conn.bulkTransfer(epIn, inBuffer, inBuffer.size, 1500)
+            if (inRes < 12) {
+                if (inRes < 0) {
+                    try { conn.clearHalt(epIn) } catch (_: Exception) {}
+                }
+                break
+            }
+
+            val rbb = ByteBuffer.wrap(inBuffer, 0, inRes).order(ByteOrder.LITTLE_ENDIAN)
+            val containerLen = rbb.int
+            val containerType = rbb.short
+            val code = rbb.short
+            val rTid = rbb.int
+
+            if (containerType == PTP_CONTAINER_TYPE_DATA) {
+                // Fasa DATA: Simpan payload
+                val dataLen = inRes - 12
+                if (dataLen > 0) {
+                    accumulatedData.write(inBuffer, 12, dataLen)
+                }
+                // Jika data lebih besar dari 1 buffer chunk, baca sisanya
+                var remaining = containerLen - inRes
+                while (remaining > 0) {
+                    val nextChunk = conn.bulkTransfer(epIn, inBuffer, minOf(inBuffer.size, remaining), 1500)
+                    if (nextChunk > 0) {
+                        accumulatedData.write(inBuffer, 0, nextChunk)
+                        remaining -= nextChunk
+                    } else {
+                        break
+                    }
+                }
+                // Lanjut loop untuk membaca Response Container berikutnya
+            } else if (containerType == PTP_CONTAINER_TYPE_RESPONSE) {
+                // Fasa RESPONSE
+                responseCode = code
+                break
+            } else if (containerType == PTP_CONTAINER_TYPE_EVENT) {
+                Log.d(TAG, "PTP Event received: 0x${code.toString(16)}")
+            }
         }
 
-        return PtpResponse(0, null)
+        val finalData = if (accumulatedData.size() > 0) accumulatedData.toByteArray() else null
+        return PtpResponse(responseCode, finalData)
     }
 }
