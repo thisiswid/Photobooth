@@ -395,6 +395,18 @@ class SonyPtpCameraManager(private val context: Context) {
         } catch (_: Exception) {}
     }
 
+    private fun clearEndpointHalt(endpoint: UsbEndpoint) {
+        try {
+            val conn = usbConnection ?: return
+            // USB Standard Request: CLEAR_FEATURE (0x01) on ENDPOINT (0x02) with feature ENDPOINT_HALT (0x00)
+            val requestType = UsbConstants.USB_DIR_OUT or UsbConstants.USB_TYPE_STANDARD or UsbConstants.USB_RECIP_ENDPOINT
+            conn.controlTransfer(requestType, 0x01, 0x00, endpoint.address, null, 0, 1000)
+            Log.i(TAG, "Un-stalled endpoint ${endpoint.address}")
+        } catch (e: Exception) {
+            Log.w(TAG, "clearEndpointHalt error: ${e.message}")
+        }
+    }
+
     /**
      * Membaca stream byte JPEG dari USB Bulk In Endpoint (0x81).
      * Format JPEG dimulai dengan magic bytes 0xFF, 0xD8 dan diakhiri dengan 0xFF, 0xD9.
@@ -494,7 +506,7 @@ class SonyPtpCameraManager(private val context: Context) {
         if (outRes < 0) {
             Log.w(TAG, "⚠️ Endpoint OUT stalled on 0x${opCode.toString(16)}, clearing halt...")
             try {
-                conn.clearHalt(epOut)
+                clearEndpointHalt(epOut)
                 outRes = conn.bulkTransfer(epOut, cmdBytes, cmdBytes.size, 1500)
             } catch (_: Exception) {}
             if (outRes < 0) {
@@ -514,7 +526,7 @@ class SonyPtpCameraManager(private val context: Context) {
             val inRes = conn.bulkTransfer(epIn, inBuffer, inBuffer.size, 1500)
             if (inRes < 12) {
                 if (inRes < 0) {
-                    try { conn.clearHalt(epIn) } catch (_: Exception) {}
+                    try { clearEndpointHalt(epIn) } catch (_: Exception) {}
                 }
                 break
             }
