@@ -398,9 +398,9 @@ class SonyPtpCameraManager(private val context: Context) {
     private fun clearEndpointHalt(endpoint: UsbEndpoint) {
         try {
             val conn = usbConnection ?: return
-            // USB Standard Request: CLEAR_FEATURE (0x01) on ENDPOINT (0x02) with feature ENDPOINT_HALT (0x00)
-            val requestType = UsbConstants.USB_DIR_OUT or UsbConstants.USB_TYPE_STANDARD or UsbConstants.USB_RECIP_ENDPOINT
-            conn.controlTransfer(requestType, 0x01, 0x00, endpoint.address, null, 0, 1000)
+            // USB Standard Request: bmRequestType=0x02 (Host-to-Device, Standard, Endpoint recipient)
+            // bRequest=0x01 (CLEAR_FEATURE), wValue=0x00 (ENDPOINT_HALT), wIndex=endpoint.address
+            conn.controlTransfer(0x02, 0x01, 0x00, endpoint.address, null, 0, 1000)
             Log.i(TAG, "Un-stalled endpoint ${endpoint.address}")
         } catch (e: Exception) {
             Log.w(TAG, "clearEndpointHalt error: ${e.message}")
