@@ -193,7 +193,7 @@ class DeviceProvisioningController extends Controller
                     ],
                 ],
                 'pricing' => [
-                    'session_price'        => 25000,
+                    'session_price'        => (int) ($cafe->session_price ?? 25000),
                     'currency'             => 'IDR',
                     'default_print_copies' => 2,
                 ],

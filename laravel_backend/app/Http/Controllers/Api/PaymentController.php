@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Event;
 use App\Models\Payment;
 use App\Models\Session;
-use App\Services\XenditService;
+use App\Services\PakasirService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -39,32 +39,44 @@ class PaymentController extends Controller
             'xendit_payment_id' => null,
         ]);
 
-        // 3. Generate Dynamic QRIS via Xendit / Mock
-        $qrisData = XenditService::createQris($payment);
+        // 3. Generate Dynamic QRIS via Pakasir
+        $qrisData = PakasirService::createQris($payment);
 
         return response()->json([
             'success' => true,
             'data'    => [
-                'payment_id'  => $payment->id,
-                'session_id'  => $session->id,
-                'external_id' => $qrisData['external_id'],
-                'amount'      => $payment->amount,
-                'status'      => $payment->status,
-                'qr_string'   => $qrisData['qr_string'],
-                'is_mock'     => $qrisData['is_mock'],
+                'payment_id'    => $payment->id,
+                'session_id'    => $session->id,
+                'order_id'      => $qrisData['order_id'],
+                'external_id'   => $qrisData['order_id'],
+                'amount'        => (int) $payment->amount,
+                'total_payment' => $qrisData['total_payment'],
+                'fee'           => $qrisData['fee'],
+                'status'        => $payment->status,
+                'qr_string'     => $qrisData['qr_string'],
+                'expired_at'    => $qrisData['expired_at'],
+                'is_mock'       => $qrisData['is_mock'],
             ],
-            'message' => 'Dynamic QRIS berhasil dibuat.',
+            'message' => 'Dynamic QRIS Pakasir berhasil dibuat.',
         ], 201);
     }
 
     public function status(Payment $payment): JsonResponse
     {
+        // Jika masih pending, coba cek status transaksi langsung ke Pakasir API
+        if ($payment->status === 'pending') {
+            PakasirService::checkStatus($payment);
+            $payment->refresh();
+        }
+
         return response()->json([
             'success' => true,
             'data'    => [
-                'payment_id' => $payment->id,
-                'status'     => $payment->status,
-                'paid_at'    => $payment->paid_at,
+                'payment_id'     => $payment->id,
+                'status'         => $payment->status,
+                'session_id'     => $payment->session_id,
+                'session_status' => $payment->session?->status,
+                'paid_at'        => $payment->paid_at,
             ],
             'message' => 'OK',
         ]);
@@ -75,7 +87,8 @@ class PaymentController extends Controller
      */
     public function simulatePaid(Payment $payment): JsonResponse
     {
-        XenditService::simulatePaid($payment);
+        PakasirService::simulatePaid($payment);
+        $payment->refresh();
 
         return response()->json([
             'success' => true,

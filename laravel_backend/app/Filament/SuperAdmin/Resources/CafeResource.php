@@ -79,8 +79,15 @@ class CafeResource extends Resource
                     Textarea::make('address')->label('Alamat Lokasi Booth / Cafe')->columnSpanFull(),
                 ])->columns(3),
 
-            Section::make('Langganan & Bagi Hasil (Platform Revenue Share)')
+            Section::make('Langganan & Pengaturan Harga (Pricing)')
                 ->schema([
+                    TextInput::make('session_price')
+                        ->label('Harga Sesi Photobooth (Rp)')
+                        ->numeric()
+                        ->default(25000)
+                        ->prefix('Rp')
+                        ->helperText('Nominal pembayaran QRIS yang akan ditagihkan ke pengunjung di layar booth')
+                        ->required(),
                     DatePicker::make('subscription_end_at')
                         ->label('Masa Aktif Langganan / Lisensi')
                         ->helperText('Biarkan kosong jika sistem beli putus / seumur hidup'),
@@ -153,6 +160,10 @@ class CafeResource extends Resource
                     ->counts('devices')
                     ->badge()
                     ->color('info')
+                    ->sortable(),
+                TextColumn::make('session_price')
+                    ->label('Harga Sesi')
+                    ->money('IDR', locale: 'id_ID')
                     ->sortable(),
                 TextColumn::make('revenue_share_percentage')
                     ->label('Bagi Hasil')

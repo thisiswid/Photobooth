@@ -24,6 +24,7 @@ class Cafe extends Model
         'show_kiosk_settings',
         'subscription_end_at',
         'revenue_share_percentage',
+        'session_price',
         'logo_path',
         'notes',
     ];
@@ -33,6 +34,7 @@ class Cafe extends Model
         'show_kiosk_settings'      => 'boolean',
         'subscription_end_at'      => 'datetime',
         'revenue_share_percentage' => 'decimal:2',
+        'session_price'            => 'integer',
     ];
 
     public function users(): HasMany

@@ -45,7 +45,8 @@ Route::post('/sessions/{session}/finish', [SessionController::class, 'finish']);
 
 Route::get('/results/{token}', [ResultController::class, 'show']);
 
-// ── Xendit Webhook ─────────────────────────────────────────────────────────────
+// ── Payment Webhooks ──────────────────────────────────────────────────────────
+Route::post('/webhooks/pakasir', [WebhookController::class, 'pakasir']);
 Route::post('/webhooks/xendit/payment', [WebhookController::class, 'xendit']);
 
 // ── Admin REST API (Sanctum) ───────────────────────────────────────────────────

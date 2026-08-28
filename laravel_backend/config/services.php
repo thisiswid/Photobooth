@@ -40,6 +40,11 @@ return [
         'webhook_token' => env('XENDIT_WEBHOOK_TOKEN'),
     ],
 
+    'pakasir' => [
+        'slug'    => env('PAKASIR_SLUG', 'snaptechbooth'),
+        'api_key' => env('PAKASIR_API_KEY', 'UNDovg8HAySBJSyOUiC3DcyNvwmkC8x1'),
+    ],
+
     'openagentic' => [
         'key'      => env('OPENAGENTIC_API_KEY'),
         'base_url' => env('OPENAGENTIC_BASE_URL', 'https://openagentic.id/api/v1'),

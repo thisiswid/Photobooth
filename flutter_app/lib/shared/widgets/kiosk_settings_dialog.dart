@@ -11,6 +11,7 @@ import '../../core/router/app_router.dart';
 import '../../core/services/camera_service.dart';
 import '../../core/services/printer_service.dart';
 import '../../core/services/provisioning_service.dart';
+import '../../core/services/sony_ptp_camera_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../features/provisioning/providers/tenant_provider.dart';
@@ -42,6 +43,12 @@ class _KioskSettingsDialogState extends ConsumerState<KioskSettingsDialog> with 
   List<CameraDescription> _cameras = [];
   CameraDescription? _activeCamera;
   bool _isLoadingCameras = true;
+
+  // ── Sony USB PTP ────────────────────────────────────────────────────────────
+  SonyCameraStatus? _sonyStatus;
+  bool _isLoadingSony = true;
+  bool _isConnectingSony = false;
+  String? _sonyActionMessage;
 
   String? _printerIp;
   bool _isLoadingPrinters = true;
@@ -78,6 +85,7 @@ class _KioskSettingsDialogState extends ConsumerState<KioskSettingsDialog> with 
     await Future.wait([
       _loadCameras(),
       _loadPrinters(),
+      _loadSonyStatus(),
     ]);
   }
 
@@ -91,6 +99,60 @@ class _KioskSettingsDialogState extends ConsumerState<KioskSettingsDialog> with 
         _activeCamera = active;
         _isLoadingCameras = false;
       });
+    }
+  }
+
+  Future<void> _loadSonyStatus() async {
+    setState(() => _isLoadingSony = true);
+    final status = await SonyPtpCameraService.getStatus();
+    if (mounted) {
+      setState(() {
+        _sonyStatus = status;
+        _isLoadingSony = false;
+      });
+    }
+  }
+
+  Future<void> _connectSony() async {
+    setState(() {
+      _isConnectingSony = true;
+      _sonyActionMessage = null;
+    });
+    try {
+      // Minta permission jika belum
+      if (_sonyStatus?.hasPermission == false) {
+        final granted = await SonyPtpCameraService.requestPermission();
+        if (!granted) {
+          if (mounted) setState(() {
+            _isConnectingSony = false;
+            _sonyActionMessage = '⚠️ Permission USB ditolak';
+          });
+          return;
+        }
+      }
+      final connected = await SonyPtpCameraService.connect();
+      await _loadSonyStatus();
+      if (mounted) {
+        setState(() {
+          _isConnectingSony = false;
+          _sonyActionMessage = connected
+              ? '✅ Sony terhubung — siap untuk capture'
+              : '❌ Gagal connect ke Sony via PTP';
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() {
+        _isConnectingSony = false;
+        _sonyActionMessage = '❌ Error: $e';
+      });
+    }
+  }
+
+  Future<void> _disconnectSony() async {
+    await SonyPtpCameraService.disconnect();
+    await _loadSonyStatus();
+    if (mounted) {
+      setState(() => _sonyActionMessage = 'Sony diputus.');
     }
   }
 
@@ -540,6 +602,11 @@ class _KioskSettingsDialogState extends ConsumerState<KioskSettingsDialog> with 
           ),
         ),
         SizedBox(height: 14.h),
+
+        // ── Sony PTP USB Camera ─────────────────────────────────────────────
+        _buildSonyPtpCard(),
+        SizedBox(height: 14.h),
+
         Text(
           'DAFTAR KAMERA TERDETEKSI (${_cameras.length})',
           style: GoogleFonts.montserrat(
@@ -602,6 +669,200 @@ class _KioskSettingsDialogState extends ConsumerState<KioskSettingsDialog> with 
   }
 
   // ─── Tab 3: Printer ────────────────────────────────────────────────────────
+
+  Widget _buildSonyPtpCard() {
+    final status = _sonyStatus;
+    final isConnected = status?.isConnected == true;
+    final isDetected = status?.isDetected == true;
+
+    final statusColor = isConnected
+        ? const Color(0xFF22C55E)
+        : isDetected
+            ? AppColors.gold
+            : Colors.redAccent;
+
+    final statusLabel = isConnected
+        ? 'TERHUBUNG'
+        : isDetected
+            ? 'TERDETEKSI'
+            : 'TIDAK TERDETEKSI';
+
+    return Container(
+      padding: EdgeInsets.all(12.r),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.25),
+        borderRadius: BorderRadius.circular(10.r),
+        border: Border.all(color: statusColor.withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Header row ──────────────────────────────────────────────────
+          Row(
+            children: [
+              Icon(Icons.usb_rounded, color: statusColor, size: 18.r),
+              SizedBox(width: 8.w),
+              Text(
+                'SONY PTP USB CAMERA',
+                style: GoogleFonts.montserrat(
+                  color: AppColors.gold,
+                  fontSize: 11.5.sp,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.0,
+                ),
+              ),
+              const Spacer(),
+              if (_isLoadingSony)
+                SizedBox(
+                  width: 14.r,
+                  height: 14.r,
+                  child: const CircularProgressIndicator(
+                    color: AppColors.gold,
+                    strokeWidth: 2,
+                  ),
+                )
+              else
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6.r),
+                    border: Border.all(color: statusColor),
+                  ),
+                  child: Text(
+                    statusLabel,
+                    style: TextStyle(
+                      color: statusColor,
+                      fontSize: 10.sp,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          SizedBox(height: 10.h),
+
+          // ── Info device ─────────────────────────────────────────────────
+          if (isDetected && status != null) ...[
+            if (status.productName != null)
+              _sonyInfoRow('Perangkat', status.productName!),
+            if (status.vendorId != null)
+              _sonyInfoRow(
+                'VID / PID',
+                '0x${status.vendorId!.toRadixString(16).toUpperCase().padLeft(4, '0')} / '
+                '0x${status.productId!.toRadixString(16).toUpperCase().padLeft(4, '0')}',
+              ),
+            if (status.serialNumber != null)
+              _sonyInfoRow('Serial', status.serialNumber!),
+            _sonyInfoRow('Permission', status.hasPermission ? '✅ Diberikan' : '⚠️ Belum diberikan'),
+            SizedBox(height: 8.h),
+          ] else if (!isDetected) ...[
+            Text(
+              'Tidak ada kamera Sony terdeteksi di port USB.',
+              style: TextStyle(
+                color: AppColors.creamWhite.withValues(alpha: 0.55),
+                fontSize: 12.sp,
+              ),
+            ),
+            SizedBox(height: 8.h),
+          ],
+
+          // ── Pesan aksi ──────────────────────────────────────────────────
+          if (_sonyActionMessage != null) ...[
+            Text(
+              _sonyActionMessage!,
+              style: TextStyle(
+                color: AppColors.creamWhite.withValues(alpha: 0.8),
+                fontSize: 11.5.sp,
+              ),
+            ),
+            SizedBox(height: 8.h),
+          ],
+
+          // ── Tombol ──────────────────────────────────────────────────────
+          Row(
+            children: [
+              // Refresh
+              OutlinedButton.icon(
+                onPressed: _isLoadingSony ? null : _loadSonyStatus,
+                icon: Icon(Icons.refresh_rounded, size: 15.r),
+                label: Text('Refresh', style: GoogleFonts.montserrat(fontSize: 11.sp, fontWeight: FontWeight.w600)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.creamWhite,
+                  side: BorderSide(color: AppColors.creamWhite.withValues(alpha: 0.3)),
+                  padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
+                ),
+              ),
+              SizedBox(width: 8.w),
+              // Connect / Disconnect
+              if (isDetected)
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _isConnectingSony
+                        ? null
+                        : isConnected
+                            ? _disconnectSony
+                            : _connectSony,
+                    icon: _isConnectingSony
+                        ? SizedBox(
+                            width: 14.r,
+                            height: 14.r,
+                            child: const CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : Icon(
+                            isConnected ? Icons.link_off_rounded : Icons.link_rounded,
+                            size: 15.r,
+                          ),
+                    label: Text(
+                      _isConnectingSony
+                          ? 'Menghubungkan...'
+                          : isConnected
+                              ? 'Putuskan'
+                              : 'Hubungkan',
+                      style: GoogleFonts.montserrat(fontSize: 11.sp, fontWeight: FontWeight.w700),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isConnected ? Colors.redAccent.withValues(alpha: 0.8) : AppColors.gold,
+                      foregroundColor: isConnected ? Colors.white : AppColors.darkBrown,
+                      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sonyInfoRow(String label, String value) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: 4.h),
+      child: Row(
+        children: [
+          Text(
+            '$label: ',
+            style: TextStyle(
+              color: AppColors.creamWhite.withValues(alpha: 0.55),
+              fontSize: 11.5.sp,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: GoogleFonts.montserrat(
+                color: AppColors.creamWhite,
+                fontSize: 11.5.sp,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildPrinterTab() {
     if (_isLoadingPrinters) {

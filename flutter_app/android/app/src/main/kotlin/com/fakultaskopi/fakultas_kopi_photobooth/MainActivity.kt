@@ -18,14 +18,54 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.FileOutputStream
 import java.io.IOException
+import kotlinx.coroutines.*
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.fakultaskopi.photobooth/printer"
+    private val SONY_CAMERA_CHANNEL = "com.fakultaskopi.photobooth/sony_camera"
     private val TAG = "PhotoboothPrinter"
+
+    private lateinit var sonyCameraManager: SonyPtpCameraManager
+    private val mainScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
+        sonyCameraManager = SonyPtpCameraManager(this)
+
+        // ── 1. SONY ZV-E10 USB PTP CAMERA CHANNEL ─────────────────────────────
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SONY_CAMERA_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "getSonyCameraStatus" -> {
+                    result.success(sonyCameraManager.getCameraStatus())
+                }
+                "requestSonyPermission" -> {
+                    sonyCameraManager.requestPermission { granted ->
+                        result.success(granted)
+                    }
+                }
+                "connectSonyCamera" -> {
+                    val opened = sonyCameraManager.openConnection()
+                    result.success(mapOf(
+                        "success" to opened,
+                        "message" to if (opened) "Sony ZV-E10 terhubung via USB PTP" else "Gagal membuka koneksi USB Sony"
+                    ))
+                }
+                "disconnectSonyCamera" -> {
+                    sonyCameraManager.closeConnection()
+                    result.success(true)
+                }
+                "captureSonyPhoto" -> {
+                    mainScope.launch {
+                        val captureResult = sonyCameraManager.capturePhoto()
+                        result.success(captureResult)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        // ── 2. PRINTER CHANNEL (UNTOUCHED) ───────────────────────────────────
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "printPhoto" -> {
