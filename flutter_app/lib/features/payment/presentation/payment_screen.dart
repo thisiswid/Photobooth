@@ -6,6 +6,8 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+
 import '../../../core/constants/app_constants.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/router/app_router.dart';
@@ -18,7 +20,7 @@ import '../../../shared/widgets/customer_header.dart';
 import '../../../shared/widgets/photobooth_layout.dart';
 import '../../../shared/widgets/responsive_layout_builder.dart';
 
-/// Payment Screen — 1 card QRIS di tengah, layout minimal, tanpa step/receipt berlebihan.
+/// Payment Screen — Integrasi QRIS Dinamis Pakasir dengan Auto-Polling & Realtime Transition
 class PaymentScreen extends ConsumerStatefulWidget {
   const PaymentScreen({super.key});
 
@@ -27,16 +29,61 @@ class PaymentScreen extends ConsumerStatefulWidget {
 }
 
 class _PaymentScreenState extends ConsumerState<PaymentScreen> {
+  bool _isLoading = true;
   bool _isProcessing = false;
+  bool _isSuccess = false;
+
+  String? _qrString;
+  int? _paymentId;
+  int? _sessionId;
+  String? _orderId;
+  int _totalAmount = 25000;
+
   Timer? _timeoutTimer;
+  Timer? _pollTimer;
   int _timeoutLeft = 180;
 
   @override
   void initState() {
     super.initState();
     final tenantConfig = ref.read(tenantNotifierProvider).valueOrNull;
+    _totalAmount = tenantConfig?.pricing.sessionPrice ?? 25000;
     _timeoutLeft = tenantConfig?.timers.paymentTimeoutSeconds ?? 180;
+
     _startTimeout();
+    _initiatePayment();
+  }
+
+  @override
+  void dispose() {
+    _timeoutTimer?.cancel();
+    _pollTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startTimeout() {
+    _timeoutTimer?.cancel();
+    _timeoutTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      setState(() {
+        if (_timeoutLeft > 0) {
+          _timeoutLeft--;
+        } else {
+          t.cancel();
+          _pollTimer?.cancel();
+          context.go(AppRoutes.welcome);
+        }
+      });
+    });
+  }
+
+  String _formatTime(int totalSeconds) {
+    final m = (totalSeconds ~/ 60).toString().padLeft(2, '0');
+    final s = (totalSeconds % 60).toString().padLeft(2, '0');
+    return '$m:$s';
   }
 
   String _formatPrice(int price) {
@@ -44,82 +91,147 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     return 'Rp $formatted';
   }
 
-  @override
-  void dispose() {
-    _timeoutTimer?.cancel();
-    super.dispose();
+  /// Membuat transaksi QRIS via Backend / Pakasir
+  Future<void> _initiatePayment() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final res = await DioClient.instance.dio.post('/payments', data: {
+        'amount': _totalAmount,
+        'event_id': 1,
+      });
+
+      if (res.data['success'] == true && res.data['data'] != null) {
+        final data = res.data['data'];
+        setState(() {
+          _paymentId = data['payment_id'];
+          _sessionId = data['session_id'];
+          _qrString = data['qr_string'];
+          _orderId = data['order_id'] ?? data['external_id'];
+          _totalAmount = (data['total_payment'] ?? data['amount'] ?? _totalAmount) as int;
+          _isLoading = false;
+        });
+
+        // Mulai polling status pembayaran
+        _startPolling();
+      } else {
+        throw Exception(res.data['message'] ?? 'Gagal membuat QRIS');
+      }
+    } catch (e) {
+      debugPrint('Error initiating payment: $e');
+      // Fallback mock jika offline/error
+      setState(() {
+        _isLoading = false;
+        _orderId = 'MOCK-${DateTime.now().millisecondsSinceEpoch}';
+        _qrString = "00020101021226610016ID.CO.SHOPEE.WWW01189360091800216005230208216005230303UME51440014ID.CO.QRIS.WWW0215ID10243228429300303UME5204792953033605409$_totalAmount.005802ID5913SnapTechBooth6007Jakarta61051234562230519MOCK${_totalAmount}6304A079";
+        _paymentId = 1;
+        _sessionId = 1;
+      });
+      _startPolling();
+    }
   }
 
-  void _startTimeout() {
-    _timeoutTimer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (!mounted) {
-        t.cancel();
+  /// Polling status pembayaran ke backend setiap 2.5 detik
+  void _startPolling() {
+    _pollTimer?.cancel();
+    if (_paymentId == null) return;
+
+    _pollTimer = Timer.periodic(const Duration(milliseconds: 2500), (timer) async {
+      if (!mounted || _isSuccess) {
+        timer.cancel();
         return;
       }
-      setState(() => _timeoutLeft--);
-      if (_timeoutLeft <= 0) {
-        t.cancel();
-        context.go(AppRoutes.welcome);
+
+      try {
+        final res = await DioClient.instance.dio.get('/payments/$_paymentId/status');
+        if (res.data['success'] == true && res.data['data'] != null) {
+          final status = res.data['data']['status'];
+          if (status == 'paid') {
+            timer.cancel();
+            _onPaymentSuccess();
+          }
+        }
+      } catch (e) {
+        debugPrint('Polling payment status error: $e');
       }
     });
   }
 
-  Future<void> _handlePayment(String result) async {
-    Navigator.pop(context);
-    setState(() => _isProcessing = true);
-    await Future<void>.delayed(const Duration(milliseconds: 800));
-    if (!mounted) return;
-    switch (result) {
-      case 'success':
-        int realSessionId = 1;
-        DateTime expiresAt = DateTime.now().add(AppConstants.sessionDuration);
-        try {
-          final res = await DioClient.instance.dio.post('/sessions', data: {'event_id': 1});
-          if (res.data['success'] == true && res.data['data'] != null) {
-            realSessionId = res.data['data']['session_id'] ?? 1;
-            if (res.data['data']['expires_at'] != null) {
-              expiresAt = DateTime.parse(res.data['data']['expires_at']).toLocal();
-            } else if (res.data['data']['session_timeout_seconds'] != null) {
-              final seconds = res.data['data']['session_timeout_seconds'] as int;
-              expiresAt = DateTime.now().add(Duration(seconds: seconds));
-            }
-          }
-        } catch (e) {
-          debugPrint('Session create fallback: $e');
-        }
+  /// Penanganan saat pembayaran terdeteksi sukses
+  Future<void> _onPaymentSuccess() async {
+    if (_isSuccess) return;
+    _pollTimer?.cancel();
+    _timeoutTimer?.cancel();
 
-        if (!mounted) return;
-        ref.read(sessionNotifierProvider.notifier).startSession(
+    setState(() {
+      _isSuccess = true;
+      _isProcessing = false;
+    });
+
+    // Inisialisasi session di Riverpod
+    int realSessionId = _sessionId ?? 1;
+    DateTime expiresAt = DateTime.now().add(AppConstants.sessionDuration);
+
+    ref.read(sessionNotifierProvider.notifier).startSession(
           sessionId: realSessionId,
           eventId: 1,
           startedAt: DateTime.now(),
           expiresAt: expiresAt,
         );
-        context.go(AppRoutes.frame);
+
+    // Berikan feedback animasi sukses sebentar sebelum pindah halaman
+    await Future.delayed(const Duration(milliseconds: 1400));
+    if (!mounted) return;
+
+    context.go(AppRoutes.frame);
+  }
+
+  /// Trigger dari manual simulator modal
+  Future<void> _handleSimulatorResult(String result) async {
+    Navigator.pop(context);
+    setState(() => _isProcessing = true);
+
+    switch (result) {
+      case 'success':
+        if (_paymentId != null) {
+          try {
+            await DioClient.instance.dio.post('/payments/$_paymentId/simulate-paid');
+          } catch (e) {
+            debugPrint('Simulate paid call failed: $e');
+          }
+        }
+        await _onPaymentSuccess();
+        break;
+
       case 'failed':
         setState(() => _isProcessing = false);
         ErrorLogger.instance.logPaymentError(
           reason: 'Transaksi pembayaran QRIS ditolak / gagal diproses',
-          amount: 48000,
+          amount: _totalAmount,
         );
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Pembayaran gagal. Silakan coba lagi.',
-              style: AppTextStyles.bodySmall.copyWith(color: AppColors.creamWhite)),
-          backgroundColor: AppColors.error,
-          behavior: SnackBarBehavior.floating,
-        ));
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Pembayaran gagal. Silakan coba lagi.',
+                style: AppTextStyles.bodySmall.copyWith(color: AppColors.creamWhite)),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+          ));
+        }
+        break;
+
       case 'pending':
         setState(() => _isProcessing = false);
-        ErrorLogger.instance.logPaymentError(
-          reason: 'Menunggu konfirmasi gateway (pending timeout)',
-          amount: 48000,
-        );
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Menunggu konfirmasi...',
-              style: AppTextStyles.bodySmall.copyWith(color: AppColors.creamWhite)),
-          backgroundColor: AppColors.darkBrown,
-          behavior: SnackBarBehavior.floating,
-        ));
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Menunggu pembayaran dari pelanggan...',
+                style: AppTextStyles.bodySmall.copyWith(color: AppColors.creamWhite)),
+            backgroundColor: AppColors.darkBrown,
+            behavior: SnackBarBehavior.floating,
+          ));
+        }
+        break;
     }
   }
 
@@ -128,13 +240,56 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _SimulatorSheet(onResult: _handlePayment),
+      builder: (_) => _SimulatorSheet(onResult: _handleSimulatorResult),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final isMobile = context.isMobile;
+
+    if (_isSuccess) {
+      return PhotoboothLayout(
+        header: const CustomerHeader(),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: EdgeInsets.all(24.r),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.check_circle_rounded,
+                  size: isMobile ? 80.sp : 100.sp,
+                  color: AppColors.success,
+                ),
+              ).animate().scale(duration: 400.ms, curve: Curves.easeOutBack),
+              SizedBox(height: 24.h),
+              Text(
+                'Pembayaran Berhasil!',
+                style: GoogleFonts.cormorantGaramond(
+                  fontSize: isMobile ? 26.sp : 34.sp,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.darkBrown,
+                ),
+              ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.1),
+              SizedBox(height: 8.h),
+              Text(
+                'Menyiapkan sesi foto Anda...',
+                style: GoogleFonts.montserrat(
+                  fontSize: isMobile ? 13.sp : 15.sp,
+                  color: AppColors.brown,
+                  fontWeight: FontWeight.w500,
+                ),
+              ).animate().fadeIn(delay: 350.ms),
+            ],
+          ),
+        ),
+      );
+    }
 
     if (_isProcessing) {
       return PhotoboothLayout(
@@ -159,8 +314,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       );
     }
 
-    final tenantConfig = ref.watch(tenantNotifierProvider).valueOrNull;
-    final dynamicPrice = _formatPrice(tenantConfig?.pricing.sessionPrice ?? 25000);
+    final formattedPrice = _formatPrice(_totalAmount);
 
     return PhotoboothLayout(
       header: const CustomerHeader(),
@@ -171,8 +325,13 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             vertical: isMobile ? 12.h : 20.h,
           ),
           child: _QrisMainCard(
-            price: dynamicPrice,
+            price: formattedPrice,
+            qrString: _qrString,
+            orderId: _orderId,
+            isLoading: _isLoading,
+            timeoutText: _formatTime(_timeoutLeft),
             isMobile: isMobile,
+            onRefresh: _initiatePayment,
             onSimulator: _showSimulator,
           ).animate().fadeIn(duration: 350.ms).slideY(begin: 0.04),
         ),
@@ -186,83 +345,164 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 class _QrisMainCard extends StatelessWidget {
   const _QrisMainCard({
     required this.price,
+    required this.qrString,
+    this.orderId,
+    required this.isLoading,
+    required this.timeoutText,
     required this.isMobile,
+    required this.onRefresh,
     required this.onSimulator,
   });
 
   final String price;
+  final String? qrString;
+  final String? orderId;
+  final bool isLoading;
+  final String timeoutText;
   final bool isMobile;
+  final VoidCallback onRefresh;
   final VoidCallback onSimulator;
 
   @override
   Widget build(BuildContext context) {
+    final qrSize = isMobile ? 160.r : 210.r;
+
     return Container(
+      constraints: BoxConstraints(maxWidth: isMobile ? 380.w : 460.w),
       padding: EdgeInsets.symmetric(
         horizontal: isMobile ? 24.w : 40.w,
-        vertical: isMobile ? 24.h : 36.h,
+        vertical: isMobile ? 22.h : 32.h,
       ),
       decoration: BoxDecoration(
         color: AppColors.creamWhite,
-        borderRadius: BorderRadius.circular(20.r),
+        borderRadius: BorderRadius.circular(24.r),
         border: Border.all(color: AppColors.borderWarm, width: 1.5),
         boxShadow: [
           BoxShadow(
             color: AppColors.darkBrown.withValues(alpha: 0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Judul
-          Text(
-            'Scan untuk Membayar',
-            style: GoogleFonts.cormorantGaramond(
-              fontSize: isMobile ? 22.sp : 28.sp,
-              fontWeight: FontWeight.w700,
-              color: AppColors.darkBrown,
-            ),
+          // Header Judul & Timer
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                'Scan QRIS',
+                style: GoogleFonts.cormorantGaramond(
+                  fontSize: isMobile ? 22.sp : 26.sp,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.darkBrown,
+                ),
+              ),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
+                decoration: BoxDecoration(
+                  color: AppColors.darkBrown.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.timer_outlined, size: 14.sp, color: AppColors.darkBrown),
+                    SizedBox(width: 4.w),
+                    Text(
+                      timeoutText,
+                      style: GoogleFonts.montserrat(
+                        fontSize: 11.sp,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.darkBrown,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
 
-          SizedBox(height: 4.h),
+          SizedBox(height: 8.h),
           Container(
-            width: 36.w,
-            height: 1.2,
-            color: AppColors.gold.withValues(alpha: 0.55),
+            width: double.infinity,
+            height: 1,
+            color: AppColors.gold.withValues(alpha: 0.35),
           ),
-          SizedBox(height: isMobile ? 16.h : 22.h),
+          SizedBox(height: isMobile ? 14.h : 20.h),
 
-          // QRIS placeholder (ganti dengan Image.asset saat QRIS real tersedia)
+          // QRIS Display Area
           Container(
-            padding: EdgeInsets.all(isMobile ? 10.r : 14.r),
+            width: qrSize + 28.r,
+            height: qrSize + 28.r,
+            padding: EdgeInsets.all(14.r),
             decoration: BoxDecoration(
               color: AppColors.white,
-              borderRadius: BorderRadius.circular(14.r),
+              borderRadius: BorderRadius.circular(18.r),
               border: Border.all(color: AppColors.darkBrown, width: 2),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.darkBrown.withValues(alpha: 0.10),
-                  blurRadius: 12,
-                  offset: const Offset(2, 4),
+                  color: AppColors.darkBrown.withValues(alpha: 0.08),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
-            child: Icon(
-              Icons.qr_code_2_rounded,
-              size: isMobile ? 130.sp : 180.sp,
-              color: Colors.black87,
-            ),
-          ).animate().scale(delay: 150.ms, begin: const Offset(0.95, 0.95)),
+            child: isLoading
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircularProgressIndicator(color: AppColors.darkBrown, strokeWidth: 2.5),
+                        SizedBox(height: 12.h),
+                        Text(
+                          'Memuat QRIS...',
+                          style: GoogleFonts.montserrat(
+                            fontSize: 11.sp,
+                            color: AppColors.brown,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : qrString != null && qrString!.isNotEmpty
+                    ? Center(
+                        child: QrImageView(
+                          data: qrString!,
+                          version: QrVersions.auto,
+                          size: qrSize,
+                          gapless: true,
+                          errorCorrectionLevel: QrErrorCorrectLevel.M,
+                          backgroundColor: Colors.white,
+                          eyeStyle: const QrEyeStyle(
+                            eyeShape: QrEyeShape.square,
+                            color: Colors.black,
+                          ),
+                          dataModuleStyle: const QrDataModuleStyle(
+                            dataModuleShape: QrDataModuleShape.square,
+                            color: Colors.black,
+                          ),
+                        ),
+                      )
+                    : Center(
+                        child: IconButton(
+                          icon: const Icon(Icons.refresh, color: AppColors.darkBrown, size: 36),
+                          onPressed: onRefresh,
+                        ),
+                      ),
+          ).animate().scale(delay: 100.ms, begin: const Offset(0.96, 0.96)),
 
-          SizedBox(height: isMobile ? 16.h : 22.h),
+          SizedBox(height: isMobile ? 14.h : 18.h),
 
-          // Total pembayaran
+          // Total Pembayaran
           Text(
-            'Total',
+            'Total Pembayaran',
             style: GoogleFonts.montserrat(
-              fontSize: isMobile ? 10.sp : 12.sp,
+              fontSize: isMobile ? 11.sp : 12.sp,
               color: AppColors.brown,
               fontWeight: FontWeight.w500,
             ),
@@ -271,44 +511,57 @@ class _QrisMainCard extends StatelessWidget {
           Text(
             price,
             style: GoogleFonts.cormorantGaramond(
-              fontSize: isMobile ? 28.sp : 36.sp,
+              fontSize: isMobile ? 28.sp : 34.sp,
               fontWeight: FontWeight.w800,
               color: AppColors.darkBrown,
             ),
           ),
 
-          SizedBox(height: isMobile ? 12.h : 16.h),
+          SizedBox(height: isMobile ? 8.h : 12.h),
 
-          // E-wallet hint
+          // Info E-Wallet / Bank
           Text(
-            'BCA · GoPay · OVO · DANA · ShopeePay',
+            'BCA · Mandiri · BRI · GoPay · OVO · DANA · ShopeePay',
             style: GoogleFonts.montserrat(
               fontSize: isMobile ? 9.sp : 10.sp,
-              color: AppColors.brown.withValues(alpha: 0.75),
+              color: AppColors.brown.withValues(alpha: 0.8),
               fontWeight: FontWeight.w500,
             ),
             textAlign: TextAlign.center,
           ),
 
-          SizedBox(height: isMobile ? 20.h : 28.h),
+          if (orderId != null && orderId!.isNotEmpty) ...[
+            SizedBox(height: 6.h),
+            Text(
+              'Order: $orderId',
+              style: GoogleFonts.montserrat(
+                fontSize: isMobile ? 8.5.sp : 9.5.sp,
+                color: AppColors.brown.withValues(alpha: 0.55),
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
 
-          // Tombol simulator
+          SizedBox(height: isMobile ? 18.h : 24.h),
+
+          // Tombol Simulator Testing
           GestureDetector(
             onTap: onSimulator,
             child: Container(
               width: double.infinity,
               padding: EdgeInsets.symmetric(
-                vertical: isMobile ? 11.h : 13.h,
+                vertical: isMobile ? 10.h : 12.h,
               ),
               decoration: BoxDecoration(
                 color: AppColors.buttonBrown,
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Text(
-                'Simulasi Pembayaran (Demo)',
+                'Simulasi Pembayaran (Demo/Kasir)',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.montserrat(
-                  fontSize: isMobile ? 12.sp : 13.sp,
+                  fontSize: isMobile ? 11.5.sp : 12.5.sp,
                   fontWeight: FontWeight.w600,
                   color: AppColors.creamWhite,
                 ),
@@ -344,24 +597,30 @@ class _SimulatorSheet extends StatelessWidget {
             width: 44.w,
             height: 4.h,
             decoration: BoxDecoration(
-                color: AppColors.borderWarm,
-                borderRadius: BorderRadius.circular(2)),
+              color: AppColors.borderWarm,
+              borderRadius: BorderRadius.circular(2),
+            ),
           ),
           SizedBox(height: 16.h),
           Text(
-            'Simulator Pembayaran',
+            'Simulator Pembayaran (Testing)',
             style: GoogleFonts.cormorantGaramond(
-                fontSize: 22.sp, fontWeight: FontWeight.w800),
+              fontSize: 22.sp,
+              fontWeight: FontWeight.w800,
+              color: AppColors.darkBrown,
+            ),
           ),
           SizedBox(height: 6.h),
-          Text('Pilih status untuk pengujian flow',
-              style: AppTextStyles.caption),
+          Text(
+            'Pilih status untuk mensimulasikan hasil gateway',
+            style: AppTextStyles.caption,
+          ),
           SizedBox(height: 20.h),
           Row(
             children: [
               Expanded(
                 child: _SimBtn(
-                  label: 'Berhasil',
+                  label: 'Berhasil (Lunas)',
                   color: AppColors.success,
                   onTap: () => onResult('success'),
                 ),
@@ -411,7 +670,10 @@ class _SimBtn extends StatelessWidget {
           label,
           textAlign: TextAlign.center,
           style: GoogleFonts.montserrat(
-              fontSize: 11.5.sp, fontWeight: FontWeight.w700, color: color),
+            fontSize: 11.5.sp,
+            fontWeight: FontWeight.w700,
+            color: color,
+          ),
         ),
       ),
     );
