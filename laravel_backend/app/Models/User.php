@@ -57,7 +57,10 @@ class User extends Authenticatable implements FilamentUser
         }
 
         if ($panel->getId() === 'admin') {
-            // Only cafe-level accounts (admin, operator, viewer) can access the Cafe Admin panel
+            if ($this->isSuperAdmin()) {
+                return true;
+            }
+
             if ($this->isCafeAdmin()) {
                 if ($this->cafe_id && $this->cafe) {
                     return $this->cafe->isSubscriptionActive();
