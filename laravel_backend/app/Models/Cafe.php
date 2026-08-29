@@ -37,6 +37,20 @@ class Cafe extends Model
         'session_price'            => 'integer',
     ];
 
+    protected static function booted(): void
+    {
+        static::created(function (Cafe $cafe) {
+            if ($cafe->devices()->count() === 0) {
+                $cafe->devices()->create([
+                    'name'       => $cafe->name . ' - Kiosk Utama',
+                    'device_key' => $cafe->code,
+                    'platform'   => 'android',
+                    'status'     => 'active',
+                ]);
+            }
+        });
+    }
+
     public function users(): HasMany
     {
         return $this->hasMany(User::class);

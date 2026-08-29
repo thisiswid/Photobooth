@@ -23,12 +23,12 @@ use App\Models\Frame;
 use App\Models\Filter;
 
 // Get or create the demo event
-$event = Event::where('name', 'LumaBooth Demo Event')->first();
+$event = Event::where('name', 'SnapTech Demo Event')->orWhere('name', 'LumaBooth Demo Event')->first();
 if (!$event) {
-    echo "WARNING: No 'LumaBooth Demo Event' found. Creating one...\n";
+    echo "WARNING: No 'SnapTech Demo Event' found. Creating one...\n";
     $event = Event::create([
-        'name'        => 'LumaBooth Demo Event',
-        'description' => 'Demo event untuk LumaBooth',
+        'name'        => 'SnapTech Demo Event',
+        'description' => 'Demo event untuk SnapTech Photobooth',
         'starts_at'   => now(),
         'ends_at'     => now()->addMonths(6),
         'active'      => true,

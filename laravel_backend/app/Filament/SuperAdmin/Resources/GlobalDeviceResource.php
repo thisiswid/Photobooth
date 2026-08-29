@@ -51,7 +51,7 @@ class GlobalDeviceResource extends Resource
                         ->placeholder('Contoh: Booth Utama - Lantai 1'),
                     TextInput::make('device_key')
                         ->label('Device Pairing Key')
-                        ->default(fn () => Str::random(24))
+                        ->default(fn () => 'PB-' . strtoupper(Str::random(6)))
                         ->required()
                         ->unique(ignoreRecord: true)
                         ->helperText('Gunakan key ini untuk pairing aplikasi Flutter Photobooth dengan server'),

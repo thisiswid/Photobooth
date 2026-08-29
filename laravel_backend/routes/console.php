@@ -2,4 +2,4 @@
 
 use Illuminate\Support\Facades\Schedule;
 
-Schedule::command('lumabooth:cleanup')->dailyAt('02:00');
+Schedule::command('photobooth:cleanup')->dailyAt('02:00');

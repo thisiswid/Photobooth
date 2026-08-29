@@ -1,6 +1,6 @@
 <?php
 /**
- * Generate Photo Strip Frame PNGs for LumaBooth / Fakultas Kopi Photobooth
+ * Generate Photo Strip Frame PNGs for SnapTechBooth / Fakultas Kopi Photobooth
  * 
  * Creates 6 frame overlay designs as transparent PNGs (1200×1800 px).
  * Each frame has decorative borders and transparent cutout slots for photos.
@@ -533,7 +533,7 @@ $frames = [
 // Generate all frames
 // ============================================================
 
-echo "=== Generating LumaBooth Photo Strip Frames ===\n";
+echo "=== Generating Photobooth Photo Strip Frames ===\n";
 echo "Canvas: {$W}x{$H} px (4R @ 300 DPI)\n\n";
 
 $layoutConfigs = [];
