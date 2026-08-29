@@ -267,7 +267,7 @@ class DeviceProvisioningController extends Controller
                 'event'   => $event ? ['id' => $event->id, 'name' => $event->name] : null,
                 'frames'  => $frames,
                 'filters' => $filters,
-                'screens' => $screens,
+                'screens' => empty($screens) ? (object) [] : $screens,
             ],
         ]);
     }
