@@ -108,6 +108,49 @@ class ChromaKeyFrameTest extends TestCase
         @unlink($savedPath);
     }
 
+    public function test_it_removes_green_screen_and_detects_double_8_strip_slots()
+    {
+        Storage::fake('public');
+
+        // Create a synthetic 1200x1800 double strip with 2 columns of 4 green slots (8 slots total)
+        $w = 1200;
+        $h = 1800;
+        $im = imagecreatetruecolor($w, $h);
+        $white = imagecolorallocate($im, 255, 255, 255);
+        $green = imagecolorallocate($im, 0, 255, 0);
+
+        imagefilledrectangle($im, 0, 0, $w, $h, $white);
+
+        $slotW = 480;
+        $slotH = 340;
+        $gap = 45;
+        $top = 60;
+
+        for ($r = 0; $r < 4; $r++) {
+            $y1 = $top + $r * ($slotH + $gap);
+            $y2 = $y1 + $slotH;
+            // Left column
+            imagefilledrectangle($im, 60, $y1, 60 + $slotW, $y2, $green);
+            // Right column
+            imagefilledrectangle($im, 660, $y1, 660 + $slotW, $y2, $green);
+        }
+
+        $tempFile = tempnam(sys_get_temp_dir(), 'chroma_double_8_test') . '.png';
+        imagepng($im, $tempFile);
+        imagedestroy($im);
+
+        $res = FrameSlotDetector::removeGreenScreenAndDetectSlots($tempFile);
+
+        $this->assertTrue($res['success']);
+        $this->assertNotEmpty($res['relative_path']);
+        $this->assertCount(8, $res['slots']);
+        $this->assertEquals('double_8', $res['layout_type']);
+
+        $savedPath = storage_path('app/public/' . $res['relative_path']);
+        @unlink($tempFile);
+        @unlink($savedPath);
+    }
+
     public function test_it_removes_custom_pipette_color_and_detects_natural_slots()
     {
         Storage::fake('public');

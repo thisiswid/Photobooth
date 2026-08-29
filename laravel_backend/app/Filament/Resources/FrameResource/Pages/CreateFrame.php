@@ -130,9 +130,8 @@ class CreateFrame extends CreateRecord
         } elseif ($actualSlotCount === 8 && $layoutType === 'single') {
             $layoutType = 'double_8';
             $poseCount = 4;
-        } elseif ($actualSlotCount <= 4 && in_array($layoutType, ['double_6', 'double_8'])) {
-            $layoutType = 'single';
-            $poseCount = $actualSlotCount;
+        } elseif (in_array($layoutType, ['double_6', 'double_8'])) {
+            $poseCount = ($layoutType === 'double_6') ? 3 : 4;
         }
 
         // Re-evaluate rightOrder with the resolved layoutType and apply to slots
@@ -144,7 +143,8 @@ class CreateFrame extends CreateRecord
             'identical'   => ($layoutType === 'double_8') ? [0, 1, 2, 3] : [0, 1, 2],
             default       => ($layoutType === 'double_8') ? [3, 0, 1, 2] : [2, 0, 1],
         };
-        $finalSlots = FrameSlotDetector::assignSlotPoses($detectedSlots, $layoutType, $rightOrder, $poseCount);
+        $finalSlots = FrameSlotDetector::assignSlotPoses($finalSlots, $layoutType, $rightOrder, $poseCount);
+        $actualSlotCount = count($finalSlots);
 
         $data['layout_type'] = $layoutType;
         $data['pose_count']  = $poseCount;

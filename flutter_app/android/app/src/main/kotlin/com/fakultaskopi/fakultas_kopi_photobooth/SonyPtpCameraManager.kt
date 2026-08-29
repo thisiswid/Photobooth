@@ -333,32 +333,35 @@ class SonyPtpCameraManager(private val context: Context) {
             // Drain any pending data on endpoints first
             drainEndpoints()
 
-            // 1. Shutter Press Phase 1: Half-Press (AF-Lock) -> SonyDoControl (0x9207, param1=0x0001, param2=0)
-            Log.i(TAG, "⚡ S1: Shutter Half-Press (AF-Lock)...")
-            val r1 = sendPtpCommand(SONY_OP_DO_CONTROL, listOf(0x0001, 0))
-            Log.i(TAG, "   S1 Response: 0x${r1.responseCode.toString(16)}")
-            delay(150)
+            // 1. Shutter Press Phase 1: Half-Press (AF-Lock) -> Sony Property 0xD2C1 (UINT16 0x0001)
+            Log.i(TAG, "⚡ S1: Shutter Half-Press (AF-Lock via 0xD2C1)...")
+            val s1Res = sendPtpCommandWithDataOut(SONY_OP_DO_CONTROL, 0xD2C1, byteArrayOf(0x01, 0x00))
+            Log.i(TAG, "   S1 (AF) Response: 0x${s1Res.responseCode.toString(16)}")
+            delay(200)
 
-            // 2. Shutter Press Phase 2: Full-Press (Shutter Release Trigger!) -> (0x9207, param1=0x0002, param2=0)
-            Log.i(TAG, "⚡ S2: Shutter Full-Release (Take Photo!)...")
-            val r2 = sendPtpCommand(SONY_OP_DO_CONTROL, listOf(0x0002, 0))
-            Log.i(TAG, "   S2 Response: 0x${r2.responseCode.toString(16)}")
-            delay(300)
+            // 2. Shutter Press Phase 2: Full-Press (Shutter Release!) -> Sony Property 0xD2C2 (UINT16 0x0001)
+            Log.i(TAG, "⚡ S2: Shutter Full-Release (Take Photo via 0xD2C2!)...")
+            val s2Res = sendPtpCommandWithDataOut(SONY_OP_DO_CONTROL, 0xD2C2, byteArrayOf(0x01, 0x00))
+            Log.i(TAG, "   S2 (Release) Response: 0x${s2Res.responseCode.toString(16)}")
+            delay(400)
 
-            // 3. Shutter Release Off (Standby) -> (0x9207, param1=0x0000, param2=0)
-            Log.i(TAG, "⚡ S0: Shutter Release Off...")
-            sendPtpCommand(SONY_OP_DO_CONTROL, listOf(0x0000, 0))
+            // 3. Shutter Release Off (Standby) -> Sony Property 0xD2C2 (UINT16 0x0000)
+            Log.i(TAG, "⚡ S0: Shutter Release Off (0xD2C2 = 0)...")
+            sendPtpCommandWithDataOut(SONY_OP_DO_CONTROL, 0xD2C2, byteArrayOf(0x00, 0x00))
 
-            // Fallback juga kirim Standard InitiateCapture jika kamera di-set standard PTP
-            try {
-                sendPtpCommand(PTP_OP_INITIATE_CAPTURE, listOf(0, 0))
-            } catch (_: Exception) {}
+            // AF Off -> Sony Property 0xD2C1 (UINT16 0x0000)
+            sendPtpCommandWithDataOut(SONY_OP_DO_CONTROL, 0xD2C1, byteArrayOf(0x00, 0x00))
 
-            // 4. Tunggu kamera simpan ke memory card (~1.5 detik)
+            // 4. Tunggu kamera proses & simpan foto (~1.5 detik)
             delay(1500)
 
-            // 5. Download JPEG via PTP GetObjectHandles → GetObject
-            val capturedFile = downloadLatestImageViaPtp()
+            // 5. Download JPEG: Coba via GetObjectHandles dulu, jika kosong fallback ke bulk IN stream
+            var capturedFile = downloadLatestImageViaPtp()
+            if (capturedFile == null) {
+                Log.i(TAG, "Fallback: Membaca JPEG langsung dari USB Bulk IN stream...")
+                capturedFile = readCapturedImageFromUsbStream()
+            }
+
             if (capturedFile != null && capturedFile.exists() && capturedFile.length() > 10000) {
                 Log.i(TAG, "✅ [Sony ZV-E10] Foto berhasil diambil & ditransfer: ${capturedFile.absolutePath} (${capturedFile.length() / 1024} KB)")
                 return@withContext mapOf(
@@ -370,7 +373,7 @@ class SonyPtpCameraManager(private val context: Context) {
             } else {
                 return@withContext mapOf(
                     "success" to false,
-                    "message" to "Shutter terpicu namun gagal download foto via PTP GetObject."
+                    "message" to "Shutter terpicu namun gagal mentransfer data JPEG dari kamera."
                 )
             }
 
@@ -483,7 +486,7 @@ class SonyPtpCameraManager(private val context: Context) {
         return photoFile
     }
 
-    private fun readCapturedImageFromUsb(): File? {
+    private fun readCapturedImageFromUsbStream(): File? {
         val conn = usbConnection ?: return null
         val epIn = endpointIn ?: return null
 
@@ -638,5 +641,80 @@ class SonyPtpCameraManager(private val context: Context) {
 
         val finalData = if (accumulatedData.size() > 0) accumulatedData.toByteArray() else null
         return PtpResponse(responseCode, finalData)
+    }
+
+    /**
+     * Mengirim Command PTP dengan Data Out Container (Type 2) pada Endpoint OUT (0x02),
+     * lalu membaca Response Container (Type 3) dari Endpoint IN (0x81).
+     *
+     * Format ini wajib untuk SonySetControlDeviceProperty (0x9207) seperti Shutter Press & AF Lock.
+     */
+    private fun sendPtpCommandWithDataOut(opCode: Short, param1: Int, dataPayload: ByteArray): PtpResponse {
+        val conn = usbConnection ?: return PtpResponse(0, null)
+        val epOut = endpointOut ?: return PtpResponse(0, null)
+        val epIn = endpointIn ?: return PtpResponse(0, null)
+
+        val tid = transactionId++
+
+        // 1. Command Container (Type 1) -> 16 bytes (Header 12 bytes + Param1 4 bytes)
+        val cmdLen = 16
+        val cmdBb = ByteBuffer.allocate(cmdLen).order(ByteOrder.LITTLE_ENDIAN)
+        cmdBb.putInt(cmdLen)
+        cmdBb.putShort(PTP_CONTAINER_TYPE_COMMAND) // = 1
+        cmdBb.putShort(opCode)
+        cmdBb.putInt(tid)
+        cmdBb.putInt(param1)
+
+        val cmdBytes = cmdBb.array()
+        var out1 = conn.bulkTransfer(epOut, cmdBytes, cmdBytes.size, 1500)
+        if (out1 < 0) {
+            Log.w(TAG, "⚠️ sendPtpCommandWithDataOut: Endpoint OUT stalled on cmd 0x${opCode.toString(16)}, clearing halt...")
+            try {
+                clearEndpointHalt(epOut)
+                out1 = conn.bulkTransfer(epOut, cmdBytes, cmdBytes.size, 1500)
+            } catch (_: Exception) {}
+            if (out1 < 0) {
+                Log.e(TAG, "❌ Gagal kirim cmd container 0x${opCode.toString(16)}")
+                return PtpResponse(0, null)
+            }
+        }
+
+        // 2. Data Out Container (Type 2) -> 12 bytes Header + Payload bytes
+        val dataLen = 12 + dataPayload.size
+        val dataBb = ByteBuffer.allocate(dataLen).order(ByteOrder.LITTLE_ENDIAN)
+        dataBb.putInt(dataLen)
+        dataBb.putShort(PTP_CONTAINER_TYPE_DATA) // = 2
+        dataBb.putShort(opCode)
+        dataBb.putInt(tid)
+        dataBb.put(dataPayload)
+
+        val dataBytes = dataBb.array()
+        var out2 = conn.bulkTransfer(epOut, dataBytes, dataBytes.size, 1500)
+        if (out2 < 0) {
+            Log.w(TAG, "⚠️ sendPtpCommandWithDataOut: Endpoint OUT stalled on data 0x${opCode.toString(16)}, clearing halt...")
+            try {
+                clearEndpointHalt(epOut)
+                out2 = conn.bulkTransfer(epOut, dataBytes, dataBytes.size, 1500)
+            } catch (_: Exception) {}
+            if (out2 < 0) {
+                Log.e(TAG, "❌ Gagal kirim data out container 0x${opCode.toString(16)}")
+                return PtpResponse(0, null)
+            }
+        }
+
+        // 3. Response Container (Type 3) from Endpoint IN (0x81)
+        val respBuffer = ByteArray(512)
+        val inRes = conn.bulkTransfer(epIn, respBuffer, respBuffer.size, 2000)
+        if (inRes >= 12) {
+            val rbb = ByteBuffer.wrap(respBuffer, 0, inRes).order(ByteOrder.LITTLE_ENDIAN)
+            val rLen = rbb.int
+            val rType = rbb.short
+            val rCode = rbb.short
+            return PtpResponse(rCode, null)
+        } else if (inRes < 0) {
+            try { clearEndpointHalt(epIn) } catch (_: Exception) {}
+        }
+
+        return PtpResponse(0, null)
     }
 }
