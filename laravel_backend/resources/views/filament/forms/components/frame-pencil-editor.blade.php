@@ -550,8 +550,17 @@
                 }
 
                 const midX = w / 2;
-                const centerSamples = transparentSamples.filter(p => Math.abs(p['x'] - midX) <= (w * 0.05));
-                const isSingleCol = centerSamples.length >= 10;
+                const isNarrowVertical = (w / h) <= 0.45; // e.g. 600x1800 (1:3 ratio)
+
+                const getSelectedLayout = () => {
+                    try {
+                        const sel = document.querySelector('select[name*="layout_type"]') || document.querySelector('[wire\\:model*="layout_type"]');
+                        if (sel && sel.value) return sel.value;
+                    } catch (e) {}
+                    return (params.initialConfig && params.initialConfig.layout_type) || null;
+                };
+                const userLayout = getSelectedLayout();
+                const forceDouble = userLayout === 'double_6' || userLayout === 'double_8';
 
                 const clusterPoints = (samples) => {
                     if (samples.length === 0) return [];
@@ -586,28 +595,35 @@
                         const minX = Math.min(...xVals);
                         const maxX = Math.max(...xVals);
                         const slotW = maxX - minX;
-                        if (slotW < (w * 0.15)) return;
+                        if (slotW < (w * 0.12)) return;
 
                         foundSlots.push({ x: minX, y: minY, w: slotW, h: slotH });
                     });
                     return foundSlots;
                 };
 
+                const marginCenter = Math.max(10, Math.round(w * 0.02));
+                const leftPts = transparentSamples.filter(p => p.x < (midX - marginCenter));
+                const rightPts = transparentSamples.filter(p => p.x >= (midX + marginCenter));
+                const leftSlots = clusterPoints(leftPts);
+                const rightSlots = clusterPoints(rightPts);
+
                 let detected = [];
-                if (isSingleCol) {
-                    detected = clusterPoints(transparentSamples);
-                    detected.forEach((s, idx) => { s.pose_index = idx; });
-                } else {
-                    const leftPts = transparentSamples.filter(p => p.x < midX);
-                    const rightPts = transparentSamples.filter(p => p.x >= midX);
-                    const leftSlots = clusterPoints(leftPts);
-                    const rightSlots = clusterPoints(rightPts);
-                    const rightOrder = this.getRightColumnOrder(rightSlots.length);
+                // Check if this is a double column layout
+                const isDouble = forceDouble || (!isNarrowVertical && leftSlots.length >= 2 && rightSlots.length >= 2);
+
+                if (isDouble && (leftSlots.length > 0 || rightSlots.length > 0)) {
+                    // Double Column Layout: Left Column & Right Column
+                    const rightOrder = this.getRightColumnOrder(Math.max(rightSlots.length, 3));
                     leftSlots.forEach((s, idx) => { s.pose_index = idx; });
                     rightSlots.forEach((s, idx) => {
                         s.pose_index = rightOrder[idx] !== undefined ? rightOrder[idx] : idx;
                     });
                     detected = [...leftSlots, ...rightSlots];
+                } else {
+                    // Single Column Layout
+                    detected = clusterPoints(transparentSamples);
+                    detected.forEach((s, idx) => { s.pose_index = idx; });
                 }
 
                 this.slots = detected;
@@ -615,14 +631,35 @@
             },
 
             onStateChange() {
-                const poseCount = this.slots.length > 0 ? Math.max(...this.slots.map(s => s.pose_index + 1)) : 4;
-                const userLayoutType = (params.initialConfig && params.initialConfig.layout_type) ? params.initialConfig.layout_type : null;
+                const getSelectedLayout = () => {
+                    try {
+                        const sel = document.querySelector('select[name*="layout_type"]') || document.querySelector('[wire\\:model*="layout_type"]');
+                        if (sel && sel.value) return sel.value;
+                    } catch (e) {}
+                    return (params.initialConfig && params.initialConfig.layout_type) || null;
+                };
+                const userLayoutType = getSelectedLayout();
+
                 let layoutType;
-                if (userLayoutType && ['double_6', 'double_8'].includes(userLayoutType)) {
-                    layoutType = userLayoutType;
+                let poseCount;
+
+                if (userLayoutType === 'double_6') {
+                    layoutType = 'double_6';
+                    poseCount = 3;
+                } else if (userLayoutType === 'double_8') {
+                    layoutType = 'double_8';
+                    poseCount = 4;
+                } else if (this.slots.length === 6) {
+                    layoutType = 'double_6';
+                    poseCount = 3;
+                } else if (this.slots.length === 8) {
+                    layoutType = 'double_8';
+                    poseCount = 4;
                 } else {
-                    layoutType = this.slots.length <= 4 ? 'single' : (this.slots.length === 6 ? 'double_6' : (this.slots.length === 8 ? 'double_8' : 'grid'));
+                    layoutType = this.slots.length <= 4 ? 'single' : 'grid';
+                    poseCount = this.slots.length > 0 ? Math.max(...this.slots.map(s => s.pose_index + 1)) : 4;
                 }
+
                 const layoutConfig = {
                     layout_type: layoutType,
                     slot_count: this.slots.length,

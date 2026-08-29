@@ -214,6 +214,29 @@ class FrameSlotDetector
             $defaultRight = ($expectedRows === 4) ? [3, 0, 1, 2] : [2, 0, 1];
             $rightOrder = $rightOrder ?: $defaultRight;
 
+            // If slots passed are full-width rows (e.g. 3 or 4 wide rows instead of 6 or 8 distinct boxes),
+            // automatically split each row into a Left Column slot and a Right Column slot.
+            if (count($slots) <= 4 && count($slots) >= 2) {
+                $hasWide = false;
+                foreach ($slots as $s) {
+                    if (($s['w'] ?? 0) > 400) {
+                        $hasWide = true;
+                        break;
+                    }
+                }
+                if ($hasWide) {
+                    $split = [];
+                    foreach ($slots as $s) {
+                        $origW = $s['w'];
+                        $gap = max(30, (int) round($origW * 0.08));
+                        $halfW = (int) round(($origW - $gap) / 2);
+                        $split[] = ['x' => $s['x'], 'y' => $s['y'], 'w' => $halfW, 'h' => $s['h']];
+                        $split[] = ['x' => $s['x'] + $halfW + $gap, 'y' => $s['y'], 'w' => $halfW, 'h' => $s['h']];
+                    }
+                    $slots = $split;
+                }
+            }
+
             // Find median X coordinate to partition left and right columns
             $xCoords = array_map(fn($s) => $s['x'] + ($s['w'] / 2), $slots);
             sort($xCoords);
@@ -602,51 +625,37 @@ class FrameSlotDetector
             return $slots;
         };
 
-        // Check if transparent cutouts cross the center vertical axis (Single column vs Double column)
-        $centerSamples = array_filter($transparentGrid, fn($p) => abs($p['x'] - $midX) <= max(10, (int)($w * 0.04)));
-        $hasCenterCutout = count($centerSamples) >= 10;
-
-        if ($hasCenterCutout) {
-            $fullWidthSlots = $detectColumnClusters($transparentGrid);
-            if (!empty($fullWidthSlots)) {
-                $avgW = array_sum(array_column($fullWidthSlots, 'w')) / count($fullWidthSlots);
-                if ($avgW >= ($w * 0.48)) {
-                    $count = count($fullWidthSlots);
-                    $combinedSlots = self::assignSlotPoses($fullWidthSlots, 'single', [], $count);
-                    return [
-                        'success'      => true,
-                        'layout_type'  => 'single',
-                        'layout_label' => "Single Strip {$count} Foto",
-                        'pose_count'   => $count,
-                        'slot_count'   => $count,
-                        'slots'        => $combinedSlots,
-                        'dimensions'   => ['w' => $w, 'h' => $h],
-                        'method'       => 'alpha_contour',
-                        'confidence'   => 'high',
-                    ];
-                }
-            }
-        }
+        $aspectRatio = $h > 0 ? ($w / $h) : 0.66;
+        $isNarrowVertical = ($aspectRatio <= 0.45);
 
         $leftSlots = $detectColumnClusters($leftSamples);
         $rightSlots = $detectColumnClusters($rightSamples);
 
-        $hasDoubleColumn = (count($leftSlots) > 0 && count($rightSlots) > 0);
+        // Check if slots are truly 2 distinct columns (not a single wide slot split at midX)
+        $isRealDoubleColumn = false;
+        if (!$isNarrowVertical && count($leftSlots) >= 2 && count($rightSlots) >= 2) {
+            $avgLeftW = array_sum(array_column($leftSlots, 'w')) / count($leftSlots);
+            $avgRightW = array_sum(array_column($rightSlots, 'w')) / count($rightSlots);
+            // In a double strip, each column takes around 30% - 46% of total canvas width
+            if ($avgLeftW <= ($w * 0.48) && $avgRightW <= ($w * 0.48)) {
+                $isRealDoubleColumn = true;
+            }
+        }
 
-        if ($hasDoubleColumn) {
+        if ($isRealDoubleColumn) {
             $leftCount = count($leftSlots);
             $rightCount = count($rightSlots);
 
-            if ($leftCount === 3 || ($leftCount + $rightCount) === 6) {
+            if ($leftCount === 3 && $rightCount === 3) {
                 $layoutType = 'double_6';
                 $poseCount = 3;
                 $label = 'Double Strip 6 Foto (2 Kolom × 3 Pose)';
-            } elseif ($leftCount === 4 || ($leftCount + $rightCount) === 8) {
+            } elseif ($leftCount === 4 && $rightCount === 4) {
                 $layoutType = 'double_8';
                 $poseCount = 4;
                 $label = 'Double Strip 8 Foto (2 Kolom × 4 Pose)';
             } else {
-                $layoutType = 'double_6';
+                $layoutType = ($leftCount + $rightCount <= 6) ? 'double_6' : 'double_8';
                 $poseCount = max($leftCount, $rightCount);
                 $label = "Double Strip ({$leftCount}+{$rightCount} Slot)";
             }
