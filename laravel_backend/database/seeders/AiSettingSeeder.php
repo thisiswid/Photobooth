@@ -21,7 +21,7 @@ class AiSettingSeeder extends Seeder
                 'enable_photo_enhancer'  => false,
                 'max_tokens'             => 2048,
                 'temperature'            => 0.20,
-                'notes'                  => 'Konfigurasi Utama AI Platform LumaBooth / SnapTech',
+                'notes'                  => 'Konfigurasi Utama AI Platform SnapTechBooth',
             ]
         );
     }

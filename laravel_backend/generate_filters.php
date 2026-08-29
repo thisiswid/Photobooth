@@ -1,6 +1,6 @@
 <?php
 /**
- * Generate Filter Thumbnail PNGs for LumaBooth Photobooth
+ * Generate Filter Thumbnail PNGs for SnapTechBooth Photobooth
  * Creates 400x400px preview thumbnails for each filter effect.
  * 
  * Usage: php generate_filters.php

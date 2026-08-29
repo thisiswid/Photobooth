@@ -56,12 +56,12 @@ class AdminUserSeeder extends Seeder
             ]
         );
 
-        // Optional: backward-compatibility for admin@lumabooth.com
+        // Optional: admin@snaptechbooth.com / admin@fakultaskopi.com
         User::updateOrCreate(
-            ['email' => 'admin@lumabooth.com'],
+            ['email' => 'admin@snaptechbooth.com'],
             [
-                'name'     => 'Admin LumaBooth',
-                'email'    => 'admin@lumabooth.com',
+                'name'     => 'Admin SnapTech',
+                'email'    => 'admin@snaptechbooth.com',
                 'password' => Hash::make('password'),
                 'role'     => 'admin',
                 'cafe_id'  => $cafe->id,

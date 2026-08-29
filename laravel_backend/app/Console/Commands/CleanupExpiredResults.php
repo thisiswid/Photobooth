@@ -9,7 +9,8 @@ use Illuminate\Support\Facades\Log;
 
 class CleanupExpiredResults extends Command
 {
-    protected $signature   = 'lumabooth:cleanup';
+    protected $signature   = 'photobooth:cleanup';
+    protected $aliases     = ['lumabooth:cleanup'];
     protected $description = 'Hapus foto, GIF, dan hasil yang sudah melewati 30 hari retensi';
 
     public function handle(): void
@@ -35,7 +36,7 @@ class CleanupExpiredResults extends Command
             ->delete();
 
         $this->info("Cleaned {$expiredResults->count()} expired results, {$timedOut} timed-out sessions.");
-        Log::info('LumaBooth cleanup', [
+        Log::info('Photobooth cleanup', [
             'expired_results' => $expiredResults->count(),
             'timed_out_sessions' => $timedOut,
         ]);

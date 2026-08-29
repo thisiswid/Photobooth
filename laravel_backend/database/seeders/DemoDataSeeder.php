@@ -13,9 +13,9 @@ class DemoDataSeeder extends Seeder
     public function run(): void
     {
         $event = Event::updateOrCreate(
-            ['name' => 'LumaBooth Demo Event'],
+            ['name' => 'SnapTech Demo Event'],
             [
-                'description' => 'Demo event untuk LumaBooth',
+                'description' => 'Demo event untuk SnapTech Photobooth',
                 'starts_at'   => now(),
                 'ends_at'     => now()->addMonths(6),
                 'active'      => true,
@@ -182,7 +182,7 @@ class DemoDataSeeder extends Seeder
         ScreenConfig::updateOrCreate(
             ['screen_type' => 'welcome', 'event_id' => $event->id, 'status' => 'active'],
             [
-                'title'       => 'Selamat Datang di LumaBooth!',
+                'title'       => 'Selamat Datang!',
                 'description' => 'Abadikan momen spesialmu bersama kami.',
                 'button_text' => 'Mulai',
                 'version'     => 1,
@@ -195,7 +195,7 @@ class DemoDataSeeder extends Seeder
         ScreenConfig::updateOrCreate(
             ['screen_type' => 'tutorial', 'event_id' => $event->id, 'status' => 'active'],
             [
-                'title'       => 'Cara Menggunakan LumaBooth',
+                'title'       => 'Cara Menggunakan Photobooth',
                 'description' => 'Ikuti langkah-langkah berikut.',
                 'button_text' => 'Lanjut',
                 'version'     => 1,

@@ -39,10 +39,40 @@ class DeviceProvisioningController extends Controller
             ->with(['cafe', 'event'])
             ->first();
 
+        // ── Fallback 1: Jika input adalah Kode Lisensi Cafe (Code / Identifier) ──
+        if (!$device) {
+            $cafe = \App\Models\Cafe::where('code', $deviceKey)
+                ->orWhere('code', strtoupper($deviceKey))
+                ->orWhere('slug', strtolower($deviceKey))
+                ->first();
+
+            if ($cafe) {
+                $device = Device::where('cafe_id', $cafe->id)->first();
+                if (!$device) {
+                    $device = Device::create([
+                        'cafe_id'    => $cafe->id,
+                        'name'       => $cafe->name . ' - Kiosk Utama',
+                        'device_key' => $deviceKey,
+                        'platform'   => $request->platform ?? 'android',
+                        'status'     => 'active',
+                        'last_seen_at' => now(),
+                    ]);
+                } else {
+                    $device->update([
+                        'device_key' => $deviceKey,
+                        'platform'   => $request->platform ?? $device->platform ?? 'android',
+                        'status'     => 'active',
+                        'last_seen_at' => now(),
+                    ]);
+                }
+                $device->load(['cafe', 'event']);
+            }
+        }
+
         if (!$device) {
             return response()->json([
                 'success' => false,
-                'message' => 'Device Key tidak ditemukan atau belum didaftarkan oleh Super Admin.',
+                'message' => 'Device Key / Kode Lisensi tidak ditemukan atau belum didaftarkan oleh Super Admin.',
             ], 404);
         }
 
@@ -100,9 +130,33 @@ class DeviceProvisioningController extends Controller
      */
     public function config(string $deviceKey): JsonResponse
     {
+        $deviceKey = trim($deviceKey);
         $device = Device::where('device_key', $deviceKey)
             ->with(['cafe', 'event'])
             ->first();
+
+        // ── Fallback: Cari via Cafe Code ──
+        if (!$device) {
+            $cafe = \App\Models\Cafe::where('code', $deviceKey)
+                ->orWhere('code', strtoupper($deviceKey))
+                ->orWhere('slug', strtolower($deviceKey))
+                ->first();
+
+            if ($cafe) {
+                $device = Device::where('cafe_id', $cafe->id)->first();
+                if (!$device) {
+                    $device = Device::create([
+                        'cafe_id'    => $cafe->id,
+                        'name'       => $cafe->name . ' - Kiosk Utama',
+                        'device_key' => $deviceKey,
+                        'platform'   => 'android',
+                        'status'     => 'active',
+                        'last_seen_at' => now(),
+                    ]);
+                }
+                $device->load(['cafe', 'event']);
+            }
+        }
 
         if (!$device || !$device->cafe) {
             return response()->json([
@@ -235,7 +289,17 @@ class DeviceProvisioningController extends Controller
             return response()->json(['success' => false, 'message' => 'Invalid data'], 422);
         }
 
-        $device = Device::where('device_key', $request->device_key)->first();
+        $deviceKey = trim($request->device_key);
+        $device = Device::where('device_key', $deviceKey)->first();
+        if (!$device) {
+            $cafe = \App\Models\Cafe::where('code', $deviceKey)
+                ->orWhere('code', strtoupper($deviceKey))
+                ->orWhere('slug', strtolower($deviceKey))
+                ->first();
+            if ($cafe) {
+                $device = Device::where('cafe_id', $cafe->id)->first();
+            }
+        }
         if (!$device) {
             return response()->json(['success' => false, 'message' => 'Device not found'], 404);
         }
