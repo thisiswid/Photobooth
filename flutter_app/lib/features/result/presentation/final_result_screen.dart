@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:io' as dart_io;
 import 'dart:typed_data';
 import 'package:dio/dio.dart' as dio_pkg;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image/image.dart' as img;
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -39,6 +41,24 @@ class FinalResultScreen extends ConsumerStatefulWidget {
 
   @override
   ConsumerState<FinalResultScreen> createState() => _FinalResultScreenState();
+}
+
+/// Dikecilkan di isolate terpisah sebelum diunggah.
+///
+/// Sejak shutter PTP aktif, tiap foto dari Sony ZV-E10 berukuran 6000x4000
+/// (8-15 MB). Mengunggah 3-6 file sebesar itu memakan waktu lama, dan QR code
+/// baru bisa muncul SETELAH backend membalas `qr_token` dari request tersebut.
+/// Slot foto di template hanya 472x472 px pada kanvas 1333x2000, jadi 2000 px
+/// sisi terpanjang sudah jauh di atas kebutuhan cetak 4R 300 DPI.
+Uint8List? _downscaleForUpload(Uint8List bytes) {
+  final decoded = img.decodeImage(bytes);
+  if (decoded == null) return null;
+  const maxSide = 2000;
+  if (decoded.width <= maxSide && decoded.height <= maxSide) return null;
+  final resized = decoded.width >= decoded.height
+      ? img.copyResize(decoded, width: maxSide)
+      : img.copyResize(decoded, height: maxSide);
+  return img.encodeJpg(resized, quality: 90);
 }
 
 class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
@@ -98,12 +118,27 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
         final path = session.photos[i].fileUrl;
         final file = dart_io.File(path);
         if (await file.exists()) {
+          // Kecilkan dulu di isolate lain — lihat catatan di
+          // _downscaleForUpload(). Ini yang membuat QR muncul cepat.
+          Uint8List? small;
+          try {
+            final raw = await file.readAsBytes();
+            small = await compute(_downscaleForUpload, raw);
+          } catch (e) {
+            debugPrint('⚠️ Downscale gagal untuk $path: $e');
+          }
+
           formData.files.add(MapEntry(
             'photos[]',
-            await dio_pkg.MultipartFile.fromFile(
-              path,
-              filename: 'pose_${i + 1}.jpg',
-            ),
+            small != null
+                ? dio_pkg.MultipartFile.fromBytes(
+                    small,
+                    filename: 'pose_${i + 1}.jpg',
+                  )
+                : await dio_pkg.MultipartFile.fromFile(
+                    path,
+                    filename: 'pose_${i + 1}.jpg',
+                  ),
           ));
         } else {
           formData.fields.add(MapEntry('photos[]', path));

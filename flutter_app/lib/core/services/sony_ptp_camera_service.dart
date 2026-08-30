@@ -15,6 +15,23 @@ class SonyCameraStatus {
   final String? serialNumber;
   final int totalUsbDevices;
 
+  // ── Hybrid: dua perangkat terpisah ────────────────────────────────────────
+  /// HDMI capture card terdeteksi (jalur LIVE PREVIEW).
+  final bool uvcDetected;
+  final bool uvcHasPermission;
+  final String? uvcProductName;
+
+  /// Kamera Sony via kabel C-to-C terdeteksi (jalur SHUTTER / foto resolusi penuh).
+  final bool ptpDetected;
+  final bool ptpHasPermission;
+  final String? ptpProductName;
+  final bool ptpSessionOpen;
+  final bool isSony;
+  final int androidSdkInt;
+
+  /// Kedua jalur tersedia — mode hybrid penuh bisa dipakai.
+  bool get isHybridReady => uvcDetected && ptpDetected;
+
   const SonyCameraStatus({
     required this.isDetected,
     required this.hasPermission,
@@ -26,6 +43,15 @@ class SonyCameraStatus {
     this.devicePath,
     this.serialNumber,
     this.totalUsbDevices = 0,
+    this.uvcDetected = false,
+    this.uvcHasPermission = false,
+    this.uvcProductName,
+    this.ptpDetected = false,
+    this.ptpHasPermission = false,
+    this.ptpProductName,
+    this.ptpSessionOpen = false,
+    this.isSony = false,
+    this.androidSdkInt = 0,
   });
 
   factory SonyCameraStatus.fromMap(Map<dynamic, dynamic>? map) {
@@ -48,6 +74,15 @@ class SonyCameraStatus {
       devicePath: map['devicePath'] as String?,
       serialNumber: map['serialNumber'] as String?,
       totalUsbDevices: (map['totalUsbDevices'] as num?)?.toInt() ?? 0,
+      uvcDetected: map['uvcDetected'] == true,
+      uvcHasPermission: map['uvcHasPermission'] == true,
+      uvcProductName: map['uvcProductName'] as String?,
+      ptpDetected: map['ptpDetected'] == true,
+      ptpHasPermission: map['ptpHasPermission'] == true,
+      ptpProductName: map['ptpProductName'] as String?,
+      ptpSessionOpen: map['ptpSessionOpen'] == true,
+      isSony: map['isSony'] == true,
+      androidSdkInt: (map['androidSdkInt'] as num?)?.toInt() ?? 0,
     );
   }
 }
@@ -110,6 +145,18 @@ class SonyPtpCameraService {
         hasPermission: false,
         isConnected: false,
       );
+    }
+  }
+
+  /// Meminta izin akses USB untuk HDMI capture card (jalur live preview UVC)
+  static Future<bool> requestUvcPermission() async {
+    if (!Platform.isAndroid) return false;
+    try {
+      final granted = await _channel.invokeMethod<bool>('requestUvcPermission');
+      return granted ?? false;
+    } catch (e) {
+      debugPrint('⚠️ [SonyPtpCameraService] requestUvcPermission error: $e');
+      return false;
     }
   }
 

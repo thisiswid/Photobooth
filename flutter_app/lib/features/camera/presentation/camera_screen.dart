@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io' as dart_io;
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,7 +13,8 @@ import 'package:uuid/uuid.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/services/camera_service.dart';
 import '../../../core/services/error_logger.dart';
-import '../../../core/services/sony_ptp_camera_service.dart';
+import '../../../core/services/photobooth_capture_service.dart';
+import '../../../core/services/uvc_camera_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../features/frame/domain/models/frame_model.dart';
 import '../../../features/session/domain/models/session_model.dart';
@@ -21,6 +23,15 @@ import '../../../shared/widgets/customer_header.dart';
 import '../../../shared/widgets/photobooth_layout.dart';
 import '../../../shared/widgets/photo_strip_widget.dart';
 import '../../../shared/widgets/responsive_layout_builder.dart';
+import '../../../shared/widgets/uvc_preview.dart';
+
+/// Dijalankan di isolate terpisah oleh `compute()` — JANGAN panggil langsung
+/// dari isolate UI: decode/encode JPEG 24 MP butuh beberapa detik.
+Uint8List? _flipJpegBytes(Uint8List bytes) {
+  final decoded = img.decodeImage(bytes);
+  if (decoded == null) return null;
+  return img.encodeJpg(img.flipHorizontal(decoded), quality: 95);
+}
 
 // ── Flow Step enum ────────────────────────────────────────────────────────────
 
@@ -51,14 +62,22 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   CameraController? _cameraController;
   bool _isCameraReady = false;
 
-  // ── Sony USB PTP ──────────────────────────────────────────────────────────
-  bool _isSonyConnected = false;
+  // ── Kamera eksternal (HDMI capture card + Sony PTP) ────────────────────────
+  CaptureMode _captureMode = CaptureMode.tabletOnly;
+  /// True bila preview HDMI (UVC) sudah terbuka untuk view di layar ini.
+  bool _isUvcReady = false;
+  /// True begitu kita memutuskan me-render UvcPreview (sebelum open selesai).
+  bool _showUvcView = false;
+
+  /// Resolusi HDMI yang diminta — dipakai juga untuk rasio kotak viewfinder
+  /// agar panel dan gambar benar-benar sebangun (tanpa letterbox).
+  static const double _uvcPreviewWidth = 1920;
+  static const double _uvcPreviewHeight = 1080;
 
   // ── Flow state ────────────────────────────────────────────────────────────
   _CaptureStep _step = _CaptureStep.initialPreview;
   int _countdownValue = _countdownSeconds;
   Timer? _countdownTimer;
-  Timer? _uiRefreshTimer;
 
   // ── Poses state ───────────────────────────────────────────────────────────
   int _currentPose = 0;
@@ -69,51 +88,84 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   @override
   void initState() {
     super.initState();
-    _initCamera();
-    _initSonyCamera();
-    _uiRefreshTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() {});
-    });
+    _initExternalCamera();
+    // CATATAN: dulu di sini ada Timer.periodic(1 detik) yang memanggil
+    // setState kosong. Itu me-rebuild SELURUH pohon widget — termasuk
+    // PlatformView kamera — setiap detik, yang terlihat sebagai kedipan
+    // "garis-garis warna" (pola no-signal capture card) tiap satu detik.
+    // Tidak ada widget di layar ini yang bergantung pada waktu, jadi timer
+    // tersebut dihapus. Countdown punya timer sendiri (_countdownTimer).
   }
 
   @override
   void dispose() {
-    _uiRefreshTimer?.cancel();
     _countdownTimer?.cancel();
     _cameraController?.dispose();
     _cameraController = null;
-    SonyPtpCameraService.disconnect();
+    // Hanya lepaskan sesi PTP. Kamera UVC dikelola oleh UvcPreview — menutupnya
+    // di sini akan mematikan preview halaman berikutnya.
+    PhotoboothCaptureService.instance.releasePtp();
     super.dispose();
   }
 
-  // ── Sony USB PTP init ─────────────────────────────────────────────────────
+  // ── Init kamera eksternal (HDMI preview + shutter PTP) ────────────────────
 
-  Future<void> _initSonyCamera() async {
+  /// Alur yang sama dengan layar welcome & sesi foto:
+  ///  1. deteksi kabel mana yang terpasang → tentukan mode
+  ///  2. siapkan jalur shutter PTP (kalau kabel C-to-C ada & PC Remote aktif)
+  ///  3. render UvcPreview untuk jalur preview HDMI; widget itu yang membuka
+  ///     kamera untuk generasi view-nya sendiri
+  ///  4. baru fallback ke kamera tablet
+  Future<void> _initExternalCamera() async {
     try {
-      final status = await SonyPtpCameraService.getStatus();
-      if (!status.isDetected) {
-        debugPrint('📷 [CameraScreen] Sony tidak terdeteksi di USB');
+      final capture = PhotoboothCaptureService.instance;
+      final mode = await capture.detectMode();
+      if (!mounted) return;
+
+      if (capture.usesUvcPreview) {
+        // Tampilkan preview LEBIH DULU. UvcPreview yang membuka kamera untuk
+        // generasi view-nya sendiri.
+        setState(() {
+          _captureMode = mode;
+          _showUvcView = true;
+        });
+        // Handshake PTP jalan PARALEL di latar belakang — jangan di-await di
+        // sini. Menunggunya (2-6 detik) membuat layar gelap sampai hitungan
+        // mundur sudah berjalan. Hasilnya ditunggu tepat sebelum menjepret.
+        capture.startShutterPath();
         return;
       }
-      // Minta permission kalau belum punya
-      if (!status.hasPermission) {
-        final granted = await SonyPtpCameraService.requestPermission();
-        if (!granted) {
-          debugPrint('⚠️ [CameraScreen] Permission USB Sony ditolak');
-          return;
-        }
-      }
-      // Connect + handshake PTP
-      final connected = await SonyPtpCameraService.connect();
-      if (mounted) {
-        setState(() => _isSonyConnected = connected);
-        debugPrint(connected
-            ? '✅ [CameraScreen] Sony USB PTP terhubung — akan dipakai untuk capture'
-            : '⚠️ [CameraScreen] Sony terdeteksi tapi gagal connect PTP');
-      }
+
+      setState(() => _captureMode = mode);
+      capture.startShutterPath();
+      await _initCamera();
     } catch (e) {
-      debugPrint('⚠️ [CameraScreen] _initSonyCamera error: $e');
+      debugPrint('⚠️ [CameraScreen] _initExternalCamera error: $e');
+      await _initCamera();
     }
+  }
+
+  /// Callback dari [UvcPreview] setelah percobaan membuka kamera HDMI selesai.
+  Future<void> _onUvcOpenResult(bool opened) async {
+    if (!mounted) return;
+    debugPrint('🔍 [CameraScreen] uvcOpened=$opened '
+        'lastError=${UvcCameraService.instance.lastError}');
+
+    PhotoboothCaptureService.instance.markPreviewReady(opened);
+
+    if (opened) {
+      setState(() {
+        _isUvcReady = true;
+        _isCameraReady = true;
+      });
+      return;
+    }
+
+    setState(() {
+      _showUvcView = false;
+      _isUvcReady = false;
+    });
+    await _initCamera();
   }
 
   // ── Camera init ───────────────────────────────────────────────────────────
@@ -165,39 +217,63 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     });
   }
 
+  /// Live preview: stream HDMI bila tersedia, kalau tidak kamera tablet.
+  ///
+  /// CATATAN: hanya boleh ada SATU UvcPreview yang ter-mount pada satu waktu
+  /// (factory native plugin cuma menyimpan satu referensi view). Karena itu
+  /// widget ini mengembalikan UvcPreview hanya untuk panel utama; strip kecil
+  /// memakai placeholder saat mode HDMI aktif.
+  Widget? _buildLivePreview() {
+    if (_showUvcView || _isUvcReady) {
+      // Panel utama sudah merender UvcPreview — jangan mount yang kedua.
+      return null;
+    }
+    if (!_isCameraReady || _cameraController == null) return null;
+    return Transform.flip(
+      flipX: _isMirrorEnabled,
+      child: FittedBox(
+        fit: BoxFit.cover,
+        child: SizedBox(
+          width: _cameraController!.value.previewSize?.width ?? 1280,
+          height: _cameraController!.value.previewSize?.height ?? 720,
+          child: CameraPreview(_cameraController!),
+        ),
+      ),
+    );
+  }
+
   Future<void> _capturePhoto() async {
     setState(() => _step = _CaptureStep.capturing);
     if (!mounted) return;
 
     try {
-      if (_isSonyConnected) {
-        // ── Sony ZV-E10 via USB PTP ────────────────────────────────────────
-        final result = await SonyPtpCameraService.capturePhoto();
-        if (!mounted) return;
-        if (result.isSuccess && result.filePath != null) {
-          final xfile = XFile(result.filePath!);
-          final processedFile = await _processCapturedPhoto(xfile, _isMirrorEnabled);
-          if (!mounted) return;
-          setState(() {
-            _lastCaptured = processedFile;
-            _step = _CaptureStep.result;
-          });
-        } else {
-          debugPrint('⚠️ [CameraScreen] Sony capture gagal: ${result.message} — fallback ke kamera tab');
-          // Fallback ke kamera tab kalau Sony gagal
-          await _captureFromTabCamera();
-        }
-      } else if (_cameraController != null && _isCameraReady) {
-        // ── Kamera tablet (fallback / default) ────────────────────────────
-        await _captureFromTabCamera();
-      } else {
-        await Future<void>.delayed(const Duration(milliseconds: 600));
+      // Pastikan handshake PTP (yang jalan paralel sejak halaman dibuka) sudah
+      // selesai sebelum menjepret. Biasanya sudah, karena hitungan mundur
+      // memberi waktu beberapa detik.
+      await PhotoboothCaptureService.instance.awaitShutterPath();
+
+      // Jalur eksternal: shutter PTP (resolusi penuh) → frame HDMI → tablet.
+      // Semua langkah punya timeout, jadi UI tidak pernah menggantung.
+      final outcome = await PhotoboothCaptureService.instance.capture();
+      if (!mounted) return;
+
+      if (outcome.success && outcome.file != null) {
+        debugPrint('📸 [CameraScreen] Foto dari ${outcome.source.name}');
+        final processedFile = await _processCapturedPhoto(
+          XFile(outcome.file!.path),
+          _isMirrorEnabled,
+        );
         if (!mounted) return;
         setState(() {
-          _lastCaptured = null;
+          _lastCaptured = processedFile;
           _step = _CaptureStep.result;
         });
+        return;
       }
+
+      debugPrint('⚠️ [CameraScreen] Kamera eksternal gagal (${outcome.message}) '
+          '— fallback ke kamera tablet');
+      await _captureFromTabCamera();
     } catch (e, stack) {
       ErrorLogger.instance.logCameraError(
         message: 'Gagal mengambil gambar: $e',
@@ -223,7 +299,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
       });
       return;
     }
-    final rawFile = await _cameraController!.takePicture();
+    final rawFile =
+        await _cameraController!.takePicture().timeout(const Duration(seconds: 10));
     if (!mounted) return;
     final processedFile = await _processCapturedPhoto(rawFile, _isMirrorEnabled);
     if (!mounted) return;
@@ -234,31 +311,34 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   }
 
   Future<XFile> _processCapturedPhoto(XFile rawFile, bool isMirrored) async {
+    // Kamera tablet depan sudah menghasilkan gambar ter-cermin dari sensor;
+    // kamera eksternal (PTP / HDMI) tidak.
+    final isFrontCam =
+        _cameraController?.description.lensDirection == CameraLensDirection.front;
+    final needsFlip = isFrontCam ? !isMirrored : isMirrored;
+
+    // JALUR CEPAT: tidak perlu di-flip → jangan decode apa pun.
+    //
+    // PENTING: sejak shutter PTP aktif, file dari Sony ZV-E10 berukuran
+    // 6000x4000 (24 MP). Decode + encode ulang gambar sebesar itu di isolate
+    // UI memakan beberapa detik dan langsung memicu ANR
+    // ("SnapTechBooth isn't responding"). Karena itu kerja berat dipindah ke
+    // isolate lain lewat compute(), dan dilewati sepenuhnya bila tidak perlu.
+    if (!needsFlip) return rawFile;
+
     try {
       final bytes = await rawFile.readAsBytes();
-      final decoded = img.decodeImage(bytes);
-      if (decoded == null) return rawFile;
-
-      final isFrontCam = _cameraController?.description.lensDirection == CameraLensDirection.front;
-
-      img.Image processed = decoded;
-      if (isFrontCam) {
-        if (!isMirrored) {
-          processed = img.flipHorizontal(processed);
-        }
-      } else {
-        if (isMirrored) {
-          processed = img.flipHorizontal(processed);
-        }
-      }
-
-      final newBytes = img.encodeJpg(processed, quality: 95);
-      final processedFile = dart_io.File(rawFile.path)..writeAsBytesSync(newBytes);
+      final newBytes = await compute(_flipJpegBytes, bytes);
+      if (newBytes == null) return rawFile;
+      final processedFile = dart_io.File(rawFile.path);
+      await processedFile.writeAsBytes(newBytes, flush: true);
       return XFile(processedFile.path);
     } catch (e) {
+      debugPrint('⚠️ [CameraScreen] _processCapturedPhoto gagal: $e');
       return rawFile;
     }
   }
+
 
   void _onRetake() {
     setState(() {
@@ -331,19 +411,10 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
                       ? [..._capturedPhotos, _lastCaptured]
                       : _capturedPhotos,
                   currentPoseIndex: _currentPose,
-                  liveCameraPreview: (_step == _CaptureStep.initialPreview || _step == _CaptureStep.countdown) && _isCameraReady
-                      ? Transform.flip(
-                          flipX: _isMirrorEnabled,
-                          child: FittedBox(
-                            fit: BoxFit.cover,
-                            child: SizedBox(
-                              width: _cameraController!.value.previewSize?.width ?? 1280,
-                              height: _cameraController!.value.previewSize?.height ?? 720,
-                              child: CameraPreview(_cameraController!),
-                            ),
-                          ),
-                        )
-                      : null,
+                  liveCameraPreview:
+                      (_step == _CaptureStep.initialPreview || _step == _CaptureStep.countdown)
+                          ? _buildLivePreview()
+                          : null,
                 ),
               ),
 
@@ -401,13 +472,30 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     }
   }
 
-  Widget _buildCameraViewfinder({required bool showOverlay, Widget? overlayChild}) {
-    final previewW = _cameraController?.value.previewSize?.width ?? 720;
-    final previewH = _cameraController?.value.previewSize?.height ?? 1280;
-    final aspectRatio = previewW / previewH;
+  /// Rasio kotak viewfinder.
+  ///
+  /// PENTING: sebelumnya rasio selalu diambil dari `_cameraController`, padahal
+  /// di mode HDMI/UVC controller itu NULL — sehingga jatuh ke default
+  /// 720/1280 (potret 9:16). Itulah kenapa panel kamera berdiri tegak dan
+  /// feed 16:9 hanya muncul sebagai pita tipis di tengah.
+  ///
+  /// Di mode eksternal kita pakai rasio asli HDMI (16:9) supaya kotaknya
+  /// benar-benar mendatar dan gambar mengisi penuh tanpa letterbox.
+  double get _viewfinderAspectRatio {
+    if (_showUvcView || _isUvcReady) return _uvcPreviewWidth / _uvcPreviewHeight;
 
+    // Selama deteksi perangkat belum selesai, _cameraController masih null.
+    // Dulu di sini dipakai default 720/1280 (potret) sehingga panel sempat
+    // berdiri tegak lalu "melompat" jadi mendatar begitu HDMI terbuka.
+    // Default landscape membuat panel benar sejak frame pertama.
+    final size = _cameraController?.value.previewSize;
+    if (size == null) return _uvcPreviewWidth / _uvcPreviewHeight;
+    return size.width / size.height;
+  }
+
+  Widget _buildCameraViewfinder({required bool showOverlay, Widget? overlayChild}) {
     return AspectRatio(
-      aspectRatio: aspectRatio,
+      aspectRatio: _viewfinderAspectRatio,
       child: Container(
         decoration: BoxDecoration(
           color: AppColors.darkCoffee,
@@ -426,15 +514,22 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              if (_isCameraReady && _cameraController != null)
+              if (_showUvcView || _isUvcReady)
+                UvcPreview(
+                  mirror: _isMirrorEnabled,
+                  onOpenResult: _onUvcOpenResult,
+                  previewWidth: _uvcPreviewWidth.toInt(),
+                  previewHeight: _uvcPreviewHeight.toInt(),
+                )
+              else if (_isCameraReady && _cameraController != null)
                 Center(
                   child: Transform.flip(
                     flipX: _isMirrorEnabled,
                     child: FittedBox(
                       fit: BoxFit.cover,
                       child: SizedBox(
-                        width: previewW,
-                        height: previewH,
+                        width: _cameraController!.value.previewSize?.width ?? 1280,
+                        height: _cameraController!.value.previewSize?.height ?? 720,
                         child: CameraPreview(_cameraController!),
                       ),
                     ),
@@ -456,6 +551,26 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
                 Container(color: Colors.black.withValues(alpha: 0.55)),
                 if (overlayChild != null) overlayChild,
               ],
+              // Badge diagnostik jalur kamera (untuk operator)
+              Positioned(
+                top: 8.h,
+                left: 8.w,
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.6),
+                    borderRadius: BorderRadius.circular(6.r),
+                  ),
+                  child: Text(
+                    PhotoboothCaptureService.describeMode(_captureMode),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 9.sp,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -502,7 +617,11 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   }
 
   Widget _buildPhotoResultDisplay() {
-    return Container(
+    // Samakan bentuk dengan viewfinder supaya panel tidak "melompat" ukuran
+    // saat berpindah dari live preview ke hasil foto.
+    return AspectRatio(
+      aspectRatio: _viewfinderAspectRatio,
+      child: Container(
       decoration: BoxDecoration(
         color: AppColors.darkCoffee,
         borderRadius: BorderRadius.circular(16.r),
@@ -523,6 +642,10 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
                 fit: BoxFit.cover,
                 width: double.infinity,
                 height: double.infinity,
+                // Batasi decode: tanpa ini foto 24 MP dari Sony di-decode
+                // penuh ke memori hanya untuk thumbnail preview.
+                cacheWidth: 1080,
+                filterQuality: FilterQuality.medium,
               )
             : Center(
                 child: Icon(
@@ -531,6 +654,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
                   color: AppColors.paper.withValues(alpha: 0.4),
                 ),
               ),
+        ),
       ),
     ).animate().fadeIn(duration: 250.ms);
   }

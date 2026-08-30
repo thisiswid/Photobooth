@@ -20,8 +20,8 @@ import '../../provisioning/providers/tenant_provider.dart';
 
 import '../../../core/services/sony_ptp_camera_service.dart';
 import '../../../core/services/uvc_camera_service.dart';
+import '../../../shared/widgets/uvc_preview.dart';
 import '../../../shared/widgets/unified_camera_preview.dart';
-import 'package:flutter_uvc_camera/flutter_uvc_camera.dart';
 
 /// Welcome Screen — Retro-Modern Artisan Studio Grand Entrance.
 class WelcomeScreen extends ConsumerStatefulWidget {
@@ -62,32 +62,43 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
     super.dispose();
   }
 
+  /// Callback dari [UvcPreview] setelah percobaan membuka kamera HDMI selesai.
+  Future<void> _onUvcOpenResult(bool opened) async {
+    if (!mounted) return;
+    debugPrint('🔍 [WelcomeScreen] uvcOpened=$opened '
+        'lastError=${UvcCameraService.instance.lastError}');
+    if (opened) {
+      setState(() {
+        _isUvcReady = true;
+        _isCameraReady = true;
+      });
+      return;
+    }
+    debugPrint('⚠️ [WelcomeScreen] UVC gagal — fallback ke Camera2');
+    setState(() {
+      _showUvcView = false;
+      _isUvcReady = false;
+    });
+    await _initTabletCamera();
+  }
+
   Future<void> _initCamera() async {
     final status = await Permission.camera.request();
     if (!mounted) return;
 
     try {
-      // 1. Cek apakah UVC device terhubung
+      // 1. Cek apakah HDMI capture card terhubung
       final sonyStatus = await SonyPtpCameraService.getStatus();
-      debugPrint('🔍 [WelcomeScreen] sonyStatus: isDetected=${sonyStatus.isDetected} isUvc=${sonyStatus.isUvc} hasPermission=${sonyStatus.hasPermission}');
+      debugPrint('🔍 [WelcomeScreen] uvcDetected=${sonyStatus.uvcDetected} '
+          'ptpDetected=${sonyStatus.ptpDetected}');
 
-      if ((sonyStatus.isDetected || sonyStatus.isUvc) && sonyStatus.hasPermission) {
+      // Cukup render UvcPreview — widget itu yang mendaftarkan generasi view
+      // dan memanggil open() pada saat yang tepat. Hasilnya masuk lewat
+      // _onUvcOpenResult. (Factory native hanya menyimpan satu referensi view,
+      // jadi open dari luar widget bisa mengenai view yang salah.)
+      if (sonyStatus.uvcDetected) {
         setState(() => _showUvcView = true);
-        await Future.delayed(const Duration(milliseconds: 300));
-        if (!mounted) return;
-        final uvcOpened = await UvcCameraService.instance.open();
-        debugPrint('🔍 [WelcomeScreen] uvcOpened=$uvcOpened lastError=${UvcCameraService.instance.lastError}');
-        if (uvcOpened && mounted) {
-          setState(() {
-            _isUvcReady = true;
-            _isCameraReady = true;
-          });
-          return;
-        }
-        if (mounted) {
-          debugPrint('⚠️ [WelcomeScreen] UVC open gagal — fallback ke Camera2');
-          setState(() => _showUvcView = false);
-        }
+        return;
       }
 
       if (!status.isGranted) {
@@ -95,6 +106,16 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
         return;
       }
 
+      await _initTabletCamera();
+    } catch (e) {
+      debugPrint('❌ [WelcomeScreen] _initCamera error: $e');
+    }
+  }
+
+  /// Fallback kamera tablet (Camera2) — dipakai bila capture card HDMI tidak
+  /// terdeteksi atau gagal dibuka.
+  Future<void> _initTabletCamera() async {
+    try {
       debugPrint('📷 [WelcomeScreen] Inisialisasi Camera2 fallback...');
       final oldController = _cameraController;
       _cameraController = null;
@@ -118,7 +139,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
         debugPrint('❌ [WelcomeScreen] Camera2 createController returned null');
       }
     } catch (e) {
-      debugPrint('❌ [WelcomeScreen] _initCamera error: $e');
+      debugPrint('❌ [WelcomeScreen] _initTabletCamera error: $e');
     }
   }
 
@@ -254,11 +275,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
           // UVCCameraView hanya di-render setelah _showUvcView = true
           // (set oleh _initCamera sebelum openUVCCamera dipanggil)
           if (_isUvcReady || _showUvcView)
-            UVCCameraView(
-              cameraController: UvcCameraService.instance.controller,
-              width: double.infinity,
-              height: double.infinity,
-            )
+            UvcPreview(onOpenResult: _onUvcOpenResult)
           else if (_isCameraReady)
             UnifiedCameraPreview(
               isUvcMode: false,

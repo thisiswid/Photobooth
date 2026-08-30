@@ -494,6 +494,9 @@ class _PhotoStripWidgetState extends State<PhotoStripWidget> {
         fit: BoxFit.cover,
         width: double.infinity,
         height: double.infinity,
+        // Foto Sony 24 MP tidak boleh di-decode penuh untuk sel strip kecil.
+        cacheWidth: 720,
+        filterQuality: FilterQuality.medium,
         errorBuilder: (_, __, ___) => _errorBox(),
       );
     }

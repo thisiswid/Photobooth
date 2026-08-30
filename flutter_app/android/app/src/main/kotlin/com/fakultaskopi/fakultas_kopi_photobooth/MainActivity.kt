@@ -26,7 +26,8 @@ class MainActivity : FlutterActivity() {
     private val TAG = "PhotoboothPrinter"
 
     private lateinit var sonyCameraManager: SonyPtpCameraManager
-    private val mainScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    /** Semua I/O USB/PTP dijalankan di sini — JANGAN di thread platform. */
+    private val ioScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -35,30 +36,64 @@ class MainActivity : FlutterActivity() {
 
         // ── 1. SONY ZV-E10 USB PTP CAMERA CHANNEL ─────────────────────────────
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SONY_CAMERA_CHANNEL).setMethodCallHandler { call, result ->
+            // PENTING: operasi USB/PTP di bawah melakukan control & bulk transfer
+            // yang BLOKIR (device reset, clear-halt, timeout beberapa detik).
+            // Menjalankannya di thread platform membekukan UI — terlihat sebagai
+            // "Slow dispatch took 13309ms main" / "Skipped 1942 frames".
+            // Karena itu semuanya dipindah ke Dispatchers.IO.
             when (call.method) {
                 "getSonyCameraStatus" -> {
-                    result.success(sonyCameraManager.getCameraStatus())
+                    ioScope.launch {
+                        val status = sonyCameraManager.getCameraStatus()
+                        withContext(Dispatchers.Main) { result.success(status) }
+                    }
                 }
                 "requestSonyPermission" -> {
                     sonyCameraManager.requestPermission { granted ->
                         result.success(granted)
                     }
                 }
+                // Izin USB untuk HDMI capture card (jalur live preview UVC)
+                "requestUvcPermission" -> {
+                    sonyCameraManager.requestUvcPermission { granted ->
+                        result.success(granted)
+                    }
+                }
                 "connectSonyCamera" -> {
-                    val opened = sonyCameraManager.openConnection()
-                    result.success(mapOf(
-                        "success" to opened,
-                        "message" to if (opened) "Sony ZV-E10 terhubung via USB PTP" else "Gagal membuka koneksi USB Sony"
-                    ))
+                    ioScope.launch {
+                        val opened = sonyCameraManager.openConnection()
+                        val remoteReady = sonyCameraManager.isRemoteControlReady()
+                        withContext(Dispatchers.Main) {
+                            result.success(mapOf(
+                                // "success" hanya true bila kamera benar-benar
+                                // menerima perintah PC Remote. USB ter-claim saja
+                                // tidak cukup — dulu ini dilaporkan sukses padahal
+                                // handshake SDIO gagal, sehingga setiap shutter
+                                // membuang waktu lalu gagal.
+                                "success" to (opened && remoteReady),
+                                "usbClaimed" to opened,
+                                "remoteReady" to remoteReady,
+                                "message" to when {
+                                    !opened -> "Gagal membuka koneksi USB Sony."
+                                    !remoteReady -> "USB tersambung tapi kamera menolak PC Remote. " +
+                                        "Di kamera: MENU > Setup > USB > USB Connection = PC Remote, " +
+                                        "dan MENU > Network > PC Remote Function > PC Remote = ON."
+                                    else -> "Sony ZV-E10 terhubung via USB PTP"
+                                }
+                            ))
+                        }
+                    }
                 }
                 "disconnectSonyCamera" -> {
-                    sonyCameraManager.closeConnection()
-                    result.success(true)
+                    ioScope.launch {
+                        sonyCameraManager.closeConnection()
+                        withContext(Dispatchers.Main) { result.success(true) }
+                    }
                 }
                 "captureSonyPhoto" -> {
-                    mainScope.launch {
+                    ioScope.launch {
                         val captureResult = sonyCameraManager.capturePhoto()
-                        result.success(captureResult)
+                        withContext(Dispatchers.Main) { result.success(captureResult) }
                     }
                 }
                 else -> result.notImplemented()

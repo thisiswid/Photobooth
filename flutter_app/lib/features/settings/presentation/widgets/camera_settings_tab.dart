@@ -2,12 +2,11 @@ import 'dart:io' as dart_io;
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:flutter_uvc_camera/flutter_uvc_camera.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:permission_handler/permission_handler.dart';
 import '../../../../core/services/camera_service.dart';
 import '../../../../core/services/sony_ptp_camera_service.dart';
 import '../../../../core/services/uvc_camera_service.dart';
+import '../../../../shared/widgets/uvc_preview.dart';
 import '../../../../core/theme/app_colors.dart';
 
 class CameraSettingsTab extends StatefulWidget {
@@ -42,6 +41,8 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
   @override
   void dispose() {
     _previewController?.dispose();
+    // Kamera UVC tidak ditutup di sini — UvcPreview yang mengelola siklus
+    // view-nya, sehingga halaman berikutnya bisa membuka ulang dengan bersih.
     super.dispose();
   }
 
@@ -57,9 +58,15 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
       _cameras = await CameraService.getAvailableCamerasList();
       await _loadSonyStatus();
 
-      if (_sonyStatus?.isUvc == true || _sonyStatus?.isDetected == true) {
+      // Hanya aktifkan jalur UVC bila capture card benar-benar terdeteksi.
+      // Sebelumnya `isDetected` juga true untuk kamera PTP, sehingga UI mencoba
+      // membuka UVC padahal yang tersambung hanya kabel C-to-C.
+      // Cukup aktifkan flag — UvcPreview yang mendaftarkan generasi view baru
+      // dan memanggil open(). Memanggil open() di sini akan mengenai view milik
+      // halaman sebelumnya (factory native hanya menyimpan satu referensi view)
+      // sehingga preview di halaman ini tampil hitam.
+      if (_sonyStatus?.uvcDetected == true) {
         _isUvcActive = true;
-        await UvcCameraService.instance.open();
       }
 
       await _initPreviewController();
@@ -78,13 +85,30 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
       if (mounted) {
         setState(() {
           _sonyStatus = status;
-          if (status.isUvc) {
+          if (status.uvcDetected) {
             _isUvcActive = true;
           }
         });
       }
     } catch (e) {
       debugPrint('Error load Sony status: $e');
+    }
+  }
+
+  Future<void> _handleRequestUvcPermission() async {
+    final granted = await SonyPtpCameraService.requestUvcPermission();
+    await _loadSonyStatus();
+    if (granted && mounted) setState(() => _isUvcActive = true);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(granted
+              ? 'Izin USB HDMI capture card diberikan!'
+              : 'Izin USB capture card belum diberikan.'),
+          backgroundColor: granted ? Colors.green : Colors.red,
+        ),
+      );
+      setState(() {});
     }
   }
 
@@ -107,6 +131,29 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
       _sonyCaptureMessage = null;
     });
 
+    // Prioritas: shutter PTP (resolusi penuh). Baru fallback ke frame HDMI.
+    if (_sonyStatus?.ptpDetected == true) {
+      if (_sonyStatus?.ptpHasPermission != true) {
+        await SonyPtpCameraService.requestPermission();
+      }
+      await SonyPtpCameraService.connect();
+      final ptpResult = await SonyPtpCameraService.capturePhoto();
+      if (ptpResult.isSuccess && ptpResult.filePath != null) {
+        final f = dart_io.File(ptpResult.filePath!);
+        if (mounted) {
+          setState(() {
+            _isSonyCapturing = false;
+            _testResult = f;
+            _sonyCapturedFile = f;
+            _sonyCaptureMessage =
+                '✅ Foto resolusi penuh via shutter PTP (${(ptpResult.fileSizeBytes / 1048576).toStringAsFixed(1)} MB)';
+          });
+        }
+        return;
+      }
+      debugPrint('⚠️ PTP capture gagal (${ptpResult.message}) — fallback ke frame HDMI.');
+    }
+
     if (_isUvcActive) {
       final file = await UvcCameraService.instance.takePhoto();
       if (mounted) {
@@ -114,7 +161,9 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
           _isSonyCapturing = false;
           _testResult = file;
           _sonyCapturedFile = file;
-          _sonyCaptureMessage = file != null ? '✅ Foto berhasil diambil dari HDMI stream!' : '⚠️ Gagal mengambil foto dari stream UVC.';
+          _sonyCaptureMessage = file != null
+              ? '✅ Foto diambil dari frame HDMI (1080p ~2MP).'
+              : '⚠️ Gagal mengambil foto dari stream UVC. ${UvcCameraService.instance.lastError ?? ""}';
         });
       }
       return;
@@ -162,14 +211,25 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
     if (mounted) setState(() {});
   }
 
+  /// Callback dari [UvcPreview] setelah percobaan membuka kamera HDMI selesai.
+  void _onUvcOpenResult(bool opened) {
+    if (!mounted) return;
+    if (!opened) {
+      final err = UvcCameraService.instance.lastError ?? 'Preview HDMI gagal dibuka.';
+      setState(() => _isUvcActive = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(err), backgroundColor: Colors.red),
+      );
+    } else {
+      setState(() {});
+    }
+  }
+
   Future<void> _selectUvcCamera() async {
+    // Cukup render UvcPreview; widget itu yang membuka kamera untuk view-nya
+    // sendiri dan melapor lewat _onUvcOpenResult.
     setState(() => _isUvcActive = true);
-    await [
-      Permission.camera,
-      Permission.microphone,
-      Permission.storage,
-    ].request();
-    await UvcCameraService.instance.open();
+    await _loadSonyStatus();
     if (mounted) setState(() {});
   }
 
@@ -278,11 +338,7 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
                     borderRadius: BorderRadius.circular(8.r),
                     border: Border.all(color: Colors.greenAccent, width: 2),
                   ),
-                  child: UVCCameraView(
-                    cameraController: UvcCameraService.instance.controller,
-                    width: double.infinity,
-                    height: double.infinity,
-                  ),
+                  child: UvcPreview(onOpenResult: _onUvcOpenResult),
                 )
               else if (_previewController != null && _previewController!.value.isInitialized)
                 Container(
@@ -575,7 +631,7 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
                       ),
                     ),
                   ),
-                  if (isDetected && !hasPerm && !isUvc) ...[
+                  if (isDetected && !hasPerm) ...[
                     SizedBox(width: 8.w),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
@@ -584,7 +640,10 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
                         padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 2.h),
                         minimumSize: Size.zero,
                       ),
-                      onPressed: _handleRequestSonyPermission,
+                      // UVC (capture card) dan PTP (Sony) punya izin USB terpisah.
+                      onPressed: isUvc
+                          ? _handleRequestUvcPermission
+                          : _handleRequestSonyPermission,
                       child: Text('Minta Izin', style: TextStyle(fontSize: 10.sp, fontWeight: FontWeight.bold)),
                     ),
                   ],

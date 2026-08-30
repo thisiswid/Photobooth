@@ -1,7 +1,6 @@
 import "package:camera/camera.dart";
 import "package:flutter/material.dart";
-import "package:flutter_uvc_camera/flutter_uvc_camera.dart";
-import "../../core/services/uvc_camera_service.dart";
+import "uvc_preview.dart";
 
 /// Unified camera preview that renders either USB UVC HDMI stream or standard Camera2 preview.
 class UnifiedCameraPreview extends StatelessWidget {
@@ -21,13 +20,9 @@ class UnifiedCameraPreview extends StatelessWidget {
     Widget child;
 
     if (isUvcMode) {
-      // UVCCameraView selalu di-render agar PlatformView Android sudah
-      // ter-attach sebelum openUVCCamera() dipanggil.
-      child = UVCCameraView(
-        cameraController: UvcCameraService.instance.controller,
-        width: double.infinity,
-        height: double.infinity,
-      );
+      // Selalu lewat UvcPreview: widget itu yang mendaftarkan generasi view ke
+      // UvcCameraService dan membuka kamera untuk view-nya sendiri.
+      child = const UvcPreview();
     } else if (cameraController != null && cameraController!.value.isInitialized) {
       final size = cameraController!.value.previewSize;
       final aspectRatio = size != null ? size.width / size.height : 16 / 9;

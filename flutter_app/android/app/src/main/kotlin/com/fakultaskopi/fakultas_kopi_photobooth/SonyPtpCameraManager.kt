@@ -85,6 +85,15 @@ class SonyPtpCameraManager(private val context: Context) {
 
     private var transactionId = 1
     private var isSessionOpen = false
+
+    /**
+     * True hanya bila handshake Sony SDIO benar-benar diterima kamera
+     * (Phase 1 mengembalikan 0x2001). USB ter-claim saja TIDAK cukup: kalau
+     * kamera masih di mode MTP / Mass Storage, semua perintah shutter akan
+     * ditolak dengan 0xA101. Dipakai agar aplikasi langsung memakai jalur
+     * HDMI daripada membuang waktu di setiap jepretan.
+     */
+    private var isRemoteReady = false
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     // ─── 1. Deteksi & Status Perangkat ──────────────────────────────────────────
@@ -101,90 +110,156 @@ class SonyPtpCameraManager(private val context: Context) {
         return false
     }
 
-    fun findSonyCamera(): UsbDevice? {
-        val deviceList = usbManager.deviceList
-        Log.i(TAG, "🔍 Memeriksa USB Host: ditemukan ${deviceList.size} perangkat:")
-        for (device in deviceList.values) {
-            Log.i(TAG, "   - ${device.deviceName}: ${device.productName ?: "Unknown"} (VID=${device.vendorId}, PID=${device.productId}, Interfaces=${device.interfaceCount})")
-        }
+    /** Perangkat yang dipakai untuk PTP (kamera Sony asli), bukan capture card. */
+    private var ptpDevice: UsbDevice? = null
 
-        // 1. PRIORITAS UTAMA: HDMI Capture Card (VID 0x534D / MacroSilicon MS2109 atau USB Video UVC)
-        //    Ini adalah perangkat yang terhubung ke kabel HDMI kamera (node /012)
-        for (device in deviceList.values) {
+    /** True bila device adalah kamera PTP/MTP (Class 6, Sub 1, Proto 1). */
+    fun isPtpDevice(device: UsbDevice?): Boolean {
+        if (device == null) return false
+        for (i in 0 until device.interfaceCount) {
+            val iface = device.getInterface(i)
+            if (iface.interfaceClass == 6 && iface.interfaceSubclass == 1) return true
+        }
+        return device.vendorId == SONY_VENDOR_ID
+    }
+
+    /** Cari HDMI capture card (jalur LIVE PREVIEW). */
+    fun findUvcDevice(): UsbDevice? {
+        for (device in usbManager.deviceList.values) {
             if (device.vendorId == CAPTURE_CARD_MACROSILICON_VID && device.productId == CAPTURE_CARD_MS2109_PID) {
-                Log.i(TAG, "📹 Match HDMI Capture Card MS2109 (PRIORITAS 1): ${device.productName ?: "USB Video"} (Node=${device.deviceName})")
-                usbDevice = device
-                return device
-            }
-            if (isUvcDevice(device)) {
-                Log.i(TAG, "📹 Match USB Video / HDMI Capture Card: ${device.productName ?: "USB Video"} (Node=${device.deviceName})")
-                usbDevice = device
                 return device
             }
         }
+        for (device in usbManager.deviceList.values) {
+            if (isUvcDevice(device)) return device
+        }
+        return null
+    }
 
-        // 2. PRIORITAS KEDUA: Sony Direct USB Cable (VID 0x054C / 1356, ZV-E10)
-        for (device in deviceList.values) {
+    /**
+     * Cari kamera Sony untuk jalur PTP (jalur SHUTTER).
+     * PENTING: capture card di-EXCLUDE di sini. Sebelumnya findSonyCamera()
+     * selalu mengembalikan capture card lebih dulu, sehingga jalur PTP
+     * (kabel C-to-C) tidak pernah bisa dipakai saat HDMI juga tertancap.
+     */
+    fun findPtpCamera(): UsbDevice? {
+        val devices = usbManager.deviceList.values
+        // 1. Sony Vendor ID + PTP interface
+        for (device in devices) {
+            if (device.vendorId == SONY_VENDOR_ID && isPtpDevice(device)) {
+                ptpDevice = device
+                return device
+            }
+        }
+        // 2. Sony Vendor ID apa pun (mode MTP / Mass Storage)
+        for (device in devices) {
             if (device.vendorId == SONY_VENDOR_ID) {
-                Log.i(TAG, "📸 Match Sony Vendor ID (PRIORITAS 2): ${device.productName ?: "ZV-E10"} (Node=${device.deviceName})")
-                usbDevice = device
+                ptpDevice = device
                 return device
             }
         }
-
-        // 3. PRIORITAS KETIGA: PTP Class 6 Interface
-        for (device in deviceList.values) {
+        // 3. Kamera PTP merek lain — tapi jangan ambil capture card
+        for (device in devices) {
+            if (isUvcDevice(device)) continue
             for (i in 0 until device.interfaceCount) {
                 val iface = device.getInterface(i)
                 if (iface.interfaceClass == 6 && iface.interfaceSubclass == 1 && iface.interfaceProtocol == 1) {
-                    Log.i(TAG, "📸 Match PTP Interface: ${device.productName ?: "PTP Camera"} (Node=${device.deviceName})")
-                    usbDevice = device
+                    ptpDevice = device
                     return device
                 }
             }
         }
-
-        usbDevice = null
+        ptpDevice = null
         return null
     }
 
+    /**
+     * Kompatibilitas lama: mengembalikan device "utama".
+     * Prioritas capture card dipertahankan HANYA untuk pelaporan status.
+     */
+    fun findSonyCamera(): UsbDevice? {
+        val deviceList = usbManager.deviceList
+        Log.i(TAG, "🔍 Memeriksa USB Host: ditemukan ${deviceList.size} perangkat:")
+        for (device in deviceList.values) {
+            Log.i(TAG, "   - ${device.deviceName}: ${device.productName ?: "Unknown"} (VID=0x${device.vendorId.toString(16)}, PID=0x${device.productId.toString(16)}, Interfaces=${device.interfaceCount})")
+        }
+        val uvc = findUvcDevice()
+        val ptp = findPtpCamera()
+        Log.i(TAG, "📹 UVC/HDMI capture: ${uvc?.productName ?: "(tidak ada)"}  |  📸 PTP camera: ${ptp?.productName ?: "(tidak ada)"}")
+        usbDevice = uvc ?: ptp
+        return usbDevice
+    }
+
+    /** True bila kamera Sony benar-benar menerima perintah PC Remote. */
+    fun isRemoteControlReady(): Boolean = isSessionOpen && isRemoteReady
+
     fun getCameraStatus(): Map<String, Any?> {
-        val dev = findSonyCamera()
-        val hasPerm = dev != null && usbManager.hasPermission(dev)
-        val isUvc = isUvcDevice(dev)
+        findSonyCamera() // refresh uvcDevice + ptpDevice
+        val uvc = findUvcDevice()
+        val ptp = findPtpCamera()
+        val dev = uvc ?: ptp
+
+        val uvcHasPerm = uvc != null && usbManager.hasPermission(uvc)
+        val ptpHasPerm = ptp != null && usbManager.hasPermission(ptp)
+
+        val isUvc = uvc != null
         val productName = when {
             dev == null -> null
-            isUvc -> dev.productName ?: "USB Video (HDMI Capture Card)"
-            dev.vendorId == SONY_VENDOR_ID -> dev.productName ?: "Sony ZV-E10"
+            isUvc -> uvc?.productName ?: "USB Video (HDMI Capture Card)"
+            ptp?.vendorId == SONY_VENDOR_ID -> ptp.productName ?: "Sony ZV-E10"
             else -> dev.productName ?: "Camera Device"
         }
 
         return mapOf(
+            // ── legacy keys (dipakai UI lama) ─────────────────────────────────
             "isDetected" to (dev != null),
-            "hasPermission" to (if (isUvc) true else hasPerm),
+            // JUJUR: tidak lagi selalu true untuk UVC. Preview UVC butuh
+            // izin USB device yang di-handle oleh library AUSBC.
+            "hasPermission" to (if (isUvc) uvcHasPerm else ptpHasPerm),
             "isConnected" to (if (isUvc) true else isSessionOpen),
             "isUvc" to isUvc,
             "productName" to productName,
             "vendorId" to dev?.vendorId,
             "productId" to dev?.productId,
             "devicePath" to dev?.deviceName,
-            "serialNumber" to (if (hasPerm) dev?.serialNumber else null),
-            "totalUsbDevices" to usbManager.deviceList.size
+            "serialNumber" to (if (ptpHasPerm) ptp?.serialNumber else null),
+            "totalUsbDevices" to usbManager.deviceList.size,
+
+            // ── HYBRID keys (baru) ────────────────────────────────────────────
+            "uvcDetected" to (uvc != null),
+            "uvcHasPermission" to uvcHasPerm,
+            "uvcProductName" to uvc?.productName,
+            "uvcDevicePath" to uvc?.deviceName,
+            "ptpDetected" to (ptp != null),
+            "ptpHasPermission" to ptpHasPerm,
+            "ptpProductName" to ptp?.productName,
+            "ptpDevicePath" to ptp?.deviceName,
+            "ptpSessionOpen" to isSessionOpen,
+            "ptpRemoteReady" to isRemoteReady,
+            "isSony" to (ptp?.vendorId == SONY_VENDOR_ID),
+            "androidSdkInt" to Build.VERSION.SDK_INT
         )
     }
 
     // ─── 2. Request USB Permission ─────────────────────────────────────────────
 
-    fun requestPermission(onResult: (Boolean) -> Unit) {
-        val dev = findSonyCamera()
+    /** Minta izin USB untuk kamera PTP (kabel C-to-C). */
+    fun requestPermission(onResult: (Boolean) -> Unit) =
+        requestUsbPermissionFor(findPtpCamera(), "PTP/Sony", onResult)
+
+    /** Minta izin USB untuk HDMI capture card (jalur preview UVC). */
+    fun requestUvcPermission(onResult: (Boolean) -> Unit) =
+        requestUsbPermissionFor(findUvcDevice(), "UVC/HDMI", onResult)
+
+    private fun requestUsbPermissionFor(dev: UsbDevice?, label: String, onResult: (Boolean) -> Unit) {
         if (dev == null) {
-            Log.w(TAG, "Tidak ada kamera Sony terhubung untuk meminta izin.")
+            Log.w(TAG, "Tidak ada perangkat $label terhubung untuk meminta izin.")
             onResult(false)
             return
         }
 
         if (usbManager.hasPermission(dev)) {
-            Log.i(TAG, "USB Permission untuk Sony sudah tersedia.")
+            Log.i(TAG, "USB Permission untuk $label sudah tersedia.")
             onResult(true)
             return
         }
@@ -225,9 +300,18 @@ class SonyPtpCameraManager(private val context: Context) {
 
     @Synchronized
     fun openConnection(): Boolean {
-        val dev = findSonyCamera() ?: return false
+        // PENTING: pakai findPtpCamera(), BUKAN findSonyCamera().
+        // findSonyCamera() memprioritaskan HDMI capture card sehingga jalur PTP
+        // tidak pernah terbuka saat kedua kabel tertancap (mode hybrid).
+        val dev = findPtpCamera()
+        if (dev == null) {
+            Log.e(TAG, "Kamera PTP tidak ditemukan. Pastikan kabel USB C-to-C tersambung " +
+                "dan kamera di mode: MENU -> Setup -> USB -> USB Connection = PC Remote.")
+            isRemoteReady = false
+            return false
+        }
         if (!usbManager.hasPermission(dev)) {
-            Log.e(TAG, "Belum ada USB permission untuk membuka koneksi.")
+            Log.e(TAG, "Belum ada USB permission untuk membuka koneksi PTP.")
             return false
         }
 
@@ -366,6 +450,7 @@ class SonyPtpCameraManager(private val context: Context) {
             endpointOut = null
             endpointInt = null
             isSessionOpen = false
+            isRemoteReady = false
             transactionId = 1
         }
     }
@@ -481,10 +566,15 @@ class SonyPtpCameraManager(private val context: Context) {
             if (sdioSuccess) {
                 Log.i(TAG, "✅ Sony SDIO Handshake selesai — kamera siap menerima remote control.")
             } else {
-                Log.w(TAG, "⚠️ Sony SDIO Handshake mungkin tidak sempurna. Tetap coba lanjutkan...")
+                Log.w(TAG, "⚠️ Sony SDIO Handshake DITOLAK kamera.")
+                Log.w(TAG, "   → Di kamera set: MENU > Setup > USB > USB Connection = PC Remote")
+                Log.w(TAG, "   → lalu: MENU > Network > PC Remote Function > PC Remote = ON")
+                Log.w(TAG, "   → Shutter PTP dinonaktifkan; aplikasi memakai frame HDMI.")
             }
+            isRemoteReady = sdioSuccess
         } catch (e: Exception) {
             Log.w(TAG, "Sony extension handshake error: ${e.message}")
+            isRemoteReady = false
         }
 
         isSessionOpen = true

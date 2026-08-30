@@ -3,18 +3,18 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:flutter_uvc_camera/flutter_uvc_camera.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/services/camera_service.dart';
-import '../../../core/services/sony_ptp_camera_service.dart';
+import '../../../core/services/photobooth_capture_service.dart';
 import '../../../core/services/uvc_camera_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../features/session/providers/session_provider.dart';
 import '../../../shared/widgets/photobooth_layout.dart';
 import '../../../shared/widgets/responsive_button.dart';
 import '../../../shared/widgets/session_header.dart';
+import '../../../shared/widgets/uvc_preview.dart';
 
 /// Tahap yang ditampilkan di panel kamera sebelah kanan.
 enum _CaptureStage { idle, countdown, capturing, result }
@@ -62,6 +62,7 @@ class _CameraSessionScreenState extends ConsumerState<CameraSessionScreen> {
   CameraController? _cameraController;
   bool _isCameraReady = false;
   bool _isUvcReady = false;
+  CaptureMode _captureMode = CaptureMode.tabletOnly;
   bool _showUvcView = false; // render UVCCameraView sebelum open() dipanggil
 
   String _selectedFrameId = _frameOptions.first.id;
@@ -84,57 +85,79 @@ class _CameraSessionScreenState extends ConsumerState<CameraSessionScreen> {
   void dispose() {
     _countdownTimer?.cancel();
     _cameraController?.dispose();
+    // Jangan menutup UVC di sini — UvcPreview yang mengelola siklus view.
+    PhotoboothCaptureService.instance.releasePtp();
     super.dispose();
   }
 
   Future<void> _initCamera() async {
     try {
-      // 1. Cek apakah UVC device terhubung
-      final sonyStatus = await SonyPtpCameraService.getStatus();
-      debugPrint('🔍 [CameraSession] sonyStatus: isDetected=${sonyStatus.isDetected} isUvc=${sonyStatus.isUvc} hasPermission=${sonyStatus.hasPermission}');
+      // 1. Deteksi perangkat & tentukan mode.
+      final capture = PhotoboothCaptureService.instance;
+      final mode = await capture.detectMode();
+      if (mounted) setState(() => _captureMode = mode);
 
-      if ((sonyStatus.isDetected || sonyStatus.isUvc) && sonyStatus.hasPermission) {
-        // Tampilkan UVCCameraView dulu agar PlatformView ter-attach
+      // 2. Jalur SHUTTER (PTP) disiapkan PARALEL — jangan di-await, karena
+      //    handshake-nya 2-6 detik dan akan menunda tampilnya preview.
+      capture.startShutterPath();
+
+      // 3. Jalur PREVIEW HDMI: cukup render UvcPreview. Widget itu yang
+      //    mendaftarkan generasi view & memanggil open() pada waktu yang tepat
+      //    (hasilnya masuk lewat _onUvcOpenResult). Membuka di sini akan salah
+      //    generasi dan menghasilkan preview hitam.
+      if (capture.usesUvcPreview) {
         setState(() => _showUvcView = true);
-        // Tunggu satu frame agar PlatformView selesai inflate
-        await Future.delayed(const Duration(milliseconds: 300));
-        if (!mounted) return;
-        final uvcOpened = await UvcCameraService.instance.open();
-        debugPrint('🔍 [CameraSession] uvcOpened=$uvcOpened lastError=${UvcCameraService.instance.lastError}');
-        if (uvcOpened && mounted) {
-          setState(() {
-            _isUvcReady = true;
-            _isCameraReady = true;
-          });
-          return;
-        }
-        // UVC gagal — sembunyikan view dan fallback ke Camera2
-        if (mounted) {
-          debugPrint('⚠️ [CameraSession] UVC open gagal (${UvcCameraService.instance.lastError}) — fallback ke Camera2');
-          setState(() => _showUvcView = false);
-        }
-      }
-
-      // Fallback: Camera2 (kamera built-in tablet)
-      debugPrint('📷 [CameraSession] Inisialisasi Camera2 fallback...');
-      final controller = await CameraService.createController(
-        resolution: ResolutionPreset.high,
-      );
-      if (!mounted) {
-        await controller?.dispose();
         return;
       }
-      if (controller != null) {
-        debugPrint('✅ [CameraSession] Camera2 ready');
-        setState(() {
-          _cameraController = controller;
-          _isCameraReady = true;
-        });
-      } else {
-        debugPrint('❌ [CameraSession] Camera2 createController returned null');
-      }
-    } catch (e) {
-      debugPrint('❌ [CameraSession] _initCamera error: $e');
+
+      // 4. Mode ptpOnly / tabletOnly: Camera2 sebagai pemandu framing.
+      await _initTabletCamera(mode);
+    } catch (e, st) {
+      debugPrint('❌ [CameraSession] _initCamera error: $e\n$st');
+    }
+  }
+
+  /// Callback dari [UvcPreview] setelah percobaan membuka kamera HDMI selesai.
+  Future<void> _onUvcOpenResult(bool opened) async {
+    if (!mounted) return;
+    debugPrint('🔍 [CameraSession] uvcOpened=$opened '
+        'lastError=${UvcCameraService.instance.lastError}');
+
+    if (opened) {
+      PhotoboothCaptureService.instance.markPreviewReady(true);
+      setState(() {
+        _isUvcReady = true;
+        _isCameraReady = true;
+      });
+      return;
+    }
+
+    // Gagal → sembunyikan view UVC dan pakai kamera tablet.
+    PhotoboothCaptureService.instance.markPreviewReady(false);
+    setState(() {
+      _showUvcView = false;
+      _isUvcReady = false;
+    });
+    await _initTabletCamera(_captureMode);
+  }
+
+  Future<void> _initTabletCamera(CaptureMode mode) async {
+    debugPrint('📷 [CameraSession] Inisialisasi Camera2 (mode=$mode)...');
+    final controller = await CameraService.createController(
+      resolution: ResolutionPreset.high,
+    );
+    if (!mounted) {
+      await controller?.dispose();
+      return;
+    }
+    if (controller != null) {
+      debugPrint('✅ [CameraSession] Camera2 ready');
+      setState(() {
+        _cameraController = controller;
+        _isCameraReady = true;
+      });
+    } else {
+      debugPrint('❌ [CameraSession] Camera2 createController returned null');
     }
   }
 
@@ -170,19 +193,29 @@ class _CameraSessionScreenState extends ConsumerState<CameraSessionScreen> {
 
     XFile? photo;
     try {
-      if (_isUvcReady) {
-        final file = await UvcCameraService.instance.takePhoto();
-        if (file != null) {
-          photo = XFile(file.path);
-        }
+      // Jalur eksternal: PTP (shutter kamera, resolusi penuh) lalu frame HDMI.
+      await PhotoboothCaptureService.instance.awaitShutterPath();
+      final outcome = await PhotoboothCaptureService.instance.capture();
+      if (outcome.success && outcome.file != null) {
+        photo = XFile(outcome.file!.path);
+        debugPrint('📸 [CameraSession] Foto dari ${outcome.source.name}');
       } else {
-        photo = await _cameraController?.takePicture();
+        // Terakhir: kamera tablet.
+        photo = await _cameraController
+            ?.takePicture()
+            .timeout(const Duration(seconds: 10), onTimeout: () => throw TimeoutException('takePicture tablet timeout'));
       }
-    } catch (_) {
-      // Biarkan null — result stage tetap tampil dengan placeholder.
+    } catch (e) {
+      debugPrint('❌ [CameraSession] _takePhoto error: $e');
+      try {
+        photo = await _cameraController
+            ?.takePicture()
+            .timeout(const Duration(seconds: 10));
+      } catch (_) {}
     }
 
     // Jeda singkat agar transisi "sedang diambil" terasa natural.
+    // Shutter mekanik PTP membuat feed HDMI blackout ~0.5s — jeda ini menutupinya.
     await Future<void>.delayed(const Duration(milliseconds: 700));
     if (!mounted) return;
 
@@ -516,6 +549,8 @@ class _CameraPanel extends StatelessWidget {
           isReady: state._isCameraReady,
           isUvcReady: state._isUvcReady,
           isShowingUvcView: state._showUvcView,
+          captureMode: state._captureMode,
+          onUvcOpenResult: state._onUvcOpenResult,
           mirror: state._mirrorEnabled,
           countdown: state._stage == _CaptureStage.countdown ? state._countdown : null,
         );
@@ -687,6 +722,8 @@ class _PreviewArea extends StatelessWidget {
     required this.countdown,
     this.isUvcReady = false,
     this.isShowingUvcView = false,
+    this.captureMode = CaptureMode.tabletOnly,
+    required this.onUvcOpenResult,
   });
 
   final CameraController? controller;
@@ -695,6 +732,22 @@ class _PreviewArea extends StatelessWidget {
   final int? countdown;
   final bool isUvcReady;
   final bool isShowingUvcView;
+  final CaptureMode captureMode;
+  final void Function(bool opened) onUvcOpenResult;
+
+  /// Badge kecil untuk operator: jalur kamera apa yang sedang dipakai.
+  ({String label, Color color}) get _modeBadge {
+    switch (captureMode) {
+      case CaptureMode.hybrid:
+        return (label: 'HYBRID · HDMI + Shutter', color: const Color(0xFF2E7D32));
+      case CaptureMode.hdmiOnly:
+        return (label: 'HDMI ONLY · foto 2MP', color: const Color(0xFFB26A00));
+      case CaptureMode.ptpOnly:
+        return (label: 'PTP ONLY · tanpa live HDMI', color: const Color(0xFFB26A00));
+      case CaptureMode.tabletOnly:
+        return (label: 'KAMERA TABLET', color: const Color(0xFF9E2A2B));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -706,14 +759,7 @@ class _PreviewArea extends StatelessWidget {
           // UVCCameraView hanya di-render setelah _showUvcView = true
           // (set oleh _initCamera sebelum openUVCCamera dipanggil)
           if (isUvcReady || isShowingUvcView)
-            Transform.flip(
-              flipX: mirror,
-              child: UVCCameraView(
-                cameraController: UvcCameraService.instance.controller,
-                width: double.infinity,
-                height: double.infinity,
-              ),
-            )
+            UvcPreview(mirror: mirror, onOpenResult: onUvcOpenResult)
           else if (isReady && controller != null)
             Transform.flip(
               flipX: mirror,
@@ -728,6 +774,27 @@ class _PreviewArea extends StatelessWidget {
             )
           else
             Container(color: AppColors.parchmentDark),
+          // Badge diagnostik jalur kamera (kiri-atas)
+          Positioned(
+            top: 8.h,
+            left: 8.w,
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+              decoration: BoxDecoration(
+                color: _modeBadge.color.withValues(alpha: 0.85),
+                borderRadius: BorderRadius.circular(6.r),
+              ),
+              child: Text(
+                _modeBadge.label,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 9.sp,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.4,
+                ),
+              ),
+            ),
+          ),
           if (countdown != null)
             Container(
               color: Colors.black.withValues(alpha: 0.45),

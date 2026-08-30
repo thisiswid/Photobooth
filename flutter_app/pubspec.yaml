@@ -58,6 +58,15 @@ dependencies:
   # Fonts
   google_fonts: ^6.2.1
 
+
+# ── PATCHED PLUGIN ─────────────────────────────────────────────────────────
+# flutter_uvc_camera 1.0.0 upstream mewajibkan WRITE_EXTERNAL_STORAGE yang
+# tidak pernah bisa di-grant di Android 13+ -> preview UVC selalu hitam.
+# Salinan lokal di packages/ sudah dipatch (lihat PermissionManager.kt).
+dependency_overrides:
+  flutter_uvc_camera:
+    path: ./packages/flutter_uvc_camera
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

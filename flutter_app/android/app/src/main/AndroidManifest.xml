@@ -3,6 +3,13 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Storage legacy. CATATAN: jangan tambahkan android:maxSdkVersion di sini —
+         plugin camera_android_camerax sudah mendeklarasikannya dengan nilai 28,
+         dan nilai yang berbeda membuat manifest merger gagal.
+         Jalur UVC/HDMI TIDAK bergantung pada permission ini: sejak Android 13
+         (API 33) permission-nya sudah dihapus sistem dan file hasil capture
+         ditulis ke app-scoped storage. Lihat patch di
+         packages/flutter_uvc_camera/.../PermissionManager.kt -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />
