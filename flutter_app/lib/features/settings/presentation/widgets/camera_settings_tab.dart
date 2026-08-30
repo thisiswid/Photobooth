@@ -2,9 +2,12 @@ import 'dart:io' as dart_io;
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_uvc_camera/flutter_uvc_camera.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../../../core/services/camera_service.dart';
 import '../../../../core/services/sony_ptp_camera_service.dart';
+import '../../../../core/services/uvc_camera_service.dart';
 import '../../../../core/theme/app_colors.dart';
 
 class CameraSettingsTab extends StatefulWidget {
@@ -23,11 +26,12 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
   bool _autoSelectExternal = true;
   String? _errorMessage;
 
-  // ── SONY ZV-E10 USB PTP STATE ─────────────────────────────────────────────
+  // ── SONY ZV-E10 USB PTP / HDMI UVC STATE ──────────────────────────────────
   SonyCameraStatus? _sonyStatus;
   bool _isSonyCapturing = false;
   String? _sonyCaptureMessage;
   dart_io.File? _sonyCapturedFile;
+  bool _isUvcActive = false;
 
   @override
   void initState() {
@@ -52,6 +56,12 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
       _autoSelectExternal = CameraService.autoSelectExternal;
       _cameras = await CameraService.getAvailableCamerasList();
       await _loadSonyStatus();
+
+      if (_sonyStatus?.isUvc == true || _sonyStatus?.isDetected == true) {
+        _isUvcActive = true;
+        await UvcCameraService.instance.open();
+      }
+
       await _initPreviewController();
     } catch (e) {
       _errorMessage = 'Gagal memuat kamera: $e';
@@ -66,7 +76,12 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
     try {
       final status = await SonyPtpCameraService.getStatus();
       if (mounted) {
-        setState(() => _sonyStatus = status);
+        setState(() {
+          _sonyStatus = status;
+          if (status.isUvc) {
+            _isUvcActive = true;
+          }
+        });
       }
     } catch (e) {
       debugPrint('Error load Sony status: $e');
@@ -91,6 +106,19 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
       _isSonyCapturing = true;
       _sonyCaptureMessage = null;
     });
+
+    if (_isUvcActive) {
+      final file = await UvcCameraService.instance.takePhoto();
+      if (mounted) {
+        setState(() {
+          _isSonyCapturing = false;
+          _testResult = file;
+          _sonyCapturedFile = file;
+          _sonyCaptureMessage = file != null ? '✅ Foto berhasil diambil dari HDMI stream!' : '⚠️ Gagal mengambil foto dari stream UVC.';
+        });
+      }
+      return;
+    }
 
     final result = await SonyPtpCameraService.capturePhoto();
 
@@ -127,22 +155,41 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
   }
 
   Future<void> _selectCamera(CameraDescription cam) async {
+    _isUvcActive = false;
     CameraService.setSelectedCamera(cam);
     await CameraService.saveSelectedCamera(cam.name);
     await _initPreviewController();
     if (mounted) setState(() {});
   }
 
-  Future<void> _takeTestPhoto() async {
-    if (_previewController == null || !_previewController!.value.isInitialized) return;
+  Future<void> _selectUvcCamera() async {
+    setState(() => _isUvcActive = true);
+    await [
+      Permission.camera,
+      Permission.microphone,
+      Permission.storage,
+    ].request();
+    await UvcCameraService.instance.open();
+    if (mounted) setState(() {});
+  }
 
+  Future<void> _takeTestPhoto() async {
     setState(() => _isTestingCapture = true);
     try {
-      final xFile = await _previewController!.takePicture();
-      if (mounted) {
-        setState(() {
-          _testResult = dart_io.File(xFile.path);
-        });
+      if (_isUvcActive) {
+        final file = await UvcCameraService.instance.takePhoto();
+        if (mounted) {
+          setState(() {
+            _testResult = file;
+          });
+        }
+      } else if (_previewController != null && _previewController!.value.isInitialized) {
+        final xFile = await _previewController!.takePicture();
+        if (mounted) {
+          setState(() {
+            _testResult = dart_io.File(xFile.path);
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -171,7 +218,7 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              '${_cameras.length} Kamera Terdeteksi',
+              '${_cameras.length + (_sonyStatus?.isDetected == true ? 1 : 0)} Sumber Kamera Terdeteksi',
               style: GoogleFonts.montserrat(color: Colors.white70, fontSize: 12.sp),
             ),
             ElevatedButton.icon(
@@ -189,7 +236,11 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
           ],
         ),
         SizedBox(height: 8.h),
-        if (_cameras.isEmpty)
+        // 1. Kartu Khusus HDMI Capture Card (UVC)
+        if (_sonyStatus?.isDetected == true || _sonyStatus?.isUvc == true)
+          _buildUvcCameraCard(),
+
+        if (_cameras.isEmpty && _sonyStatus?.isDetected != true)
           Container(
             padding: EdgeInsets.all(14.r),
             decoration: BoxDecoration(
@@ -215,11 +266,25 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
           decoration: BoxDecoration(
             color: Colors.black.withValues(alpha: 0.3),
             borderRadius: BorderRadius.circular(12.r),
-            border: Border.all(color: AppColors.gold.withValues(alpha: 0.3)),
+            border: Border.all(color: _isUvcActive ? Colors.greenAccent.withValues(alpha: 0.6) : AppColors.gold.withValues(alpha: 0.3)),
           ),
           child: Column(
             children: [
-              if (_previewController != null && _previewController!.value.isInitialized)
+              if (_isUvcActive)
+                Container(
+                  height: 240.h,
+                  clipBehavior: Clip.hardEdge,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8.r),
+                    border: Border.all(color: Colors.greenAccent, width: 2),
+                  ),
+                  child: UVCCameraView(
+                    cameraController: UvcCameraService.instance.controller,
+                    width: double.infinity,
+                    height: double.infinity,
+                  ),
+                )
+              else if (_previewController != null && _previewController!.value.isInitialized)
                 Container(
                   clipBehavior: Clip.hardEdge,
                   decoration: BoxDecoration(
@@ -246,12 +311,15 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
                 ),
               
               SizedBox(height: 12.h),
-              if (_previewController != null && _previewController!.value.isInitialized)
-                Text(
-                  '${_previewController!.description.name}\nResolusi: High',
-                  style: GoogleFonts.montserrat(color: AppColors.creamWhite, fontSize: 11.sp),
-                  textAlign: TextAlign.center,
-                ),
+              Text(
+                _isUvcActive
+                    ? 'POV Kamera Sony ZV-E10 (USB Video HDMI Stream)\nResolusi: HD Video'
+                    : (_previewController != null && _previewController!.value.isInitialized
+                        ? 'Camera ID: ${_previewController!.description.name}\nResolusi: High'
+                        : 'Kamera Standar'),
+                style: GoogleFonts.montserrat(color: _isUvcActive ? Colors.greenAccent : AppColors.creamWhite, fontSize: 11.sp, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
               
               SizedBox(height: 12.h),
               Row(
@@ -363,6 +431,7 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
     final status = _sonyStatus;
     final isDetected = status?.isDetected == true;
     final hasPerm = status?.hasPermission == true;
+    final isUvc = status?.isUvc == true;
 
     return Container(
       padding: EdgeInsets.all(14.r),
@@ -380,10 +449,14 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
             children: [
               Row(
                 children: [
-                  Icon(Icons.usb_rounded, color: isDetected ? Colors.greenAccent : Colors.white38, size: 20.r),
+                  Icon(
+                    isUvc ? Icons.videocam_rounded : Icons.usb_rounded,
+                    color: isDetected ? Colors.greenAccent : Colors.white38,
+                    size: 20.r,
+                  ),
                   SizedBox(width: 8.w),
                   Text(
-                    status?.productName ?? 'Sony ZV-E10 (USB PTP)',
+                    status?.productName ?? (isUvc ? 'USB Video (HDMI Capture Card)' : 'Sony ZV-E10'),
                     style: GoogleFonts.montserrat(color: AppColors.creamWhite, fontWeight: FontWeight.bold, fontSize: 12.sp),
                   ),
                 ],
@@ -396,7 +469,9 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
                   border: Border.all(color: isDetected ? Colors.green : Colors.red),
                 ),
                 child: Text(
-                  isDetected ? '● Terdeteksi USB' : '● Disconnected',
+                  isDetected
+                      ? (isUvc ? '● HDMI Capture Terhubung' : '● Terdeteksi USB')
+                      : '● Disconnected',
                   style: TextStyle(
                     color: isDetected ? Colors.greenAccent : Colors.redAccent,
                     fontSize: 10.sp,
@@ -413,17 +488,43 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
             _buildSettingRow(
               label: 'VID / PID',
               child: Text(
-                '0x054C : 0x0D97 (Sony Corp)',
+                '0x${(status?.vendorId ?? 0).toRadixString(16).toUpperCase().padLeft(4, '0')} : '
+                '0x${(status?.productId ?? 0).toRadixString(16).toUpperCase().padLeft(4, '0')} '
+                '${isUvc ? '(MacroSilicon HDMI Capture)' : ((status?.vendorId == 0x054C) ? '(Sony Corp)' : '(Detected)')}',
                 style: GoogleFonts.montserrat(color: AppColors.gold, fontSize: 11.sp),
               ),
             ),
             _buildSettingRow(
-              label: 'Node Path',
+              label: 'Node Path (USB)',
               child: Text(
-                status?.devicePath ?? '/dev/bus/usb/002/004',
-                style: GoogleFonts.montserrat(color: Colors.white70, fontSize: 11.sp),
+                status?.devicePath ?? '-',
+                style: GoogleFonts.montserrat(color: Colors.white70, fontSize: 11.sp, fontWeight: FontWeight.bold),
               ),
             ),
+            if (isUvc) ...[
+              SizedBox(height: 6.h),
+              Container(
+                padding: EdgeInsets.all(10.r),
+                decoration: BoxDecoration(
+                  color: Colors.green.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8.r),
+                  border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.check_circle_outline_rounded, color: Colors.greenAccent, size: 18.r),
+                    SizedBox(width: 8.w),
+                    Expanded(
+                      child: Text(
+                        'Kamera terhubung via Kabel HDMI Capture Card (${status?.devicePath}). Stream video HDMI otomatis aktif di bagian Live Preview Test di atas.',
+                        style: GoogleFonts.montserrat(color: Colors.greenAccent, fontSize: 10.5.sp, height: 1.3),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const Divider(color: Colors.white12),
           ] else ...[
             SizedBox(height: 6.h),
@@ -466,7 +567,7 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
                       border: Border.all(color: hasPerm ? Colors.green : Colors.amber),
                     ),
                     child: Text(
-                      hasPerm ? '✓ Granted' : '⚠️ Permission Needed',
+                      hasPerm ? '✓ Ready / Granted' : '⚠️ Permission Needed',
                       style: TextStyle(
                         color: hasPerm ? Colors.greenAccent : Colors.amberAccent,
                         fontSize: 10.sp,
@@ -474,7 +575,7 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
                       ),
                     ),
                   ),
-                  if (isDetected && !hasPerm) ...[
+                  if (isDetected && !hasPerm && !isUvc) ...[
                     SizedBox(width: 8.w),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
@@ -503,12 +604,20 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
                 padding: EdgeInsets.symmetric(vertical: 12.h),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
               ),
-              onPressed: (!isDetected || _isSonyCapturing) ? null : _handleSonyCaptureTest,
+              onPressed: (!isDetected || _isSonyCapturing) ? null : () {
+                if (isUvc) {
+                  _takeTestPhoto();
+                } else {
+                  _handleSonyCaptureTest();
+                }
+              },
               icon: _isSonyCapturing
                   ? SizedBox(width: 16.r, height: 16.r, child: const CircularProgressIndicator(color: AppColors.darkBrown, strokeWidth: 2))
-                  : const Icon(Icons.camera_enhance_rounded),
+                  : Icon(isUvc ? Icons.camera_alt_rounded : Icons.camera_enhance_rounded),
               label: Text(
-                _isSonyCapturing ? 'Memicu Shutter Sony & Mentransfer Foto...' : 'Test Shutter Capture (PTP Direct)',
+                _isSonyCapturing
+                    ? 'Memicu Shutter Sony & Mentransfer Foto...'
+                    : (isUvc ? 'Test Capture Stream HDMI (USB Video)' : 'Test Shutter Capture (PTP Direct)'),
                 style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, fontSize: 12.sp),
               ),
             ),
@@ -551,14 +660,95 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
     );
   }
 
+  Widget _buildUvcCameraCard() {
+    final isSelected = _isUvcActive;
+    return Container(
+      margin: EdgeInsets.only(bottom: 8.h),
+      padding: EdgeInsets.all(12.r),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(12.r),
+        border: Border.all(
+          color: isSelected ? Colors.greenAccent : AppColors.gold.withValues(alpha: 0.3),
+          width: isSelected ? 2 : 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.videocam_rounded, color: isSelected ? Colors.greenAccent : AppColors.gold, size: 26.r),
+              SizedBox(width: 8.w),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Kamera Eksternal HDMI / Sony ZV-E10',
+                      style: GoogleFonts.montserrat(color: AppColors.creamWhite, fontWeight: FontWeight.bold, fontSize: 13.sp),
+                    ),
+                    Text(
+                      'USB Video (${_sonyStatus?.devicePath ?? "/dev/bus/usb/002/012"})',
+                      style: GoogleFonts.montserrat(color: Colors.greenAccent, fontSize: 11.sp, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 12.h),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                    decoration: BoxDecoration(
+                      color: (isSelected ? Colors.green : Colors.amber).withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(6.r),
+                      border: Border.all(color: isSelected ? Colors.greenAccent : Colors.amber),
+                    ),
+                    child: Text(
+                      isSelected ? '● Kamera Aktif (POV Sony)' : '📷 HDMI Terhubung',
+                      style: GoogleFonts.montserrat(
+                        color: isSelected ? Colors.greenAccent : Colors.amberAccent,
+                        fontSize: 10.sp,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isSelected ? Colors.grey : AppColors.gold,
+                  foregroundColor: isSelected ? Colors.black54 : AppColors.darkBrown,
+                  padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+                  minimumSize: Size.zero,
+                ),
+                onPressed: isSelected ? null : _selectUvcCamera,
+                child: Text(
+                  isSelected ? 'Sedang Dipakai' : 'Gunakan Kamera Ini',
+                  style: GoogleFonts.montserrat(fontSize: 11.sp, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildCameraCard(CameraDescription cam) {
     final isSelected = CameraService.selectedCamera?.name == cam.name;
     final isExternal = CameraService.isExternalCamera(cam);
     final typeLabel = CameraService.getCameraTypeLabel(cam);
 
     IconData camIcon = Icons.camera_alt_rounded;
-    if (cam.lensDirection == CameraLensDirection.external) {
-      camIcon = Icons.usb_rounded;
+    if (isExternal || cam.lensDirection == CameraLensDirection.external) {
+      camIcon = Icons.videocam_rounded;
     } else if (cam.lensDirection == CameraLensDirection.front) {
       camIcon = Icons.camera_front_rounded;
     } else if (cam.lensDirection == CameraLensDirection.back) {
@@ -580,19 +770,19 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
         children: [
           Row(
             children: [
-              Icon(camIcon, color: AppColors.gold, size: 24.r),
+              Icon(camIcon, color: isSelected ? Colors.greenAccent : AppColors.gold, size: 24.r),
               SizedBox(width: 8.w),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      cam.name,
+                      'Camera ${cam.name} — ${isExternal ? "Kamera Eksternal HDMI / UVC" : (cam.lensDirection == CameraLensDirection.front ? "Kamera Depan" : "Kamera Belakang")}',
                       style: GoogleFonts.montserrat(color: AppColors.creamWhite, fontWeight: FontWeight.bold, fontSize: 13.sp),
                     ),
                     Text(
                       typeLabel,
-                      style: GoogleFonts.montserrat(color: Colors.white70, fontSize: 11.sp),
+                      style: GoogleFonts.montserrat(color: isExternal ? Colors.greenAccent : Colors.white70, fontSize: 11.sp),
                     ),
                   ],
                 ),

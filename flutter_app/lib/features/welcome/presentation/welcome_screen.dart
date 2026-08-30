@@ -18,6 +18,11 @@ import '../../../shared/widgets/responsive_button.dart';
 import '../../../shared/widgets/responsive_layout_builder.dart';
 import '../../provisioning/providers/tenant_provider.dart';
 
+import '../../../core/services/sony_ptp_camera_service.dart';
+import '../../../core/services/uvc_camera_service.dart';
+import '../../../shared/widgets/unified_camera_preview.dart';
+import 'package:flutter_uvc_camera/flutter_uvc_camera.dart';
+
 /// Welcome Screen — Retro-Modern Artisan Studio Grand Entrance.
 class WelcomeScreen extends ConsumerStatefulWidget {
   const WelcomeScreen({super.key});
@@ -29,6 +34,8 @@ class WelcomeScreen extends ConsumerStatefulWidget {
 class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
   CameraController? _cameraController;
   bool _isCameraReady = false;
+  bool _isUvcReady = false;
+  bool _showUvcView = false; // render UVCCameraView sebelum open() dipanggil
 
   // Kontrol visibilitas tombol setting (Disembunyikan 100% dari customer)
   final bool _showSettingsIcon = false;
@@ -41,7 +48,11 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
   void initState() {
     super.initState();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    _initCamera();
+    // Tunggu frame pertama selesai render agar PlatformView UVCCameraView
+    // sudah ada di layar sebelum openUVCCamera() dipanggil.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _initCamera();
+    });
   }
 
   @override
@@ -53,8 +64,38 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
 
   Future<void> _initCamera() async {
     final status = await Permission.camera.request();
-    if (!mounted || !status.isGranted) return;
+    if (!mounted) return;
+
     try {
+      // 1. Cek apakah UVC device terhubung
+      final sonyStatus = await SonyPtpCameraService.getStatus();
+      debugPrint('🔍 [WelcomeScreen] sonyStatus: isDetected=${sonyStatus.isDetected} isUvc=${sonyStatus.isUvc} hasPermission=${sonyStatus.hasPermission}');
+
+      if ((sonyStatus.isDetected || sonyStatus.isUvc) && sonyStatus.hasPermission) {
+        setState(() => _showUvcView = true);
+        await Future.delayed(const Duration(milliseconds: 300));
+        if (!mounted) return;
+        final uvcOpened = await UvcCameraService.instance.open();
+        debugPrint('🔍 [WelcomeScreen] uvcOpened=$uvcOpened lastError=${UvcCameraService.instance.lastError}');
+        if (uvcOpened && mounted) {
+          setState(() {
+            _isUvcReady = true;
+            _isCameraReady = true;
+          });
+          return;
+        }
+        if (mounted) {
+          debugPrint('⚠️ [WelcomeScreen] UVC open gagal — fallback ke Camera2');
+          setState(() => _showUvcView = false);
+        }
+      }
+
+      if (!status.isGranted) {
+        debugPrint('❌ [WelcomeScreen] Camera permission not granted');
+        return;
+      }
+
+      debugPrint('📷 [WelcomeScreen] Inisialisasi Camera2 fallback...');
       final oldController = _cameraController;
       _cameraController = null;
       if (mounted) setState(() => _isCameraReady = false);
@@ -68,12 +109,17 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
         return;
       }
       if (controller != null) {
+        debugPrint('✅ [WelcomeScreen] Camera2 ready');
         setState(() {
           _cameraController = controller;
           _isCameraReady = true;
         });
+      } else {
+        debugPrint('❌ [WelcomeScreen] Camera2 createController returned null');
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('❌ [WelcomeScreen] _initCamera error: $e');
+    }
   }
 
   /// Membuka Hidden Device Settings dengan verifikasi PIN pengelola (default: 1234)
@@ -127,7 +173,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
               decoration: InputDecoration(
                 counterText: '',
                 hintText: '••••',
-                hintStyle: TextStyle(color: Colors.white24, letterSpacing: 8),
+                hintStyle: const TextStyle(color: Colors.white24, letterSpacing: 8),
                 filled: true,
                 fillColor: Colors.black.withValues(alpha: 0.4),
                 border: OutlineInputBorder(
@@ -205,8 +251,19 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
         fit: StackFit.expand,
         children: [
           // ── Live camera BG ─────────────────────────────────────────────
-          if (_isCameraReady && _cameraController != null)
-            _CameraBackground(controller: _cameraController!)
+          // UVCCameraView hanya di-render setelah _showUvcView = true
+          // (set oleh _initCamera sebelum openUVCCamera dipanggil)
+          if (_isUvcReady || _showUvcView)
+            UVCCameraView(
+              cameraController: UvcCameraService.instance.controller,
+              width: double.infinity,
+              height: double.infinity,
+            )
+          else if (_isCameraReady)
+            UnifiedCameraPreview(
+              isUvcMode: false,
+              cameraController: _isCameraReady ? _cameraController : null,
+            )
           else
             Container(color: AppColors.darkCoffee),
 
@@ -481,23 +538,6 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
               ),
             ),
         ],
-      ),
-    );
-  }
-}
-
-class _CameraBackground extends StatelessWidget {
-  const _CameraBackground({required this.controller});
-  final CameraController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    final size = controller.value.previewSize;
-    final aspectRatio = size != null ? size.width / size.height : 16 / 9;
-    return Center(
-      child: AspectRatio(
-        aspectRatio: aspectRatio,
-        child: CameraPreview(controller),
       ),
     );
   }

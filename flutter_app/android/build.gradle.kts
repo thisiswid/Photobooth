@@ -2,6 +2,16 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        maven { url = uri("https://jitpack.io") }
+    }
+    configurations.all {
+        resolutionStrategy {
+            eachDependency {
+                if (requested.group == "com.android.support.constraint") {
+                    useTarget("androidx.constraintlayout:constraintlayout:2.1.4")
+                }
+            }
+        }
     }
 }
 

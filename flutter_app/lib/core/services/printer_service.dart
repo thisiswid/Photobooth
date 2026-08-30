@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 import 'error_logger.dart';
 
 /// Result status of a print job
@@ -62,6 +63,9 @@ class PrinterService {
   static const _autoPrintKey = 'printer_auto_print';
   static const _autoReconnectKey = 'printer_auto_reconnect';
   static const _retryCountKey = 'printer_retry_count';
+  static const _marginHorizKey = 'printer_margin_horizontal';
+  static const _marginVertKey = 'printer_margin_vertical';
+  static const _marginUnitKey = 'printer_margin_unit';
 
   static String? _cachedIp;
   static bool _isPrintingBusy = false; // Lock guard agar tidak ada print bersamaan / ganda
@@ -111,7 +115,7 @@ class PrinterService {
   static Future<int> getCopies() async => int.tryParse(await _storage.read(key: _copiesKey) ?? '1') ?? 1;
   static Future<void> setCopies(int c) async => await _storage.write(key: _copiesKey, value: c.toString());
 
-  static Future<String> getQuality() async => (await _storage.read(key: _qualityKey)) ?? 'High';
+  static Future<String> getQuality() async => (await _storage.read(key: _qualityKey)) ?? 'Standard';
   static Future<void> setQuality(String q) async => await _storage.write(key: _qualityKey, value: q);
 
   static Future<String> getOrientation() async => (await _storage.read(key: _orientationKey)) ?? 'Auto';
@@ -128,6 +132,15 @@ class PrinterService {
 
   static Future<int> getRetryCount() async => int.tryParse(await _storage.read(key: _retryCountKey) ?? '3') ?? 3;
   static Future<void> setRetryCount(int r) async => await _storage.write(key: _retryCountKey, value: r.toString());
+
+  static Future<double> getMarginHorizontal() async => double.tryParse(await _storage.read(key: _marginHorizKey) ?? '0.0') ?? 0.0;
+  static Future<void> setMarginHorizontal(double v) async => await _storage.write(key: _marginHorizKey, value: v.toString());
+
+  static Future<double> getMarginVertical() async => double.tryParse(await _storage.read(key: _marginVertKey) ?? '0.0') ?? 0.0;
+  static Future<void> setMarginVertical(double v) async => await _storage.write(key: _marginVertKey, value: v.toString());
+
+  static Future<String> getMarginUnit() async => (await _storage.read(key: _marginUnitKey)) ?? 'mm';
+  static Future<void> setMarginUnit(String u) async => await _storage.write(key: _marginUnitKey, value: u);
 
   // ─── USB Detection & Permissions ──────────────────────────────────────────
 
@@ -219,10 +232,6 @@ class PrinterService {
 
   // ─── Print Engine: Android PrintManager (SATU-SATUNYA jalur print) ────────
 
-  /// Kirim FOTO via Android PrintManager → Epson Print Service.
-  /// Silent print; mendukung printer USB maupun Wi-Fi. Tepat 1 PrintJob.
-  /// ⚠️ BUKAN raw USB bulk transfer — bytes diraster driver Epson, bukan
-  /// dilempar mentah ke printer.
   static Future<bool> _printPhotoViaPrintManager({
     required Uint8List imageBytes,
     required String jobName,
@@ -230,11 +239,19 @@ class PrinterService {
     if (!Platform.isAndroid) return false;
     try {
       final borderless = await getBorderless();
-      debugPrint('🖨️ Mengirim foto via Android PrintManager (borderless: $borderless)...');
+      final quality = await getQuality();
+      final marginHoriz = await getMarginHorizontal();
+      final marginVert = await getMarginVertical();
+      final marginUnit = await getMarginUnit();
+      debugPrint('🖨️ Mengirim foto via Android PrintManager (borderless: $borderless, quality: $quality, margin: $marginHoriz x $marginVert $marginUnit)...');
       final success = await _channel.invokeMethod<bool>('printPhoto', {
         'imageBytes': imageBytes,
         'jobName': jobName,
         'borderless': borderless,
+        'quality': quality,
+        'marginHorizontal': marginHoriz,
+        'marginVertical': marginVert,
+        'marginUnit': marginUnit,
       });
       return success ?? false;
     } catch (e) {
@@ -243,19 +260,26 @@ class PrinterService {
     }
   }
 
-
-  /// Kirim PDF (Test Page) via Android PrintManager → Epson Print Service.
-  /// Silent print; mendukung printer USB maupun Wi-Fi. Tepat 1 PrintJob.
   static Future<bool> _printPdfViaPrintManager({
     required Uint8List pdfBytes,
     required String jobName,
   }) async {
     if (!Platform.isAndroid) return false;
     try {
-      debugPrint('🖨️ Mengirim PDF via Android PrintManager (Epson Print Service)...');
+      final borderless = await getBorderless();
+      final quality = await getQuality();
+      final marginHoriz = await getMarginHorizontal();
+      final marginVert = await getMarginVertical();
+      final marginUnit = await getMarginUnit();
+      debugPrint('🖨️ Mengirim PDF via Android PrintManager (borderless: $borderless, quality: $quality, margin: $marginHoriz x $marginVert $marginUnit)...');
       final success = await _channel.invokeMethod<bool>('printPdf', {
         'pdfBytes': pdfBytes,
         'jobName': jobName,
+        'borderless': borderless,
+        'quality': quality,
+        'marginHorizontal': marginHoriz,
+        'marginVertical': marginVert,
+        'marginUnit': marginUnit,
       });
       return success ?? false;
     } catch (e) {
@@ -266,24 +290,19 @@ class PrinterService {
 
   // ─── Public Print Methods ─────────────────────────────────────────────────
 
-  /// Entry point cetak foto. SATU panggilan = SATU PrintJob = SATU lembar.
-  ///
-  /// Flow: Android PrintManager → Epson Print Service → printer (USB/Wi-Fi).
-  /// PrintActivity terbuka otomatis — user tap 1x untuk konfirmasi cetak.
-  ///
-  /// Tidak ada retry otomatis — retry manual = PrintJob baru (tetap 1 lembar
-  /// per aksi).
+  /// Method tunggal untuk mengirim print job ke Epson L8050.
+  /// ⚠️ HANYA memanggil MethodChannel ke Android PrintManager + Epson Print Service.
+  /// TIDAK ADA socket / raw USB bulk transfer yang memutus driver Epson.
   static Future<PrintJobResult> printPhotoBytes({
     required Uint8List imageBytes,
     String jobName = 'Photobooth_Print',
     int copies = 1,
   }) async {
-    // 🔒 Static Lock Guard — prevent concurrent / double prints
     if (_isPrintingBusy) {
-      debugPrint('⚠️ PrinterService busy dengan proses cetak lain. Batalkan duplikat.');
+      debugPrint('⚠️ Warning: Print job ditolak karena sedang ada pencetakan berlangsung.');
       return const PrintJobResult(
         isSuccess: false,
-        message: 'Proses cetak sedang berlangsung.',
+        message: 'Printer sedang memproses cetakan lain. Harap tunggu.',
       );
     }
     _isPrintingBusy = true;
@@ -296,7 +315,6 @@ class PrinterService {
         );
       }
 
-      debugPrint('🖨️ Mengirim foto ke Epson L8050 (AutoPrintService Kiosk)...');
       final success = await _printPhotoViaPrintManager(
         imageBytes: imageBytes,
         jobName: jobName,
@@ -305,41 +323,38 @@ class PrinterService {
       if (success) {
         return const PrintJobResult(
           isSuccess: true,
-          message: 'Foto berhasil dikirim ke printer Epson L8050',
+          message: 'Cetak foto berhasil dikirim ke printer Epson L8050',
           printerName: 'Epson L8050',
           isDirect: true,
         );
       }
 
-      debugPrint('❌ Print job gagal.');
       return const PrintJobResult(
         isSuccess: false,
-        message:
-            'Gagal mencetak foto. Pastikan Epson L8050 menyala dan terhubung.',
+        message: 'Gagal mengirim print job ke Epson Print Service.',
         printerName: 'Epson L8050',
       );
     } catch (e, stack) {
       ErrorLogger.instance.logHardwareError(
-        message: 'Gagal mencetak foto: $e',
+        message: 'Gagal cetak foto: $e',
         stackTrace: stack,
       );
       return PrintJobResult(
         isSuccess: false,
-        message: 'Error cetak: $e',
+        message: 'Error cetak foto: $e',
       );
     } finally {
       _isPrintingBusy = false;
     }
   }
 
-  /// Test Print — SATU panggilan = SATU PrintJob = SATU lembar.
-  /// Jalur sama dengan foto: PrintManager → Epson Print Service (PDF diraster
-  /// driver Epson sehingga teks tercetak normal, bukan kode acak).
+  /// Membuka dialog / mencetak test page resmi ke Epson L8050 via PrintManager.
   static Future<PrintJobResult> printTestPage() async {
     if (_isPrintingBusy) {
+      debugPrint('⚠️ Warning: Test print ditolak karena sedang ada pencetakan berlangsung.');
       return const PrintJobResult(
         isSuccess: false,
-        message: 'Proses cetak sedang berlangsung.',
+        message: 'Printer sedang memproses cetakan lain. Harap tunggu.',
       );
     }
     _isPrintingBusy = true;
@@ -352,13 +367,42 @@ class PrinterService {
         );
       }
 
-      final pdfBytes = await compute(_buildTestPdf, 0);
-      debugPrint('🖨️ Test PDF siap: ${pdfBytes.length} bytes — kirim via PrintManager');
+      final paperSize = await getPaperSize();
+      final borderless = await getBorderless();
+      final quality = await getQuality();
+      final marginHoriz = await getMarginHorizontal();
+      final marginVert = await getMarginVertical();
+      final marginUnit = await getMarginUnit();
 
-      final success = await _printPdfViaPrintManager(
-        pdfBytes: pdfBytes,
-        jobName: 'Test_Page',
-      );
+      final pdfBytes = await compute(_buildTestPdf, {
+        'paperSize': paperSize,
+        'borderless': borderless,
+        'quality': quality,
+        'marginHorizontal': marginHoriz,
+        'marginVertical': marginVert,
+        'marginUnit': marginUnit,
+      });
+      debugPrint('🖨️ Test PDF siap: ${pdfBytes.length} bytes — raster ke PNG image untuk Photo pipeline');
+
+      Uint8List? pngBytes;
+      try {
+        await for (final page in Printing.raster(pdfBytes, pages: [0], dpi: 300)) {
+          pngBytes = await page.toPng();
+          break;
+        }
+      } catch (e) {
+        debugPrint('Raster PDF error: $e');
+      }
+
+      final success = pngBytes != null
+          ? await _printPhotoViaPrintManager(
+              imageBytes: pngBytes,
+              jobName: 'Test_Page',
+            )
+          : await _printPdfViaPrintManager(
+              pdfBytes: pdfBytes,
+              jobName: 'Test_Page',
+            );
 
       if (success) {
         return const PrintJobResult(
@@ -392,81 +436,190 @@ class PrinterService {
 
 // ─── Isolate functions (top-level) ────────────────────────────────────────────
 
-Future<Uint8List> _buildTestPdf(int _) async {
+Future<Uint8List> _buildTestPdf(Map<String, dynamic> params) async {
+  final paperSize = params['paperSize'] as String? ?? '4x6';
+  final borderless = params['borderless'] as bool? ?? true;
+  final quality = params['quality'] as String? ?? 'Standard';
+  final marginHoriz = (params['marginHorizontal'] as num?)?.toDouble() ?? 0.0;
+  final marginVert = (params['marginVertical'] as num?)?.toDouble() ?? 0.0;
+  final marginUnit = params['marginUnit'] as String? ?? 'mm';
+
   final doc = pw.Document();
-  const pageWidth = 4.0 * PdfPageFormat.inch;
-  const pageHeight = 6.0 * PdfPageFormat.inch;
-  const pageFormat = PdfPageFormat(pageWidth, pageHeight, marginAll: 0);
+
+  final double pageWidth = (paperSize == '2x6') ? 2.0 * PdfPageFormat.inch : 4.0 * PdfPageFormat.inch;
+  const double pageHeight = 6.0 * PdfPageFormat.inch;
+  final pageFormat = PdfPageFormat(pageWidth, pageHeight, marginAll: 0);
 
   const black = PdfColors.black;
-  const grey = PdfColors.grey400;
+  const grey = PdfColors.grey700;
+
+  // Conversion: 1 mm = 2.83465 pt
+  const double pt05mm = 0.5 * 2.83465; // ~1.417 pt
+  const double pt1mm  = 1.0 * 2.83465; // ~2.835 pt
+  const double pt2mm  = 2.0 * 2.83465; // ~5.669 pt
+  const double pt5mm  = 5.0 * 2.83465; // ~14.173 pt
 
   doc.addPage(
     pw.Page(
       pageFormat: pageFormat,
-      build: (context) => pw.Padding(
-        padding: const pw.EdgeInsets.all(20),
-        child: pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            // ── Header tipis ──
-            pw.Container(
-              width: double.infinity,
-              padding: const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+      build: (context) => pw.Stack(
+        children: [
+          // ── Garis Outline 0.5 mm dari tepi ──
+          pw.Positioned(
+            left: pt05mm,
+            top: pt05mm,
+            right: pt05mm,
+            bottom: pt05mm,
+            child: pw.Container(
               decoration: pw.BoxDecoration(
-                border: pw.Border.all(color: black, width: 1),
+                border: pw.Border.all(color: black, width: 0.5),
               ),
-              child: pw.Text(
-                'TEST PAGE — FAKULTAS KOPI PHOTOBOOTH',
-                style: pw.TextStyle(
-                  fontSize: 10,
-                  fontWeight: pw.FontWeight.bold,
-                  color: black,
+            ),
+          ),
+
+          // ── Garis Outline 1.0 mm dari tepi (Kompensasi Bleed) ──
+          pw.Positioned(
+            left: pt1mm,
+            top: pt1mm,
+            right: pt1mm,
+            bottom: pt1mm,
+            child: pw.Container(
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: black, width: 0.5),
+              ),
+            ),
+          ),
+
+          // ── Garis Outline 2 mm dari tepi ──
+          pw.Positioned(
+            left: pt2mm,
+            top: pt2mm,
+            right: pt2mm,
+            bottom: pt2mm,
+            child: pw.Container(
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: black, width: 0.5),
+              ),
+            ),
+          ),
+
+          // ── Garis Outline 5 mm dari tepi ──
+          pw.Positioned(
+            left: pt5mm,
+            top: pt5mm,
+            right: pt5mm,
+            bottom: pt5mm,
+            child: pw.Container(
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: black, width: 0.5),
+              ),
+            ),
+          ),
+
+          // ── Label Sudut Kiri Atas ──
+          pw.Positioned(
+            left: pt5mm + 4,
+            top: pt5mm + 4,
+            child: pw.Text(
+              'Edge Lines: 0.5mm / 1mm / 2mm / 5mm',
+              style: const pw.TextStyle(fontSize: 6, color: grey),
+            ),
+          ),
+
+          // ── Konten Utama (Tengah Page - Hemat Tinta 100%) ──
+          pw.Positioned.fill(
+            child: pw.Center(
+              child: pw.Container(
+                width: pageWidth * 0.8,
+                padding: const pw.EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: black, width: 0.8),
+                ),
+                child: pw.Column(
+                  mainAxisSize: pw.MainAxisSize.min,
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
+                  children: [
+                    pw.Text(
+                      'CUSTOM MARGIN TEST',
+                      style: const pw.TextStyle(
+                        fontSize: 12,
+                        fontWeight: pw.FontWeight.bold,
+                        color: black,
+                      ),
+                    ),
+                    pw.SizedBox(height: 6),
+                    pw.Text(
+                      'Horizontal: ${marginHoriz.toStringAsFixed(1)} $marginUnit',
+                      style: const pw.TextStyle(
+                        fontSize: 10,
+                        fontWeight: pw.FontWeight.bold,
+                        color: black,
+                      ),
+                    ),
+                    pw.Text(
+                      'Vertical: ${marginVert.toStringAsFixed(1)} $marginUnit',
+                      style: const pw.TextStyle(
+                        fontSize: 10,
+                        fontWeight: pw.FontWeight.bold,
+                        color: black,
+                      ),
+                    ),
+                    pw.Text(
+                      'Borderless: ${borderless ? "ON" : "OFF"}',
+                      style: const pw.TextStyle(
+                        fontSize: 10,
+                        fontWeight: pw.FontWeight.bold,
+                        color: black,
+                      ),
+                    ),
+                    pw.Text(
+                      'Quality: ${quality.toUpperCase()}',
+                      style: const pw.TextStyle(
+                        fontSize: 10,
+                        fontWeight: pw.FontWeight.bold,
+                        color: black,
+                      ),
+                    ),
+                    pw.SizedBox(height: 4),
+                    pw.Text(
+                      'Paper Size: $paperSize inch',
+                      style: const pw.TextStyle(fontSize: 8, color: grey),
+                    ),
+                    pw.SizedBox(height: 10),
+                    pw.Container(
+                      padding: const pw.EdgeInsets.all(6),
+                      decoration: pw.BoxDecoration(
+                        border: pw.Border.all(color: grey, width: 0.5),
+                      ),
+                      child: pw.Column(
+                        children: [
+                          pw.Text(
+                            'PETUNJUK VERIFIKASI BORDERLESS:',
+                            style: const pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold, color: black),
+                          ),
+                          pw.SizedBox(height: 2),
+                          pw.Text(
+                            '• Borderless ON (Comp 1.0mm): Garis 1.0mm menyentuh pinggir kertas fisik.',
+                            style: const pw.TextStyle(fontSize: 6, color: black),
+                          ),
+                          pw.Text(
+                            '• Borderless OFF (Comp 0.0mm): Garis terdorong marjin putih ~5mm.',
+                            style: const pw.TextStyle(fontSize: 6, color: black),
+                          ),
+                        ],
+                      ),
+                    ),
+                    pw.SizedBox(height: 8),
+                    pw.Text(
+                      'snaptech test page — ink saving outline only',
+                      style: const pw.TextStyle(fontSize: 6, color: grey),
+                    ),
+                  ],
                 ),
               ),
             ),
-
-            pw.SizedBox(height: 12),
-
-            // ── 3 slot kosong (outline only, no fill) ──
-            ...List.generate(3, (i) => pw.Padding(
-              padding: const pw.EdgeInsets.only(bottom: 8),
-              child: pw.Container(
-                width: double.infinity,
-                height: 90,
-                decoration: pw.BoxDecoration(
-                  border: pw.Border.all(color: grey, width: 0.8),
-                ),
-                child: pw.Center(
-                  child: pw.Text(
-                    'SLOT FOTO ${i + 1}',
-                    style: pw.TextStyle(
-                      fontSize: 9,
-                      color: grey,
-                    ),
-                  ),
-                ),
-              ),
-            )),
-
-            pw.SizedBox(height: 8),
-
-            // ── Info minimal ──
-            pw.Text('Printer : Epson L8050',
-                style: const pw.TextStyle(fontSize: 8, color: black)),
-            pw.Text('Kertas  : 4 x 6 inch',
-                style: const pw.TextStyle(fontSize: 8, color: black)),
-            pw.Text('Status  : OK — hemat tinta',
-                style: const pw.TextStyle(fontSize: 8, color: black)),
-
-            pw.Spacer(),
-
-            // ── Footer ──
-            pw.Divider(color: grey, thickness: 0.5),
-            pw.Text('snaptech test page — no ink waste',
-                style: pw.TextStyle(fontSize: 7, color: grey)),
-          ],
-        ),
+          ),
+        ],
       ),
     ),
   );

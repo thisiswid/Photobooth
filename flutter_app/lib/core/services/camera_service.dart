@@ -14,6 +14,22 @@ import 'error_logger.dart';
 class CameraService {
   CameraService._();
 
+  // ─── Keyword Deteksi Kamera Eksternal ───────────────────────────────────────
+  /// Daftar keyword untuk mencocokkan nama kamera yang dideteksi Camera2 API.
+  /// Jika nama kamera mengandung salah satu keyword ini, kamera dianggap
+  /// sebagai kamera eksternal (Capture Card / UVC) dan diprioritaskan.
+  static const _externalCameraKeywords = [
+    // Sony ZV-E10 / Alpha
+    'sony', 'zv-e10', 'zve10',
+    // HDMI Capture Card (Elgato, generic, dll.)
+    'cam link', 'camlink', 'capture',
+    // MacroSilicon MS2109 HDMI Capture Card (VID 0x534D / PID 0x2109)
+    'macrosilicon', 'ms2109', '534d', '2109',
+    // USB Video Class generik
+    'uvc', 'usb video', 'usb2.0 pc camera', 'usb camera',
+    // Lainnya
+    'external', 'hdmi',
+  ];
   // ─── Persistent Storage ─────────────────────────────────────────────────────
   static const _storage = FlutterSecureStorage();
   static const _selectedCameraKey = 'camera_selected_name';
@@ -117,18 +133,17 @@ class CameraService {
   /// Mengidentifikasi jenis kamera (Eksternal Sony/Capture Card, Depan, Belakang, dll.)
   static String getCameraTypeLabel(CameraDescription cam) {
     final lowerName = cam.name.toLowerCase();
-    final sonyKeywords = ['sony', 'zv-e10', 'zve10', 'cam link', 'camlink', 'uvc', 'usb video', 'capture', 'external', 'hdmi'];
+    final intId = int.tryParse(cam.name);
     
-    if (sonyKeywords.any((kw) => lowerName.contains(kw))) {
-      return 'Kamera Eksternal / Sony ZV-E10 (Capture Card)';
+    if (_externalCameraKeywords.any((kw) => lowerName.contains(kw)) ||
+        cam.lensDirection == CameraLensDirection.external ||
+        (intId != null && intId >= 2)) {
+      return 'Kamera Eksternal / HDMI Capture Card (UVC)';
     }
-    if (cam.lensDirection == CameraLensDirection.external) {
-      return 'Kamera Eksternal USB (UVC)';
-    }
-    if (cam.lensDirection == CameraLensDirection.front) {
+    if (cam.lensDirection == CameraLensDirection.front || cam.name == '1') {
       return 'Kamera Depan Tablet (Front)';
     }
-    if (cam.lensDirection == CameraLensDirection.back) {
+    if (cam.lensDirection == CameraLensDirection.back || cam.name == '0') {
       return 'Kamera Belakang Tablet (Back)';
     }
     return 'Kamera Sistem / Default';
@@ -137,9 +152,10 @@ class CameraService {
   /// Mengetahui apakah kamera adalah eksternal (Sony / Capture Card / UVC)
   static bool isExternalCamera(CameraDescription cam) {
     final lowerName = cam.name.toLowerCase();
-    final sonyKeywords = ['sony', 'zv-e10', 'zve10', 'cam link', 'camlink', 'uvc', 'usb video', 'capture', 'external', 'hdmi'];
+    final intId = int.tryParse(cam.name);
     return cam.lensDirection == CameraLensDirection.external ||
-        sonyKeywords.any((kw) => lowerName.contains(kw));
+        _externalCameraKeywords.any((kw) => lowerName.contains(kw)) ||
+        (intId != null && intId >= 2);
   }
 
   /// Mendapatkan label arah lensa yang human-readable
@@ -199,31 +215,41 @@ class CameraService {
 
       debugPrint('📸 Kamera terdeteksi (${cameras.length}):');
       for (final cam in cameras) {
-        debugPrint(' - ${cam.name} (${cam.lensDirection}) -> ${getCameraTypeLabel(cam)}');
+        debugPrint(' - Camera ID ${cam.name} (${cam.lensDirection}) -> ${getCameraTypeLabel(cam)}');
       }
 
-      // 1. Jika auto-select eksternal aktif, cek prioritas keyword Sony / Capture Card
+      // 1. Jika auto-select eksternal aktif:
       if (_autoSelectExternal) {
-        final sonyKeywords = ['sony', 'zv-e10', 'zve10', 'cam link', 'camlink', 'uvc', 'usb video', 'capture', 'external', 'hdmi'];
-        for (final cam in cameras) {
-          final lowerName = cam.name.toLowerCase();
-          if (sonyKeywords.any((kw) => lowerName.contains(kw))) {
-            debugPrint('✅ [CameraService] Menggunakan kamera Sony/Capture Card: ${cam.name} (${cam.lensDirection})');
-            return cam;
-          }
-        }
-
-        // 2. Cek kamera eksternal (USB / UVC standard)
+        // a. Cek kamera eksternal (lensDirection == external)
         final externalCam = cameras.where(
           (c) => c.lensDirection == CameraLensDirection.external,
         );
         if (externalCam.isNotEmpty) {
-          debugPrint('✅ [CameraService] Menggunakan kamera eksternal: ${externalCam.first.name}');
+          debugPrint('✅ [CameraService] Menggunakan kamera eksternal (lensDirection.external): ${externalCam.first.name}');
           return externalCam.first;
+        }
+
+        // b. Cek keyword match
+        for (final cam in cameras) {
+          final lowerName = cam.name.toLowerCase();
+          if (_externalCameraKeywords.any((kw) => lowerName.contains(kw))) {
+            debugPrint('✅ [CameraService] Menggunakan kamera eksternal/Capture Card: ${cam.name} (${cam.lensDirection})');
+            return cam;
+          }
+        }
+
+        // c. Cek kamera ID >= 2 (External USB / UVC pada Android Camera2 HAL)
+        final nonStandardCams = cameras.where((c) {
+          final intId = int.tryParse(c.name);
+          return intId != null && intId >= 2;
+        });
+        if (nonStandardCams.isNotEmpty) {
+          debugPrint('✅ [CameraService] Menggunakan kamera USB Capture Card (ID >= 2): ${nonStandardCams.first.name}');
+          return nonStandardCams.first;
         }
       }
 
-      // 3. Cek kamera depan
+      // 2. Cek kamera depan
       final frontCam = cameras.where(
         (c) => c.lensDirection == CameraLensDirection.front,
       );
@@ -232,7 +258,7 @@ class CameraService {
         return frontCam.first;
       }
 
-      // 4. Fallback ke kamera pertama yang ada
+      // 3. Fallback ke kamera pertama yang ada
       debugPrint('ℹ️ [CameraService] Fallback kamera default: ${cameras.first.name}');
       return cameras.first;
     } catch (e, stack) {

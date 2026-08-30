@@ -2,11 +2,12 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-/// Status koneksi kamera Sony ZV-E10 via USB PTP
+/// Status koneksi kamera Sony ZV-E10 / USB HDMI Capture Card via USB Host
 class SonyCameraStatus {
   final bool isDetected;
   final bool hasPermission;
   final bool isConnected;
+  final bool isUvc;
   final String? productName;
   final int? vendorId;
   final int? productId;
@@ -18,6 +19,7 @@ class SonyCameraStatus {
     required this.isDetected,
     required this.hasPermission,
     required this.isConnected,
+    this.isUvc = false,
     this.productName,
     this.vendorId,
     this.productId,
@@ -32,12 +34,14 @@ class SonyCameraStatus {
         isDetected: false,
         hasPermission: false,
         isConnected: false,
+        isUvc: false,
       );
     }
     return SonyCameraStatus(
       isDetected: map['isDetected'] == true,
       hasPermission: map['hasPermission'] == true,
       isConnected: map['isConnected'] == true,
+      isUvc: map['isUvc'] == true,
       productName: map['productName'] as String?,
       vendorId: map['vendorId'] as int?,
       productId: map['productId'] as int?,

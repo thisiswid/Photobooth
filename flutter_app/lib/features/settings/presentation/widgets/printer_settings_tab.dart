@@ -15,12 +15,16 @@ class PrinterSettingsTab extends StatefulWidget {
 
 class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
   final _ipController = TextEditingController();
+  final _horizController = TextEditingController();
+  final _vertController = TextEditingController();
 
   PrinterConnectionMode _connectionMode = PrinterConnectionMode.usbWifiAuto;
   Map<String, dynamic> _statusData = {};
   bool _isLoadingStatus = true;
 
   bool _borderless = true;
+  String _quality = 'Standard';
+  String _marginUnit = 'mm';
   bool _autoPrint = true;
   bool _autoReconnect = true;
   int _retryCount = 3;
@@ -37,6 +41,8 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
   @override
   void dispose() {
     _ipController.dispose();
+    _horizController.dispose();
+    _vertController.dispose();
     super.dispose();
   }
 
@@ -46,6 +52,10 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
     final mode = await PrinterService.getConnectionMode();
     final ip = await PrinterService.getIpAddress();
     final borderless = await PrinterService.getBorderless();
+    final quality = await PrinterService.getQuality();
+    final marginHoriz = await PrinterService.getMarginHorizontal();
+    final marginVert = await PrinterService.getMarginVertical();
+    final marginUnit = await PrinterService.getMarginUnit();
     final autoPrint = await PrinterService.getAutoPrint();
     final autoReconnect = await PrinterService.getAutoReconnect();
     final retries = await PrinterService.getRetryCount();
@@ -57,6 +67,10 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
         _connectionMode = mode;
         _ipController.text = ip;
         _borderless = borderless;
+        _quality = quality;
+        _marginUnit = marginUnit;
+        _horizController.text = marginHoriz.toString();
+        _vertController.text = marginVert.toString();
         _autoPrint = autoPrint;
         _autoReconnect = autoReconnect;
         _retryCount = retries;
@@ -348,7 +362,23 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
               const Divider(color: Colors.white12),
               _buildSettingRow(
                 label: 'Print Quality',
-                child: Text('High Quality (300 DPI)', style: GoogleFonts.montserrat(color: AppColors.creamWhite, fontSize: 12.sp)),
+                child: DropdownButton<String>(
+                  value: _quality,
+                  dropdownColor: AppColors.darkBrown,
+                  style: GoogleFonts.montserrat(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 12.sp),
+                  underline: const SizedBox.shrink(),
+                  onChanged: (val) async {
+                    if (val != null) {
+                      setState(() => _quality = val);
+                      await PrinterService.setQuality(val);
+                    }
+                  },
+                  items: const [
+                    DropdownMenuItem(value: 'Low', child: Text('Low (200 DPI)')),
+                    DropdownMenuItem(value: 'Standard', child: Text('Standard (300 DPI)')),
+                    DropdownMenuItem(value: 'High', child: Text('High (600 DPI)')),
+                  ],
+                ),
               ),
               const Divider(color: Colors.white12),
               _buildSettingRow(
@@ -379,7 +409,125 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
 
         SizedBox(height: 16.h),
 
-        // ── SECTION 3: RELIABILITY & RETRY ─────────────────────────────────
+        // ── SECTION 3: PRINT MARGIN (CUSTOM MARGIN) ────────────────────────
+        _buildSectionHeader('PRINT MARGIN (CUSTOM MARGIN)'),
+        SizedBox(height: 8.h),
+        Container(
+          padding: EdgeInsets.all(14.r),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.3),
+            borderRadius: BorderRadius.circular(12.r),
+            border: Border.all(color: AppColors.gold.withValues(alpha: 0.3)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildSettingRow(
+                label: 'Unit Satuan Margin',
+                child: DropdownButton<String>(
+                  value: _marginUnit,
+                  dropdownColor: AppColors.darkBrown,
+                  style: GoogleFonts.montserrat(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 12.sp),
+                  underline: const SizedBox.shrink(),
+                  onChanged: (u) async {
+                    if (u != null) {
+                      setState(() => _marginUnit = u);
+                      await PrinterService.setMarginUnit(u);
+                    }
+                  },
+                  items: const [
+                    DropdownMenuItem(value: 'mm', child: Text('mm (Millimeter)')),
+                    DropdownMenuItem(value: 'cm', child: Text('cm (Centimeter)')),
+                  ],
+                ),
+              ),
+              const Divider(color: Colors.white12),
+              Padding(
+                padding: EdgeInsets.symmetric(vertical: 4.h),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Horizontal Margin', style: TextStyle(color: Colors.white70, fontSize: 12.sp)),
+                        Text('Jarak Kiri & Kanan (Contoh: 0, 0.5, 1, 1.5)', style: TextStyle(color: Colors.white38, fontSize: 9.sp)),
+                      ],
+                    ),
+                    SizedBox(
+                      width: 100.w,
+                      height: 38.h,
+                      child: TextField(
+                        controller: _horizController,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))],
+                        style: GoogleFonts.montserrat(color: AppColors.creamWhite, fontSize: 12.sp, fontWeight: FontWeight.bold),
+                        decoration: InputDecoration(
+                          suffixText: _marginUnit,
+                          suffixStyle: GoogleFonts.montserrat(color: AppColors.gold, fontSize: 11.sp),
+                          filled: true,
+                          fillColor: Colors.white.withValues(alpha: 0.08),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(6.r)),
+                        ),
+                        onChanged: (val) async {
+                          final parsed = double.tryParse(val.trim());
+                          if (parsed != null && parsed >= 0) {
+                            await PrinterService.setMarginHorizontal(parsed);
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(color: Colors.white12),
+              Padding(
+                padding: EdgeInsets.symmetric(vertical: 4.h),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Vertical Margin', style: TextStyle(color: Colors.white70, fontSize: 12.sp)),
+                        Text('Jarak Atas & Bawah (Contoh: 0, 0.5, 1, 1.5)', style: TextStyle(color: Colors.white38, fontSize: 9.sp)),
+                      ],
+                    ),
+                    SizedBox(
+                      width: 100.w,
+                      height: 38.h,
+                      child: TextField(
+                        controller: _vertController,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))],
+                        style: GoogleFonts.montserrat(color: AppColors.creamWhite, fontSize: 12.sp, fontWeight: FontWeight.bold),
+                        decoration: InputDecoration(
+                          suffixText: _marginUnit,
+                          suffixStyle: GoogleFonts.montserrat(color: AppColors.gold, fontSize: 11.sp),
+                          filled: true,
+                          fillColor: Colors.white.withValues(alpha: 0.08),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(6.r)),
+                        ),
+                        onChanged: (val) async {
+                          final parsed = double.tryParse(val.trim());
+                          if (parsed != null && parsed >= 0) {
+                            await PrinterService.setMarginVertical(parsed);
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        SizedBox(height: 16.h),
+
+        // ── SECTION 4: RELIABILITY & RETRY ─────────────────────────────────
         _buildSectionHeader('RELIABILITY & RETRY POLICY'),
         SizedBox(height: 8.h),
         Container(
@@ -462,7 +610,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
           Text(label, style: TextStyle(color: Colors.white70, fontSize: 12.sp)),
           Switch(
             value: value,
-            activeColor: AppColors.gold,
+            activeThumbColor: AppColors.gold,
             onChanged: onChanged,
           ),
         ],

@@ -3,10 +3,13 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_uvc_camera/flutter_uvc_camera.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/services/camera_service.dart';
+import '../../../core/services/sony_ptp_camera_service.dart';
+import '../../../core/services/uvc_camera_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../features/session/providers/session_provider.dart';
 import '../../../shared/widgets/photobooth_layout.dart';
@@ -58,6 +61,8 @@ class _CameraSessionScreenState extends ConsumerState<CameraSessionScreen> {
 
   CameraController? _cameraController;
   bool _isCameraReady = false;
+  bool _isUvcReady = false;
+  bool _showUvcView = false; // render UVCCameraView sebelum open() dipanggil
 
   String _selectedFrameId = _frameOptions.first.id;
   bool _mirrorEnabled = true;
@@ -70,7 +75,9 @@ class _CameraSessionScreenState extends ConsumerState<CameraSessionScreen> {
   @override
   void initState() {
     super.initState();
-    _initCamera();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _initCamera();
+    });
   }
 
   @override
@@ -82,6 +89,34 @@ class _CameraSessionScreenState extends ConsumerState<CameraSessionScreen> {
 
   Future<void> _initCamera() async {
     try {
+      // 1. Cek apakah UVC device terhubung
+      final sonyStatus = await SonyPtpCameraService.getStatus();
+      debugPrint('🔍 [CameraSession] sonyStatus: isDetected=${sonyStatus.isDetected} isUvc=${sonyStatus.isUvc} hasPermission=${sonyStatus.hasPermission}');
+
+      if ((sonyStatus.isDetected || sonyStatus.isUvc) && sonyStatus.hasPermission) {
+        // Tampilkan UVCCameraView dulu agar PlatformView ter-attach
+        setState(() => _showUvcView = true);
+        // Tunggu satu frame agar PlatformView selesai inflate
+        await Future.delayed(const Duration(milliseconds: 300));
+        if (!mounted) return;
+        final uvcOpened = await UvcCameraService.instance.open();
+        debugPrint('🔍 [CameraSession] uvcOpened=$uvcOpened lastError=${UvcCameraService.instance.lastError}');
+        if (uvcOpened && mounted) {
+          setState(() {
+            _isUvcReady = true;
+            _isCameraReady = true;
+          });
+          return;
+        }
+        // UVC gagal — sembunyikan view dan fallback ke Camera2
+        if (mounted) {
+          debugPrint('⚠️ [CameraSession] UVC open gagal (${UvcCameraService.instance.lastError}) — fallback ke Camera2');
+          setState(() => _showUvcView = false);
+        }
+      }
+
+      // Fallback: Camera2 (kamera built-in tablet)
+      debugPrint('📷 [CameraSession] Inisialisasi Camera2 fallback...');
       final controller = await CameraService.createController(
         resolution: ResolutionPreset.high,
       );
@@ -90,13 +125,16 @@ class _CameraSessionScreenState extends ConsumerState<CameraSessionScreen> {
         return;
       }
       if (controller != null) {
+        debugPrint('✅ [CameraSession] Camera2 ready');
         setState(() {
           _cameraController = controller;
           _isCameraReady = true;
         });
+      } else {
+        debugPrint('❌ [CameraSession] Camera2 createController returned null');
       }
-    } catch (_) {
-      // Kamera tidak tersedia — panel kamera akan menampilkan fallback.
+    } catch (e) {
+      debugPrint('❌ [CameraSession] _initCamera error: $e');
     }
   }
 
@@ -132,7 +170,14 @@ class _CameraSessionScreenState extends ConsumerState<CameraSessionScreen> {
 
     XFile? photo;
     try {
-      photo = await _cameraController?.takePicture();
+      if (_isUvcReady) {
+        final file = await UvcCameraService.instance.takePhoto();
+        if (file != null) {
+          photo = XFile(file.path);
+        }
+      } else {
+        photo = await _cameraController?.takePicture();
+      }
     } catch (_) {
       // Biarkan null — result stage tetap tampil dengan placeholder.
     }
@@ -469,6 +514,8 @@ class _CameraPanel extends StatelessWidget {
         return _PreviewArea(
           controller: state._cameraController,
           isReady: state._isCameraReady,
+          isUvcReady: state._isUvcReady,
+          isShowingUvcView: state._showUvcView,
           mirror: state._mirrorEnabled,
           countdown: state._stage == _CaptureStage.countdown ? state._countdown : null,
         );
@@ -598,11 +645,10 @@ class _ToggleOption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    return GestureDetector(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(20.r),
       child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+        padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
         decoration: BoxDecoration(
           color: isActive ? AppColors.coffeeBrown : Colors.transparent,
           borderRadius: BorderRadius.circular(20.r),
@@ -610,8 +656,12 @@ class _ToggleOption extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 14.sp, color: isActive ? AppColors.white : AppColors.textSecondary),
-            SizedBox(width: 6.w),
+            Icon(
+              icon,
+              size: 14.r,
+              color: isActive ? AppColors.white : AppColors.textSecondary,
+            ),
+            SizedBox(width: 4.w),
             Text(
               label,
               style: GoogleFonts.inter(
@@ -635,12 +685,16 @@ class _PreviewArea extends StatelessWidget {
     required this.isReady,
     required this.mirror,
     required this.countdown,
+    this.isUvcReady = false,
+    this.isShowingUvcView = false,
   });
 
   final CameraController? controller;
   final bool isReady;
   final bool mirror;
   final int? countdown;
+  final bool isUvcReady;
+  final bool isShowingUvcView;
 
   @override
   Widget build(BuildContext context) {
@@ -649,7 +703,18 @@ class _PreviewArea extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          if (isReady && controller != null)
+          // UVCCameraView hanya di-render setelah _showUvcView = true
+          // (set oleh _initCamera sebelum openUVCCamera dipanggil)
+          if (isUvcReady || isShowingUvcView)
+            Transform.flip(
+              flipX: mirror,
+              child: UVCCameraView(
+                cameraController: UvcCameraService.instance.controller,
+                width: double.infinity,
+                height: double.infinity,
+              ),
+            )
+          else if (isReady && controller != null)
             Transform.flip(
               flipX: mirror,
               child: FittedBox(
@@ -683,7 +748,7 @@ class _PreviewArea extends StatelessWidget {
                               value: countdown! / 5,
                               strokeWidth: 4,
                               backgroundColor: Colors.white24,
-                              valueColor: AlwaysStoppedAnimation(AppColors.goldAccent),
+                              valueColor: const AlwaysStoppedAnimation(AppColors.goldAccent),
                             ),
                           ),
                           Text(

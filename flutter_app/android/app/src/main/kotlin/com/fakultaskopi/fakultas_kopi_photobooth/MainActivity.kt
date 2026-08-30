@@ -72,8 +72,12 @@ class MainActivity : FlutterActivity() {
                     val imageBytes = call.argument<ByteArray>("imageBytes")
                     val jobName = call.argument<String>("jobName") ?: "Photobooth_Print"
                     val borderless = call.argument<Boolean>("borderless") ?: true
+                    val quality = call.argument<String>("quality") ?: "Standard"
+                    val marginHoriz = call.argument<Double>("marginHorizontal") ?: 0.0
+                    val marginVert = call.argument<Double>("marginVertical") ?: 0.0
+                    val marginUnit = call.argument<String>("marginUnit") ?: "mm"
                     if (imageBytes != null) {
-                        printPhoto(imageBytes, jobName, borderless, result)
+                        printPhoto(imageBytes, jobName, borderless, quality, marginHoriz, marginVert, marginUnit, result)
                     } else {
                         result.error("INVALID_ARGS", "imageBytes is null", null)
                     }
@@ -81,8 +85,13 @@ class MainActivity : FlutterActivity() {
                 "printPdf" -> {
                     val pdfBytes = call.argument<ByteArray>("pdfBytes")
                     val jobName = call.argument<String>("jobName") ?: "Photobooth_Print"
+                    val borderless = call.argument<Boolean>("borderless") ?: true
+                    val quality = call.argument<String>("quality") ?: "Standard"
+                    val marginHoriz = call.argument<Double>("marginHorizontal") ?: 0.0
+                    val marginVert = call.argument<Double>("marginVertical") ?: 0.0
+                    val marginUnit = call.argument<String>("marginUnit") ?: "mm"
                     if (pdfBytes != null) {
-                        printPdf(pdfBytes, jobName, result)
+                        printPdf(pdfBytes, jobName, borderless, quality, marginHoriz, marginVert, marginUnit, result)
                     } else {
                         result.error("INVALID_ARGS", "pdfBytes is null", null)
                     }
@@ -97,6 +106,17 @@ class MainActivity : FlutterActivity() {
                 "getPrinterStatus" -> result.success(getPrinterStatus())
                 else -> result.notImplemented()
             }
+        }
+    }
+
+    /**
+     * Konversi string quality dari Flutter ke PrintAttributes.Resolution (DPI).
+     */
+    private fun getResolutionObj(quality: String?): Resolution {
+        return when (quality?.lowercase()) {
+            "low" -> Resolution("low", "Low Quality (200 DPI)", 200, 200)
+            "high" -> Resolution("high", "High Quality (600 DPI)", 600, 600)
+            else -> Resolution("standard", "Standard Quality (300 DPI)", 300, 300)
         }
     }
 
@@ -184,7 +204,16 @@ class MainActivity : FlutterActivity() {
      * Akan menggunakan Epson Print Enabler yang sudah terpasang.
      * Ukuran kertas 4×6 inch, kualitas foto.
      */
-    private fun printPhoto(imageBytes: ByteArray, jobName: String, borderless: Boolean, result: MethodChannel.Result) {
+    private fun printPhoto(
+        imageBytes: ByteArray,
+        jobName: String,
+        borderless: Boolean,
+        quality: String?,
+        marginHoriz: Double,
+        marginVert: Double,
+        marginUnit: String,
+        result: MethodChannel.Result
+    ) {
         try {
             val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
             if (bitmap == null) {
@@ -193,19 +222,20 @@ class MainActivity : FlutterActivity() {
             }
 
             val printManager = getSystemService(Context.PRINT_SERVICE) as PrintManager
+            val resObj = getResolutionObj(quality)
 
             // Margin sesuai setting borderless
             val margins = if (borderless) Margins.NO_MARGINS
                           else Margins(500, 500, 500, 500) // 5mm border jika non-borderless
 
             val attrs = PrintAttributes.Builder()
-                .setMediaSize(MediaSize("4x6", "4x6 Photo", 4000, 6000))
-                .setResolution(Resolution("high", "High Quality", 600, 600))
+                .setMediaSize(MediaSize.NA_INDEX_4X6)
+                .setResolution(resObj)
                 .setColorMode(PrintAttributes.COLOR_MODE_COLOR)
                 .setMinMargins(margins)
                 .build()
 
-            Log.i(TAG, "🖨️ printPhoto — borderless=$borderless, margins=$margins")
+            Log.i(TAG, "🖨️ printPhoto — borderless=$borderless, quality=$quality, margins=$margins, marginHoriz=$marginHoriz $marginUnit, marginVert=$marginVert $marginUnit")
 
             printManager.print(jobName, object : PrintDocumentAdapter() {
                 override fun onLayout(
@@ -234,15 +264,15 @@ class MainActivity : FlutterActivity() {
                 ) {
                     try {
                         val printAttrs = PrintAttributes.Builder()
-                            .setMediaSize(MediaSize("4x6", "4x6 Photo", 4000, 6000))
-                            .setResolution(Resolution("photo", "Photo", 600, 600))
+                            .setMediaSize(MediaSize.NA_INDEX_4X6)
+                            .setResolution(resObj)
                             .setColorMode(PrintAttributes.COLOR_MODE_COLOR)
-                            .setMinMargins(Margins.NO_MARGINS)
+                            .setMinMargins(margins)
                             .build()
 
                         val pdfDocument = PrintedPdfDocument(this@MainActivity, printAttrs)
 
-                        // Canvas size dalam PDF points (1 point = 1/72 inch)
+                        // Canvas size dalam PDF points (1 point = 1/72 inch, 1 mm = 2.83465 pt)
                         val pageWidthPt  = (4.0 * 72).toInt()   // 288 pt
                         val pageHeightPt = (6.0 * 72).toInt()   // 432 pt
 
@@ -250,15 +280,23 @@ class MainActivity : FlutterActivity() {
                         val page = pdfDocument.startPage(pageInfo)
                         val canvas = page.canvas
 
-                        // Full bleed cover: isi seluruh canvas tanpa sisa putih
-                        val scaleX = canvas.width.toFloat()  / bitmap.width.toFloat()
-                        val scaleY = canvas.height.toFloat() / bitmap.height.toFloat()
-                        val scale  = maxOf(scaleX, scaleY)  // cover (bukan fit)
+                        // Konversi margin kustom dari unit (mm/cm) ke PDF Points
+                        val horizMm = if (marginUnit == "cm") marginHoriz * 10.0 else marginHoriz
+                        val vertMm  = if (marginUnit == "cm") marginVert * 10.0 else marginVert
+                        val marginHorizPt = (horizMm * 2.83465).toFloat()
+                        val marginVertPt  = (vertMm * 2.83465).toFloat()
+
+                        val targetWidthPt  = (canvas.width.toFloat()  - (2f * marginHorizPt)).coerceAtLeast(10f)
+                        val targetHeightPt = (canvas.height.toFloat() - (2f * marginVertPt)).coerceAtLeast(10f)
+
+                        val scaleX = targetWidthPt  / bitmap.width.toFloat()
+                        val scaleY = targetHeightPt / bitmap.height.toFloat()
+                        val scale  = maxOf(scaleX, scaleY)
 
                         val scaledWidth  = bitmap.width  * scale
                         val scaledHeight = bitmap.height * scale
-                        val left = (canvas.width  - scaledWidth)  / 2f
-                        val top  = (canvas.height - scaledHeight) / 2f
+                        val left = marginHorizPt + (targetWidthPt - scaledWidth)  / 2f
+                        val top  = marginVertPt  + (targetHeightPt - scaledHeight) / 2f
 
                         canvas.save()
                         // Clip ke batas canvas agar tidak ada overflow
@@ -273,7 +311,7 @@ class MainActivity : FlutterActivity() {
                         pdfDocument.close()
 
                         callback.onWriteFinished(arrayOf(PageRange.ALL_PAGES))
-                        Log.i(TAG, "✅ Print job written successfully (full bleed)")
+                        Log.i(TAG, "✅ Print job written successfully (custom margin: H=$horizMm mm, V=$vertMm mm)")
                     } catch (e: IOException) {
                         callback.onWriteFailed(e.message)
                         Log.e(TAG, "❌ Write failed: ${e.message}")
@@ -297,16 +335,30 @@ class MainActivity : FlutterActivity() {
     /**
      * Cetak PDF langsung menggunakan Android PrintManager.
      */
-    private fun printPdf(pdfBytes: ByteArray, jobName: String, result: MethodChannel.Result) {
+    private fun printPdf(
+        pdfBytes: ByteArray,
+        jobName: String,
+        borderless: Boolean,
+        quality: String?,
+        marginHoriz: Double,
+        marginVert: Double,
+        marginUnit: String,
+        result: MethodChannel.Result
+    ) {
         try {
             val printManager = getSystemService(Context.PRINT_SERVICE) as PrintManager
+            val resObj = getResolutionObj(quality)
+            val margins = if (borderless) Margins.NO_MARGINS
+                          else Margins(500, 500, 500, 500)
 
             val attrs = PrintAttributes.Builder()
-                .setMediaSize(MediaSize("4x6", "4x6 Photo", 4000, 6000))
-                .setResolution(Resolution("high", "High Quality", 300, 300))
+                .setMediaSize(MediaSize.NA_INDEX_4X6)
+                .setResolution(resObj)
                 .setColorMode(PrintAttributes.COLOR_MODE_COLOR)
-                .setMinMargins(Margins.NO_MARGINS)
+                .setMinMargins(margins)
                 .build()
+
+            Log.i(TAG, "🖨️ printPdf — borderless=$borderless, quality=$quality, margins=$margins")
 
             printManager.print(jobName, object : PrintDocumentAdapter() {
                 override fun onLayout(
@@ -321,8 +373,11 @@ class MainActivity : FlutterActivity() {
                         return
                     }
 
+                    // Jika borderless aktif, gunakan CONTENT_TYPE_PHOTO agar driver Epson mengaktifkan mode borderless
+                    val contentType = if (borderless) PrintDocumentInfo.CONTENT_TYPE_PHOTO else PrintDocumentInfo.CONTENT_TYPE_DOCUMENT
+
                     val info = PrintDocumentInfo.Builder(jobName)
-                        .setContentType(PrintDocumentInfo.CONTENT_TYPE_DOCUMENT)
+                        .setContentType(contentType)
                         .setPageCount(1)
                         .build()
 

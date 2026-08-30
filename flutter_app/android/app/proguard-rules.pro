@@ -1,0 +1,4 @@
+-keep class com.serenegiant.** { *; }
+-keep class com.herohan.uvcnode.** { *; }
+-keep class com.chenyeju.** { *; }
+-keep class io.flutter.plugins.** { *; }
