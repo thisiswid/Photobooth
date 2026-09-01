@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 // Spike Cycle C0 — LumaBooth Windows Migration
@@ -35,6 +36,14 @@ class PageOption {
   final double hMm;
   final PageKind kind;
 }
+
+/// Font bawaan PDF (Helvetica) tidak mendukung karakter non-ASCII seperti
+/// em dash. Teks apa pun yang digambar ke PDF harus dibersihkan dulu.
+String ascii(String v) => v
+    .replaceAll('\u2014', '-')
+    .replaceAll('\u2013', '-')
+    .replaceAll('\u00b7', '.')
+    .replaceAll(RegExp(r'[^\x20-\x7E]'), '');
 
 const kPageOptions = <PageOption>[
   PageOption('4x6 inci — 101,6 x 152,4 mm', 101.6, 152.4),
@@ -138,10 +147,12 @@ class _SpikeHomeState extends State<SpikeHome> {
         '${(f.height / kMm).toStringAsFixed(1)} mm');
     _say('   Mode     : ${_inkSaver ? "HEMAT TINTA (~2%)" : "WARNA PENUH (~95%, BOROS)"}');
     _say('   PERHATIKAN LAYAR: tidak boleh ada dialog muncul.');
+    _say('   CEK print queue: kalau paper size di sana bukan ukuran di atas,');
+    _say('   berarti driver mengabaikan format aplikasi -> atur di Preferences.');
     try {
       final ok = await Printing.directPrintPdf(
         printer: _selected!,
-        name: 'Spike C0 ${_page.label}',
+        name: ascii('Spike C0 ${_page.label}'),
         format: f,
         usePrinterSettings: usePrinterSettings,
         onLayout: (fmt) => _buildTestPdf(f),
@@ -153,6 +164,19 @@ class _SpikeHomeState extends State<SpikeHome> {
       _say('❌ Gagal cetak: $e');
     } finally {
       setState(() => _busy = false);
+    }
+  }
+
+  /// Membuka dialog Printing Preferences Windows untuk printer terpilih.
+  /// Ukuran kertas & borderless HARUS diatur di sini — bukan dari aplikasi.
+  Future<void> _openPrinterPreferences() async {
+    final name = _selected!.name;
+    _say('Membuka Printing Preferences untuk "$name"...');
+    try {
+      await Process.run('rundll32', ['printui.dll,PrintUIEntry', '/e', '/n', name]);
+    } catch (e) {
+      _say('Gagal membuka otomatis: $e');
+      _say('Buka manual: Settings > Printers & scanners > $name > Printing preferences');
     }
   }
 
@@ -203,7 +227,7 @@ class _SpikeHomeState extends State<SpikeHome> {
           pw.Text('SPIKE C0',
               style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
           pw.SizedBox(height: 4),
-          pw.Text(_page.label, style: const pw.TextStyle(fontSize: 6)),
+          pw.Text(ascii(_page.label), style: const pw.TextStyle(fontSize: 6)),
           if (_hasBleed)
             pw.Text(
               'bleed T${_bTop} B${_bBottom} L${_bLeft} R${_bRight} mm',
@@ -217,7 +241,7 @@ class _SpikeHomeState extends State<SpikeHome> {
           pw.SizedBox(height: 10),
           pw.Text(
             '${(fmt.width / kMm).toStringAsFixed(1)} x '
-            '${(fmt.height / kMm).toStringAsFixed(1)} mm  ·  '
+            '${(fmt.height / kMm).toStringAsFixed(1)} mm  '
             '${DateTime.now().toString().substring(0, 16)}',
             style: const pw.TextStyle(fontSize: 5.5, color: PdfColors.grey700),
           ),
@@ -354,7 +378,28 @@ class _SpikeHomeState extends State<SpikeHome> {
               icon: const Icon(Icons.settings),
               label: const Text('3. CETAK UJI (setelan driver)'),
             ),
+            TextButton.icon(
+              onPressed: _selected == null ? null : _openPrinterPreferences,
+              icon: const Icon(Icons.tune),
+              label: const Text('BUKA PRINTING PREFERENCES'),
+            ),
           ]),
+          const SizedBox(height: 6),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.amber.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: Colors.amber),
+            ),
+            child: const Text(
+              'PENTING: ukuran kertas yang dipakai printer datang dari DRIVER, '
+              'bukan dari parameter format di aplikasi. Kalau print queue masih '
+              'menunjukkan A4, atur dulu Paper Size di Printing Preferences.',
+              style: TextStyle(fontSize: 12),
+            ),
+          ),
           const SizedBox(height: 10),
           Row(children: [
             const Text('Kertas: '),

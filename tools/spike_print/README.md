@@ -208,3 +208,55 @@ memang tidak simetris antara tepi depan dan tepi belakang.
 > 📌 **Catat angka yang menang.** Kombinasi ukuran kertas + bleed per sisi +
 > setelan Expansion driver adalah keluaran utama Cycle C0, dan langsung dipakai
 > di `printer_service_windows.dart` pada Cycle C2.
+
+---
+
+## ⚠️ TEMUAN C0 TERPENTING: ukuran kertas datang dari DRIVER
+
+Gejala: print queue menunjukkan **Paper Size: A4** padahal aplikasi mengirim
+50,8 x 152,4 mm.
+
+Penyebabnya bukan bug di halaman uji. Parameter `format:` pada
+`Printing.directPrintPdf()` **hanya menentukan ukuran kanvas PDF**. Di Windows,
+package `printing` mengirim job ke spooler memakai DEVMODE default printer yang
+sedang aktif — dan kalau default-nya A4, driver akan menskalakan PDF kita agar
+muat di A4.
+
+Ini menjelaskan gejala borderless yang timpang: driver tidak pernah tahu kita
+sedang mencetak 4R atau strip.
+
+### Yang harus dilakukan sekarang
+
+1. Tekan tombol **BUKA PRINTING PREFERENCES** di aplikasi (atau Settings >
+   Printers & scanners > EPSON L8050 Series > Printing preferences)
+2. **Paper Size** > pilih varian **Borderless** untuk 4x6 / 10x15 cm.
+   Untuk strip 2x6, daftarkan dulu **User-Defined Paper Size** 50,8 x 152,4 mm
+3. **Borderless** > centang, **Expansion** > Medium
+4. Set juga di **Printer Properties > Advanced > Printing Defaults** — dua
+   tempat ini terpisah, dan sebagian aplikasi membaca yang kedua
+5. Cetak lagi dengan tombol **3. CETAK UJI (setelan driver)**
+6. Pastikan print queue sekarang menunjukkan ukuran yang benar, bukan A4
+
+### Implikasi untuk Cycle C2 — catat ini
+
+Kalau kiosk hanya pernah mencetak SATU ukuran, mengandalkan default driver sudah
+cukup dan `printing` saja memadai.
+
+Tapi LumaBooth mencetak **4R dan strip 2x6**. Berpindah ukuran per job berarti
+aplikasi harus bisa mengubah DEVMODE saat mengirim job — dan `printing` tidak
+menyediakan itu. Artinya `printer_service_windows.dart` kemungkinan besar butuh
+**`printing_ffi`** atau **`windows_printer`**, bukan `printing` saja.
+
+Ini persis jenis temuan yang membuat spike C0 sepadan: ditemukan di hari
+pertama, bukan di minggu ketiga.
+
+## Peringatan font di log
+
+```
+Helvetica-Bold has no Unicode support
+Unable to find a font to draw "—" (U+2014)
+```
+
+Font bawaan PDF tidak mendukung karakter non-ASCII. Sudah diperbaiki dengan
+membersihkan teks lewat helper `ascii()` sebelum digambar. Kalau nanti aplikasi
+utama perlu teks Indonesia bertanda khusus di PDF, harus memuat font TTF sendiri.

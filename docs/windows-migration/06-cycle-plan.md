@@ -62,6 +62,10 @@ Proyek Flutter **kosong dan terpisah** (misal `C:\spike_print`), bukan di dalam
 - [ ] **C0-4** **Nol dialog muncul** selama proses cetak
 - [ ] **C0-5** Baca status printer (keluarkan kertas dari tray → status berubah)
 - [ ] **C0-6** Catat pustaka mana yang dipakai: `printing` / `printing_ffi` / `windows_printer`
+- [ ] **C0-7** ⚠️ Atur Paper Size + Borderless + Expansion di **Printing Preferences** driver — `format:` di `directPrintPdf` TIDAK mengatur ukuran kertas, driver memakai DEVMODE default (sering A4)
+- [ ] **C0-8** Verifikasi print queue menunjukkan ukuran yang benar, bukan A4
+- [ ] **C0-9** Catat kombinasi yang menang: ukuran kertas + bleed per sisi + setelan Expansion
+- [ ] **C0-10** Putuskan pustaka untuk C2: `printing` cukup bila kiosk hanya satu ukuran; butuh `printing_ffi`/`windows_printer` bila harus berpindah antara 4R dan strip 2x6 per job (kontrol DEVMODE)
 
 > Dijalankan di **laptop development**, bukan di mesin kiosk. Prasyarat: Flutter
 > SDK, Visual Studio Build Tools dengan workload "Desktop development with C++"
