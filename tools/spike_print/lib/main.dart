@@ -455,6 +455,38 @@ class _SpikeHomeState extends State<SpikeHome> {
               ),
             ),
           ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Text('Pratinjau halaman uji',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(width: 8),
+              Text(
+                '${(f.width / kMm).toStringAsFixed(1)} x '
+                '${(f.height / kMm).toStringAsFixed(1)} mm',
+                style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          // Pratinjau me-render PDF yang SAMA PERSIS dengan yang dikirim ke
+          // printer, jadi tidak mungkin melenceng dari hasil cetak.
+          SizedBox(
+            height: 300,
+            child: PdfPreview(
+              // Key memaksa render ulang setiap ukuran kertas atau bleed berubah.
+              key: ValueKey('${_page.label}|$_bTop|$_bBottom|$_bLeft|$_bRight'),
+              build: (_) => _buildTestPdf(_format),
+              initialPageFormat: _format,
+              useActions: false,
+              allowPrinting: false,
+              allowSharing: false,
+              canChangePageFormat: false,
+              canChangeOrientation: false,
+              canDebug: false,
+              maxPageWidth: 240,
+            ),
+          ),
         ]),
       ),
     );
