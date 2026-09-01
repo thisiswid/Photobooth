@@ -1,0 +1,20 @@
+name: spike_print
+description: Spike Cycle C0 — membuktikan Epson L8050 bisa dicetak tanpa dialog dari Flutter Windows.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  printing: ^5.13.2
+  pdf: ^3.10.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
