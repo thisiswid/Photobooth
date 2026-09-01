@@ -65,6 +65,7 @@ Proyek Flutter **kosong dan terpisah** (misal `C:\spike_print`), bukan di dalam
 - [ ] **C0-7** ⚠️ Atur Paper Size + Borderless + Expansion di **Printing Preferences** driver — `format:` di `directPrintPdf` TIDAK mengatur ukuran kertas, driver memakai DEVMODE default (sering A4)
 - [ ] **C0-8** Verifikasi print queue menunjukkan ukuran yang benar, bukan A4
 - [ ] **C0-9** Catat kombinasi yang menang: ukuran kertas + bleed per sisi + setelan Expansion
+- [x] **C0-11** ⛔ TERBUKTI: kertas 2x6 sungguhan mustahil di L8050 — User-Defined Paper Size mentok di lebar minimum **89 mm** (2 inci = 50,8 mm). Strip WAJIB dicetak 2-up di 4R lalu dipotong. Konsekuensi baik: ukuran kertas tidak pernah berubah antar job, jadi kontrol DEVMODE per job kemungkinan tidak diperlukan
 - [ ] **C0-10** Putuskan pustaka untuk C2: `printing` cukup bila kiosk hanya satu ukuran; butuh `printing_ffi`/`windows_printer` bila harus berpindah antara 4R dan strip 2x6 per job (kontrol DEVMODE)
 
 > Dijalankan di **laptop development**, bukan di mesin kiosk. Prasyarat: Flutter

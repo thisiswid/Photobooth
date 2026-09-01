@@ -260,3 +260,40 @@ Unable to find a font to draw "—" (U+2014)
 Font bawaan PDF tidak mendukung karakter non-ASCII. Sudah diperbaiki dengan
 membersihkan teks lewat helper `ascii()` sebelum digambar. Kalau nanti aplikasi
 utama perlu teks Indonesia bertanda khusus di PDF, harus memuat font TTF sendiri.
+
+---
+
+## ⛔ FAKTA TERBUKTI: kertas 2x6 sungguhan MUSTAHIL di Epson L8050
+
+Diuji 2026-09-01 langsung di driver.
+
+**User-Defined Paper Size** di Printing Preferences L8050 mentok pada **lebar
+minimum 89 mm**. Strip 2x6 inci butuh 50,8 mm. Tidak bisa dikurangi, dan tidak
+ada cara mengakalinya dari sisi aplikasi — batas itu ada di driver.
+
+Tinggi 152,4 mm sendiri tidak masalah.
+
+### Konsekuensi
+
+Strip photobooth **wajib** dicetak sebagai dua strip di atas selembar 4R, lalu
+dipotong tengah. Ini juga cara yang lazim di industri, dan sudah jadi rencana di
+`docs/hardware/02-printer.md` sejak awal.
+
+Opsi "kertas 2x6" sudah dibuang dari dropdown supaya tidak ada yang mencoba
+ulang. Yang tersisa dua, keduanya memotong tengah:
+
+- `STRIP: 4x6 isi 2 strip 2x6` — tiap strip 50,8 x 152,4 mm
+- `STRIP: 10x15cm isi 2 strip` — tiap strip 50 x 150 mm
+
+Lebar strip mengikuti lebar kertas yang dipilih, dan angkanya ikut tercetak di
+halaman uji supaya bisa diverifikasi dengan penggaris.
+
+### Dampak ke Cycle C2 — ini justru menyederhanakan
+
+Karena semua cetakan memakai kertas 4R, **ukuran kertas di driver tidak pernah
+berubah antar job**. Yang berubah hanya tata letak di dalam PDF: satu foto besar,
+atau dua strip bersebelahan.
+
+Itu berarti kebutuhan mengubah DEVMODE per job hilang, dan `printing` saja
+kemungkinan sudah cukup untuk `printer_service_windows.dart` —
+`printing_ffi` mungkin hanya diperlukan untuk membaca status printer (C0-5).

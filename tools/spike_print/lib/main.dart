@@ -49,8 +49,15 @@ const kPageOptions = <PageOption>[
   PageOption('4x6 inci — 101,6 x 152,4 mm', 101.6, 152.4),
   PageOption('10x15 cm — 100 x 150 mm', 100, 150),
   PageOption('4R — 102 x 152 mm', 102, 152),
-  PageOption('Strip 2x6 inci — 50,8 x 152,4 mm', 50.8, 152.4),
-  PageOption('4x6 isi 2 strip 2x6 (ada garis potong)', 101.6, 152.4,
+  // Kertas 2x6 SUNGGUHAN tidak mungkin di Epson L8050: User-Defined Paper Size
+  // di driver mentok pada lebar minimum 89 mm, sedangkan 2 inci = 50,8 mm.
+  // Terbukti 2026-09-01. Jangan dicoba lagi.
+  //
+  // Satu-satunya jalan untuk strip: cetak DUA strip di selembar 4R, lalu potong
+  // tengah. Ini juga cara yang lazim dipakai photobooth pada umumnya.
+  PageOption('STRIP: 4x6 isi 2 strip 2x6 (potong tengah)', 101.6, 152.4,
+      kind: PageKind.stripPair),
+  PageOption('STRIP: 10x15cm isi 2 strip (potong tengah)', 100, 150,
       kind: PageKind.stripPair),
 ];
 
@@ -350,12 +357,16 @@ class _SpikeHomeState extends State<SpikeHome> {
         child: pw.Text('POTONG',
             style: const pw.TextStyle(fontSize: 5, color: PdfColors.grey600))));
     // label tiap strip
+    final wStrip = (_page.wMm / 2).toStringAsFixed(1);
+    final hStrip = _page.hMm.toStringAsFixed(1);
     out.add(pw.Positioned(
-        left: 6 * kMm, bottom: 6 * kMm,
-        child: pw.Text('STRIP 1 — 2x6"', style: const pw.TextStyle(fontSize: 6))));
+        left: 5 * kMm, bottom: 18 * kMm,
+        child: pw.Text('STRIP 1  $wStrip x $hStrip mm',
+            style: const pw.TextStyle(fontSize: 5.5))));
     out.add(pw.Positioned(
-        right: 6 * kMm, bottom: 6 * kMm,
-        child: pw.Text('STRIP 2 — 2x6"', style: const pw.TextStyle(fontSize: 6))));
+        right: 5 * kMm, bottom: 18 * kMm,
+        child: pw.Text('STRIP 2  $wStrip x $hStrip mm',
+            style: const pw.TextStyle(fontSize: 5.5))));
     return out;
   }
 
