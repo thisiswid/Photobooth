@@ -1,0 +1,60 @@
+# Normalisasi line ending untuk seluruh repo.
+#
+# Sebelum file ini ada, git di lingkungan berbeda melihat CRLF vs LF sebagai
+# perubahan isi, sehingga 103 file tampil "modified" padahal tidak ada satu pun
+# baris yang berubah. Itu membuat review dan merge nyaris mustahil.
+#
+# Aturannya: simpan LF di dalam repository, biarkan git menyesuaikan di working
+# directory sesuai OS masing-masing.
+
+* text=auto
+
+# ── File yang wajib LF apa pun OS-nya ────────────────────────────────────────
+*.dart      text eol=lf
+*.kt        text eol=lf
+*.java      text eol=lf
+*.php       text eol=lf
+*.js        text eol=lf
+*.ts        text eol=lf
+*.json      text eol=lf
+*.yaml      text eol=lf
+*.yml       text eol=lf
+*.md        text eol=lf
+*.gradle    text eol=lf
+*.kts       text eol=lf
+*.xml       text eol=lf
+*.html      text eol=lf
+*.css       text eol=lf
+*.sh        text eol=lf
+*.cmake     text eol=lf
+CMakeLists.txt text eol=lf
+Dockerfile  text eol=lf
+.gitignore  text eol=lf
+.gitattributes text eol=lf
+
+# ── File yang wajib CRLF (skrip Windows) ─────────────────────────────────────
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+*.ps1       text eol=crlf
+
+# ── Biner: jangan pernah disentuh ────────────────────────────────────────────
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.webp      binary
+*.pdf       binary
+*.ttf       binary
+*.otf       binary
+*.woff      binary
+*.woff2     binary
+*.zip       binary
+*.jar       binary
+*.keystore  binary
+*.jks       binary
+*.so        binary
+*.dll       binary
+*.exe       binary
+*.mp4       binary
+*.json.gz   binary
