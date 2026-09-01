@@ -297,3 +297,33 @@ atau dua strip bersebelahan.
 Itu berarti kebutuhan mengubah DEVMODE per job hilang, dan `printing` saja
 kemungkinan sudah cukup untuk `printer_service_windows.dart` —
 `printing_ffi` mungkin hanya diperlukan untuk membaca status printer (C0-5).
+
+---
+
+## Halaman uji: satu konten tetap
+
+Isi halaman uji **tidak pernah berubah** — tidak ada tanggal, tidak ada angka
+setelan yang ikut tercetak. Tujuannya supaya dua lembar dari percobaan berbeda
+bisa ditumpuk dan dibandingkan langsung. Catatan setelan mana yang dipakai ada
+di log layar, bukan di kertas.
+
+Isinya:
+
+| Elemen | Gunanya |
+|---|---|
+| Bingkai hitam tepat di tepi | Sisi yang garisnya hilang = sisi yang dipotong |
+| Bingkai abu-abu 3 mm dari tepi | Kalau bingkai luar hilang tapi ini ada, potongan di bawah 3 mm |
+| Penanda sudut L | Memastikan keempat pojok utuh |
+| Kata **ATAS / BAWAH / KIRI / KANAN** dekat tiap tepi (1,5 mm) | Kata yang tidak tercetak menunjukkan sisi mana yang terpotong lebih dari 1,5 mm — tanpa perlu mengukur |
+| Tulisan tengah: LUMABOOTH / TEST PRINT / BORDERLESS CHECK | Konfirmasi teks tercetak dan posisinya di tengah |
+| Garis potong (khusus opsi STRIP) | Memeriksa geometri strip sebelum dipotong |
+
+Coverage tinta sekitar **1%**. Mode warna penuh sudah dihapus — tidak dipakai
+lagi.
+
+### Membaca hasilnya
+
+- Keempat kata muncul + bingkai luar utuh → **borderless benar**
+- Kata `ATAS` hilang → tepi atas terpotong lebih dari 1,5 mm → naikkan bleed Atas
+- Semua kata muncul tapi ada pita putih di pinggir → borderless kurang menutup →
+  naikkan bleed di sisi itu, atau naikkan Expansion di driver

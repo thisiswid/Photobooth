@@ -84,7 +84,6 @@ class _SpikeHomeState extends State<SpikeHome> {
   List<Printer> _printers = [];
   Printer? _selected;
   bool _busy = false;
-  bool _inkSaver = true;
   PageOption _page = kPageOptions.first;
 
   // Bleed per sisi dalam mm. Halaman PDF dibuat LEBIH BESAR dari kertas
@@ -152,7 +151,6 @@ class _SpikeHomeState extends State<SpikeHome> {
         'kiri ${_bLeft}mm · kanan ${_bRight}mm');
     _say('   Halaman  : ${(f.width / kMm).toStringAsFixed(1)} x '
         '${(f.height / kMm).toStringAsFixed(1)} mm');
-    _say('   Mode     : ${_inkSaver ? "HEMAT TINTA (~2%)" : "WARNA PENUH (~95%, BOROS)"}');
     _say('   PERHATIKAN LAYAR: tidak boleh ada dialog muncul.');
     _say('   CEK print queue: kalau paper size di sana bukan ukuran di atas,');
     _say('   berarti driver mengabaikan format aplikasi -> atur di Preferences.');
@@ -192,16 +190,23 @@ class _SpikeHomeState extends State<SpikeHome> {
     doc.addPage(pw.Page(
       pageFormat: fmt,
       margin: pw.EdgeInsets.zero,
-      build: (_) => _inkSaver ? _inkSaverPage(fmt) : _fullColorPage(fmt),
+      build: (_) => _testPage(fmt),
     ));
     return doc.save();
   }
 
-  // ── Halaman hemat tinta ─────────────────────────────────────────────────
-  pw.Widget _inkSaverPage(PdfPageFormat fmt) {
+  // ── SATU halaman uji tetap ───────────────────────────────────────────────
+  //
+  // Isinya SENGAJA tidak pernah berubah: tidak ada tanggal, tidak ada angka
+  // setelan. Supaya dua lembar dari percobaan berbeda bisa ditumpuk dan
+  // dibandingkan langsung. Provenance ada di log layar, bukan di kertas.
+  //
+  // Coverage tinta sekitar 1%: hanya garis bingkai dan beberapa patah kata.
+  pw.Widget _testPage(PdfPageFormat fmt) {
     return pw.Stack(
       children: [
-        // Garis tepat di tepi halaman PDF.
+        // Bingkai tepat di tepi halaman. Sisi yang garisnya hilang = sisi
+        // yang dipotong printer.
         pw.Container(
           width: double.infinity,
           height: double.infinity,
@@ -209,52 +214,41 @@ class _SpikeHomeState extends State<SpikeHome> {
             border: pw.Border.all(color: PdfColors.black, width: 1),
           ),
         ),
-        // Acuan 3 mm dari tepi — pembanding kalau garis tepi hilang.
+        // Bingkai acuan 3 mm dari tepi. Kalau bingkai luar hilang tapi yang
+        // ini ada, potongannya di bawah 3 mm.
         pw.Container(
           width: double.infinity,
           height: double.infinity,
           padding: const pw.EdgeInsets.all(3 * kMm),
           child: pw.Container(
             decoration: pw.BoxDecoration(
-              border: pw.Border.all(color: PdfColors.grey500, width: 0.4),
+              border: pw.Border.all(color: PdfColors.grey600, width: 0.4),
             ),
           ),
         ),
         ..._cornerMarks(),
-        ..._mmLadder(),
-        ..._ruler(fmt),
+        // Kata penanda di dekat tiap tepi. Kata yang hilang menunjukkan sisi
+        // mana yang terpotong — tanpa perlu mengukur.
+        ..._edgeWords(fmt),
         if (_page.kind == PageKind.stripPair) ..._stripGuides(fmt),
-        pw.Center(child: _centerInfo(fmt)),
+        pw.Center(
+          child: pw.Column(
+            mainAxisAlignment: pw.MainAxisAlignment.center,
+            children: [
+              pw.Text('LUMABOOTH',
+                  style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 5),
+              pw.Text('TEST PRINT',
+                  style: const pw.TextStyle(fontSize: 9)),
+              pw.SizedBox(height: 3),
+              pw.Text('BORDERLESS CHECK',
+                  style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey700)),
+            ],
+          ),
+        ),
       ],
     );
   }
-
-  pw.Widget _centerInfo(PdfPageFormat fmt) => pw.Column(
-        mainAxisAlignment: pw.MainAxisAlignment.center,
-        children: [
-          pw.Text('SPIKE C0',
-              style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
-          pw.SizedBox(height: 4),
-          pw.Text(ascii(_page.label), style: const pw.TextStyle(fontSize: 6)),
-          if (_hasBleed)
-            pw.Text(
-              'bleed T${_bTop} B${_bBottom} L${_bLeft} R${_bRight} mm',
-              style: const pw.TextStyle(fontSize: 6, color: PdfColors.grey700),
-            ),
-          pw.SizedBox(height: 10),
-          pw.Text('Garis hitam harus menyentuh keempat tepi.',
-              style: const pw.TextStyle(fontSize: 6)),
-          pw.Text('Tangga mm menunjukkan berapa yang terpotong.',
-              style: const pw.TextStyle(fontSize: 6)),
-          pw.SizedBox(height: 10),
-          pw.Text(
-            '${(fmt.width / kMm).toStringAsFixed(1)} x '
-            '${(fmt.height / kMm).toStringAsFixed(1)} mm  '
-            '${DateTime.now().toString().substring(0, 16)}',
-            style: const pw.TextStyle(fontSize: 5.5, color: PdfColors.grey700),
-          ),
-        ],
-      );
 
   /// Penanda sudut L, panjang 10 mm.
   List<pw.Widget> _cornerMarks() {
@@ -272,121 +266,45 @@ class _SpikeHomeState extends State<SpikeHome> {
     ];
   }
 
-  /// Tangga 1-10 mm dari tepi atas dan kiri. Angka terkecil yang MASIH
-  /// terlihat = besarnya potongan di sisi itu.
-  List<pw.Widget> _mmLadder() {
-    const steps = <int>[1, 2, 3, 4, 5, 6, 8, 10];
-    final out = <pw.Widget>[];
-    for (final d in steps) {
-      final off = d * kMm;
-      out.add(pw.Positioned(
-          left: 14 * kMm, top: off,
-          child: pw.Container(width: 7 * kMm, height: 0.5, color: PdfColors.black)));
-      out.add(pw.Positioned(
-          left: 21.5 * kMm, top: off - 1.6,
-          child: pw.Text('$d', style: const pw.TextStyle(fontSize: 4.5))));
-      out.add(pw.Positioned(
-          left: off, top: 30 * kMm,
-          child: pw.Container(width: 0.5, height: 7 * kMm, color: PdfColors.black)));
-      out.add(pw.Positioned(
-          left: off - 1.2, top: 37.5 * kMm,
-          child: pw.Text('$d', style: const pw.TextStyle(fontSize: 4.5))));
-    }
-    return out;
+  /// Kata penanda dekat tiap tepi, 1,5 mm dari pinggir.
+  /// Kata yang tidak tercetak = sisi itu terpotong lebih dari 1,5 mm.
+  List<pw.Widget> _edgeWords(PdfPageFormat fmt) {
+    const style = pw.TextStyle(fontSize: 6);
+    return [
+      pw.Positioned(
+          top: 1.5 * kMm, left: 0, right: 0,
+          child: pw.Center(child: pw.Text('ATAS', style: style))),
+      pw.Positioned(
+          bottom: 1.5 * kMm, left: 0, right: 0,
+          child: pw.Center(child: pw.Text('BAWAH', style: style))),
+      pw.Positioned(
+          left: 1.5 * kMm, top: fmt.height / 2 - 3,
+          child: pw.Text('KIRI', style: style)),
+      pw.Positioned(
+          right: 1.5 * kMm, top: fmt.height / 2 - 3,
+          child: pw.Text('KANAN', style: style)),
+    ];
   }
 
-  /// Penggaris melintang di bagian bawah halaman.
-  ///
-  /// Gunanya membuktikan apakah driver MENSKALAKAN cetakan. Ukur hasil cetak
-  /// dengan penggaris sungguhan: kalau tanda "5cm" jatuh tepat di 5 cm, berarti
-  /// cetakan 1:1. Kalau meleset, driver menskalakan halaman kita — biasanya
-  /// karena ukuran kertas di driver berbeda dari ukuran halaman PDF.
-  List<pw.Widget> _ruler(PdfPageFormat fmt) {
-    final out = <pw.Widget>[];
-    final baseY = fmt.height - 14 * kMm;
-    final maxMm = (fmt.width / kMm).floor();
-    for (int d = 0; d <= maxMm; d += 5) {
-      final isCm = d % 10 == 0;
-      out.add(pw.Positioned(
-        left: d * kMm,
-        top: baseY,
-        child: pw.Container(
-            width: 0.4,
-            height: (isCm ? 4.0 : 2.0) * kMm,
-            color: PdfColors.black),
-      ));
-      if (isCm && d > 0 && d < maxMm - 4) {
-        out.add(pw.Positioned(
-          left: d * kMm + 1,
-          top: baseY + 4.2 * kMm,
-          child: pw.Text('\${d ~/ 10}',
-              style: const pw.TextStyle(fontSize: 5)),
-        ));
-      }
-    }
-    out.add(pw.Positioned(
-      left: 2 * kMm,
-      top: baseY - 4 * kMm,
-      child: pw.Text('PENGGARIS cm - ukur hasil cetak, harus 1:1',
-          style: const pw.TextStyle(fontSize: 5, color: PdfColors.grey700)),
-    ));
-    // garis dasar penggaris
-    out.add(pw.Positioned(
-      left: 0,
-      top: baseY,
-      child: pw.Container(
-          width: fmt.width, height: 0.4, color: PdfColors.black),
-    ));
-    return out;
-  }
-
-  /// Garis potong di tengah untuk selembar 4x6 berisi dua strip 2x6.
-  /// Posisinya dihitung dari tengah KERTAS, bukan tengah halaman, supaya
-  /// tetap benar walau ada bleed asimetris.
+  /// Garis potong di tengah untuk selembar 4R berisi dua strip.
+  /// Posisinya dihitung dari tengah KERTAS, bukan tengah halaman PDF, supaya
+  /// tetap benar walau bleed-nya asimetris.
   List<pw.Widget> _stripGuides(PdfPageFormat fmt) {
     final centerFromLeft = (_bLeft + _page.wMm / 2) * kMm;
     final out = <pw.Widget>[];
-    // garis potong putus-putus
     for (double y = 0; y < fmt.height; y += 6) {
       out.add(pw.Positioned(
           left: centerFromLeft - 0.25, top: y,
           child: pw.Container(width: 0.5, height: 3.5, color: PdfColors.grey600)));
     }
     out.add(pw.Positioned(
-        left: centerFromLeft + 2, top: 6 * kMm,
-        child: pw.Text('POTONG',
-            style: const pw.TextStyle(fontSize: 5, color: PdfColors.grey600))));
-    // label tiap strip
-    final wStrip = (_page.wMm / 2).toStringAsFixed(1);
-    final hStrip = _page.hMm.toStringAsFixed(1);
+        left: 6 * kMm, bottom: 20 * kMm,
+        child: pw.Text('STRIP 1', style: const pw.TextStyle(fontSize: 6))));
     out.add(pw.Positioned(
-        left: 5 * kMm, bottom: 18 * kMm,
-        child: pw.Text('STRIP 1  $wStrip x $hStrip mm',
-            style: const pw.TextStyle(fontSize: 5.5))));
-    out.add(pw.Positioned(
-        right: 5 * kMm, bottom: 18 * kMm,
-        child: pw.Text('STRIP 2  $wStrip x $hStrip mm',
-            style: const pw.TextStyle(fontSize: 5.5))));
+        right: 6 * kMm, bottom: 20 * kMm,
+        child: pw.Text('STRIP 2', style: const pw.TextStyle(fontSize: 6))));
     return out;
   }
-
-  // ── Halaman warna penuh (boros, seperlunya saja) ────────────────────────
-  pw.Widget _fullColorPage(PdfPageFormat fmt) => pw.Stack(children: [
-        pw.Container(
-            width: double.infinity, height: double.infinity,
-            decoration: const pw.BoxDecoration(color: PdfColors.indigo800)),
-        pw.Container(
-            width: double.infinity, height: double.infinity,
-            decoration: pw.BoxDecoration(
-                border: pw.Border.all(color: PdfColors.amber, width: 6))),
-        if (_page.kind == PageKind.stripPair) ..._stripGuides(fmt),
-        pw.Center(
-            child: pw.Text('SPIKE C0 — UJI WARNA PENUH',
-                style: pw.TextStyle(
-                    color: PdfColors.white,
-                    fontSize: 14,
-                    fontWeight: pw.FontWeight.bold))),
-      ]);
 
   // ── UI ──────────────────────────────────────────────────────────────────
   Widget _stepper(String label, double value, ValueChanged<double> onChanged) {
@@ -508,15 +426,6 @@ class _SpikeHomeState extends State<SpikeHome> {
               '${(f.height / kMm).toStringAsFixed(1)} mm',
               style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
             ),
-          ),
-          SwitchListTile(
-            value: _inkSaver,
-            onChanged: _busy ? null : (v) => setState(() => _inkSaver = v),
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            title: Text(_inkSaver
-                ? 'Hemat tinta — garis tipis (~2% coverage)'
-                : 'Warna penuh — blok solid (~95%, BOROS)'),
           ),
           if (_printers.isNotEmpty)
             DropdownButton<Printer>(
