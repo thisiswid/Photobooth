@@ -164,3 +164,47 @@ Selain mode hemat tinta di aplikasi, atur di **Printing Preferences** driver:
 
 Kombinasi mode hemat tinta + Draft + grayscale membuat satu lembar uji hampir
 tidak berbiaya tinta.
+
+---
+
+## Strip 2x6
+
+Ada dua cara mencetak strip photobooth, dan keduanya tersedia di dropdown:
+
+| Opsi | Kapan dipakai |
+|---|---|
+| **Strip 2x6 inci — 50,8 x 152,4 mm** | Kalau kamu sudah mendaftarkan ukuran kertas custom 2x6 di driver Epson (Printing Preferences → User-Defined Paper Size). Printer memakan kertas selebar 2 inci |
+| **4x6 isi 2 strip 2x6** | **Cara yang lazim.** Cetak di kertas 4R biasa, dua strip bersebelahan, lalu dipotong di tengah. Tidak perlu kertas khusus, tidak perlu daftar ukuran custom |
+
+Opsi kedua mencetak garis potong putus-putus di tengah beserta label STRIP 1 /
+STRIP 2, jadi kamu bisa memeriksa geometrinya sebelum dipotong sungguhan.
+Posisi garis dihitung dari tengah **kertas**, bukan tengah halaman PDF, sehingga
+tetap benar walau bleed-nya asimetris.
+
+## Bleed per sisi — obat borderless yang timpang
+
+Kalau borderless hanya menutup satu sumbu (misal kiri-kanan penuh tapi
+atas-bawah masih putih), penyebabnya halaman PDF pas persis seukuran kertas.
+Begitu driver menskalakan supaya muat, sisi yang lain menyisakan pita putih.
+
+Obatnya: **buat halaman PDF sedikit lebih besar dari kertas**, biar isinya
+melimpah keluar dan dipotong printer. Itu memang cara cetak foto borderless yang
+benar di dunia percetakan — bukan akal-akalan.
+
+Empat stepper (Atas / Bawah / Kiri / Kanan) menaikkan halaman 0,5 mm per klik.
+Baris biru di bawahnya menunjukkan ukuran halaman PDF yang dihasilkan.
+
+### Cara mencari angkanya
+
+1. Mulai dari 0 semua, cetak sekali → lihat sisi mana yang putih
+2. Naikkan **hanya sisi yang bermasalah** 1 mm, cetak lagi
+3. Ulangi sampai putihnya hilang, lalu **turunkan 0,5 mm** untuk cari batas minimum
+4. Bleed berlebihan tidak merusak apa-apa, hanya memotong lebih banyak gambar —
+   jadi ambil angka terkecil yang sudah menutup
+
+Nilainya bisa asimetris. Wajar: mekanisme penarik kertas kebanyakan printer
+memang tidak simetris antara tepi depan dan tepi belakang.
+
+> 📌 **Catat angka yang menang.** Kombinasi ukuran kertas + bleed per sisi +
+> setelan Expansion driver adalah keluaran utama Cycle C0, dan langsung dipakai
+> di `printer_service_windows.dart` pada Cycle C2.
