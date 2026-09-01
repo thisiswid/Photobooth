@@ -131,3 +131,36 @@ Isi di `06-cycle-plan.md` → Cycle C0, dan lampirkan:
 1. Foto fisik hasil cetak (untuk menilai borderless)
 2. Rekaman layar saat mencetak (untuk membuktikan tidak ada dialog)
 3. Isi log dari panel hitam di aplikasi
+
+---
+
+## Kalau borderless jalan di satu sumbu saja
+
+Gejala umum: **kiri-kanan sudah penuh, atas-bawah masih putih.** Artinya
+borderless aktif tapi penskalaannya tidak menutup seluruh tinggi kertas.
+
+Coba berurutan, satu perubahan per lembar:
+
+| # | Yang dicoba | Di mana |
+|---|---|---|
+| 1 | Ganti ukuran halaman di dropdown: `10x15 cm` lalu `4R 102x152` | Aplikasi spike |
+| 2 | Naikkan **Expansion / Perbesaran** ke Medium atau Max | Printing Preferences → Borderless |
+| 3 | Pastikan paper size driver memakai varian **Borderless**, bukan yang biasa | Printing Preferences → Paper Size |
+| 4 | Coba varian **BLEED +2mm / +4mm** di dropdown | Aplikasi spike |
+| 5 | Coba tombol **3. CETAK UJI (setelan driver)** | Aplikasi spike |
+
+Varian BLEED sengaja membuat halaman lebih besar dari kertas supaya isinya
+melimpah keluar. Untuk foto sungguhan inilah cara yang benar: beri bleed, biar
+printer yang memotong. Kalau BLEED menutup atas-bawah dengan sempurna, catat
+angkanya — itu yang nanti dipakai di `printer_service_windows.dart` pada Cycle C2.
+
+## Menekan pemakaian tinta lebih jauh
+
+Selain mode hemat tinta di aplikasi, atur di **Printing Preferences** driver:
+
+- **Quality: Draft / Economy** — untuk uji geometri, kualitas foto tidak relevan
+- **Grayscale / Black ink only** — uji borderless tidak butuh warna sama sekali
+- Kembalikan ke Photo/High **hanya** saat uji warna menjelang go-live
+
+Kombinasi mode hemat tinta + Draft + grayscale membuat satu lembar uji hampir
+tidak berbiaya tinta.

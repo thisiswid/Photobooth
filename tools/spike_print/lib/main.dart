@@ -18,12 +18,34 @@ import 'package:printing/printing.dart';
 
 void main() => runApp(const SpikeApp());
 
-/// 4R = 4 x 6 inci. marginAll 0 = borderless.
-final PdfPageFormat k4R = PdfPageFormat(
-  4 * PdfPageFormat.inch,
-  6 * PdfPageFormat.inch,
-  marginAll: 0,
-);
+/// Kandidat ukuran halaman untuk 4R.
+///
+/// Kertas "4R" dijual dengan beberapa penyebutan yang ukurannya BEDA TIPIS:
+/// 4x6 inci = 101,6 x 152,4 mm · 10x15 cm = 100 x 150 mm · 4R = 102 x 152 mm.
+/// Selisih ini yang sering bikin borderless jalan di satu sumbu saja —
+/// driver menskalakan pas di lebar, lalu menyisakan pita di atas-bawah.
+///
+/// Varian BLEED sengaja dibuat lebih besar dari kertas supaya isinya melimpah
+/// keluar; kalau driver memotongnya, justru itu yang kita mau untuk borderless.
+class PageOption {
+  const PageOption(this.label, this.wMm, this.hMm);
+  final String label;
+  final double wMm;
+  final double hMm;
+  PdfPageFormat get format => PdfPageFormat(
+        wMm * PdfPageFormat.mm,
+        hMm * PdfPageFormat.mm,
+        marginAll: 0,
+      );
+}
+
+const kPageOptions = <PageOption>[
+  PageOption('4x6 inci — 101,6 x 152,4 mm', 101.6, 152.4),
+  PageOption('10x15 cm — 100 x 150 mm', 100, 150),
+  PageOption('4R — 102 x 152 mm', 102, 152),
+  PageOption('BLEED +2mm — 104 x 154 mm', 104, 154),
+  PageOption('BLEED +4mm — 106 x 156 mm', 106, 156),
+];
 
 class SpikeApp extends StatelessWidget {
   const SpikeApp({super.key});
@@ -51,6 +73,7 @@ class _SpikeHomeState extends State<SpikeHome> {
   bool _busy = false;
   /// Halaman uji hemat tinta (garis tipis) vs uji warna penuh (blok solid).
   bool _inkSaver = true;
+  PageOption _page = kPageOptions.first;
 
   void _say(String msg) {
     final t = DateTime.now().toString().substring(11, 19);
@@ -107,7 +130,7 @@ class _SpikeHomeState extends State<SpikeHome> {
       final ok = await Printing.directPrintPdf(
         printer: _selected!,
         name: 'Spike C0 Test 4R',
-        format: k4R,
+        format: _page.format,
         usePrinterSettings: usePrinterSettings,
         onLayout: (fmt) => _buildTestPdf(fmt),
       );
@@ -309,7 +332,23 @@ class _SpikeHomeState extends State<SpikeHome> {
                 ),
               ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                const Text('Ukuran halaman: '),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: DropdownButton<PageOption>(
+                    value: _page,
+                    isExpanded: true,
+                    items: kPageOptions
+                        .map((o) => DropdownMenuItem(value: o, child: Text(o.label)))
+                        .toList(),
+                    onChanged: _busy ? null : (o) => setState(() => _page = o!),
+                  ),
+                ),
+              ],
+            ),
             SwitchListTile(
               value: _inkSaver,
               onChanged: _busy ? null : (v) => setState(() => _inkSaver = v),
