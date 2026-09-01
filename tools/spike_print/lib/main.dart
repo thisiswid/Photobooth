@@ -215,6 +215,7 @@ class _SpikeHomeState extends State<SpikeHome> {
         ),
         ..._cornerMarks(),
         ..._mmLadder(),
+        ..._ruler(fmt),
         if (_page.kind == PageKind.stripPair) ..._stripGuides(fmt),
         pw.Center(child: _centerInfo(fmt)),
       ],
@@ -284,6 +285,51 @@ class _SpikeHomeState extends State<SpikeHome> {
           left: off - 1.2, top: 37.5 * kMm,
           child: pw.Text('$d', style: const pw.TextStyle(fontSize: 4.5))));
     }
+    return out;
+  }
+
+  /// Penggaris melintang di bagian bawah halaman.
+  ///
+  /// Gunanya membuktikan apakah driver MENSKALAKAN cetakan. Ukur hasil cetak
+  /// dengan penggaris sungguhan: kalau tanda "5cm" jatuh tepat di 5 cm, berarti
+  /// cetakan 1:1. Kalau meleset, driver menskalakan halaman kita — biasanya
+  /// karena ukuran kertas di driver berbeda dari ukuran halaman PDF.
+  List<pw.Widget> _ruler(PdfPageFormat fmt) {
+    final out = <pw.Widget>[];
+    final baseY = fmt.height - 14 * kMm;
+    final maxMm = (fmt.width / kMm).floor();
+    for (int d = 0; d <= maxMm; d += 5) {
+      final isCm = d % 10 == 0;
+      out.add(pw.Positioned(
+        left: d * kMm,
+        top: baseY,
+        child: pw.Container(
+            width: 0.4,
+            height: (isCm ? 4.0 : 2.0) * kMm,
+            color: PdfColors.black),
+      ));
+      if (isCm && d > 0 && d < maxMm - 4) {
+        out.add(pw.Positioned(
+          left: d * kMm + 1,
+          top: baseY + 4.2 * kMm,
+          child: pw.Text('\${d ~/ 10}',
+              style: const pw.TextStyle(fontSize: 5)),
+        ));
+      }
+    }
+    out.add(pw.Positioned(
+      left: 2 * kMm,
+      top: baseY - 4 * kMm,
+      child: pw.Text('PENGGARIS cm - ukur hasil cetak, harus 1:1',
+          style: const pw.TextStyle(fontSize: 5, color: PdfColors.grey700)),
+    ));
+    // garis dasar penggaris
+    out.add(pw.Positioned(
+      left: 0,
+      top: baseY,
+      child: pw.Container(
+          width: fmt.width, height: 0.4, color: PdfColors.black),
+    ));
     return out;
   }
 
