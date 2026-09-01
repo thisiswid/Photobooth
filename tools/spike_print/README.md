@@ -14,10 +14,17 @@ sekarang dengan biaya satu hari daripada setelah dua minggu.
 | 1 | Flutter SDK | `flutter --version` |
 | 2 | **Visual Studio Build Tools + workload "Desktop development with C++"** | `flutter doctor` — baris "Visual Studio" harus centang hijau |
 | 3 | Driver Epson L8050 resmi | Printer muncul di Settings → Printers & scanners |
-| 4 | Printer tersambung & menyala | Isi kertas foto **4R (10x15 cm)** |
+| 4 | **Developer Mode Windows aktif** | `start ms-settings:developers` → nyalakan. Tanpa ini: *"Building with plugins requires symlink support"* |
+| 5 | Printer tersambung & menyala | **Lewat USB** untuk spike (hilangkan variabel jaringan). Isi kertas foto **4R (10x15 cm)** |
 
 > ⚠️ Nomor 2 paling sering terlewat. Tanpa itu `flutter build windows` gagal
 > dengan pesan yang membingungkan.
+>
+> ⚠️ Nomor 4 hanya perlu di **mesin development**. Mesin kiosk yang menjalankan
+> `.exe` hasil installer tidak memerlukan Developer Mode.
+>
+> Setelah menyalakan Developer Mode, **tutup dan buka ulang PowerShell** sebelum
+> menjalankan `flutter run` lagi.
 
 ## Menjalankan
 
