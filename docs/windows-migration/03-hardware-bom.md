@@ -1,5 +1,38 @@
 # BOM & Spesifikasi Hardware — Unit Kiosk Windows
 
+> **Dua mesin yang berbeda, jangan tertukar:**
+>
+> - **Mesin development** — laptop Windows yang dipakai ngoding. Cukup untuk
+>   seluruh pekerjaan koding dan untuk **spike Cycle C0**. Tidak perlu beli apa
+>   pun. Lihat bagian 0.
+> - **Mesin produksi kiosk** — yang berdiri di lokasi dan jalan seharian.
+>   Spesifikasinya di bagian 1-5. Bisa mini PC, bisa juga laptop (bagian 2.5).
+
+---
+
+## 0. Mesin Development (Laptop)
+
+Untuk ngoding dan menjalankan spike C0, **laptop Windows biasa sudah cukup**.
+Tidak perlu menunggu pengadaan hardware kiosk.
+
+Prasyarat yang harus terpasang di laptop:
+
+| # | Kebutuhan | Catatan |
+|---|---|---|
+| D-1 | Windows 10 / 11 (edisi apa pun) | Pro baru wajib untuk **mesin produksi**, bukan untuk ngoding |
+| D-2 | Flutter SDK | `flutter doctor` harus hijau untuk target Windows |
+| D-3 | **Visual Studio Build Tools + workload "Desktop development with C++"** | **Wajib.** Tanpa ini `flutter build windows` gagal. Sering terlewat |
+| D-4 | Driver Epson L8050 resmi | |
+| D-5 | Kabel USB ke printer | Atau printer di jaringan yang sama |
+
+Dengan lima hal ini, **Cycle C0 bisa dijalankan hari itu juga** tanpa menunggu
+mini PC datang.
+
+Yang **tidak** bisa dibuktikan di laptop development: perilaku kiosk jangka
+panjang (Cycle C8), penguncian Shell Launcher, autologin, dan ketahanan terhadap
+mati listrik. Itu semua butuh mesin produksi sungguhan.
+
+
 ## 1. Daftar Belanja per Unit
 
 | # | Item | Wajib | Catatan |
@@ -62,6 +95,35 @@ di mesin komersial yang dilihat pelanggan, itu memalukan sekaligus melanggar.
 **Anggarkan lisensi asli.**
 
 ---
+
+### 2.5 Laptop sebagai Mesin Produksi — Opsi yang Sah
+
+Laptop bisa dipakai sebagai mesin kiosk, dan punya satu keunggulan besar yang
+sering tidak disadari.
+
+**Keuntungan:**
+
+| | |
+|---|---|
+| **Baterai = UPS bawaan** | Ini mengembalikan sifat yang hilang saat pindah dari tablet Android. Menghapus risiko R-06 dan menghemat biaya UPS terpisah |
+| All-in-one | Lebih ringkas, lebih mudah dipindah — cocok bila photobooth dipakai untuk event keliling |
+| Sudah punya layar | Berguna untuk servis, walau layar pelanggan tetap monitor sentuh eksternal |
+
+**Kerugian yang harus ditangani:**
+
+| Masalah | Penanganan |
+|---|---|
+| Layar laptop biasanya bukan touchscreen | Tetap butuh monitor sentuh eksternal, kecuali laptopnya memang layar sentuh |
+| Menutup lid = sleep | Ubah ke "Do nothing" di Power Options. **Wajib**, kalau lupa kiosk mati sendiri |
+| Keyboard & trackpad terjangkau pelanggan | Enclosure, atau lid ditutup dengan monitor eksternal sebagai layar utama |
+| Port USB sedikit (2-3) | Powered USB hub wajib — ada 4 perangkat aktif |
+| Sering Windows **Home** | Perlu upgrade ke Pro untuk Shell Launcher & Group Policy |
+| **Baterai menggelembung** kalau colok 24/7 | Risiko nyata pada laptop yang selalu tersambung daya. Kalau laptopnya mendukung, batasi pengisian di ~80% lewat BIOS/utilitas pabrikan. Periksa fisik baterai secara berkala |
+| Termal di enclosure tertutup | Laptop membuang panas lewat sisi dan bawah — jangan tutup ventilasinya |
+
+**Kesimpulan:** untuk 1-2 unit yang sering dipindah, laptop masuk akal dan
+baterainya bonus nyata. Untuk armada kiosk menetap, mini PC lebih murah per unit
+dan tidak punya masalah baterai menggelembung.
 
 ## 3. Monitor Sentuh
 

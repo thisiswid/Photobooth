@@ -32,6 +32,12 @@ Legenda status: `⬜ belum` · `🟨 jalan` · `✅ selesai` · `⛔ terblokir`
 Bisa dikerjakan paralel dengan C0. Tanpa baseline, tidak ada cara membuktikan
 Windows lebih baik — hanya perasaan.
 
+> 💡 **C0 tidak menunggu cycle ini.** Spike cetak bisa dijalankan di **laptop
+> development** begitu Flutter + Visual Studio Build Tools (workload "Desktop
+> development with C++") + driver Epson terpasang. Lihat
+> [BOM §0](03-hardware-bom.md). Pengadaan hardware kiosk (P-1 sampai P-4) baru
+> menghambat mulai Cycle C7 dan C8.
+
 - [ ] **P-1** Beli / siapkan mini PC sesuai [BOM](03-hardware-bom.md) §2
 - [ ] **P-2** Siapkan monitor sentuh + UPS
 - [ ] **P-3** Install Windows 11 **Pro** dengan lisensi asli
@@ -56,6 +62,11 @@ Proyek Flutter **kosong dan terpisah** (misal `C:\spike_print`), bukan di dalam
 - [ ] **C0-4** **Nol dialog muncul** selama proses cetak
 - [ ] **C0-5** Baca status printer (keluarkan kertas dari tray → status berubah)
 - [ ] **C0-6** Catat pustaka mana yang dipakai: `printing` / `printing_ffi` / `windows_printer`
+
+> Dijalankan di **laptop development**, bukan di mesin kiosk. Prasyarat: Flutter
+> SDK, Visual Studio Build Tools dengan workload "Desktop development with C++"
+> (**sering terlewat — tanpa ini build Windows gagal**), driver Epson L8050, dan
+> printer tersambung.
 
 **Selesai bila:** kertas foto 4R keluar penuh tanpa border, tanpa satu pun dialog,
 dan status printer terbaca secara programatik.
