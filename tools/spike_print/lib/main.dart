@@ -49,6 +49,8 @@ class _SpikeHomeState extends State<SpikeHome> {
   List<Printer> _printers = [];
   Printer? _selected;
   bool _busy = false;
+  /// Halaman uji hemat tinta (garis tipis) vs uji warna penuh (blok solid).
+  bool _inkSaver = true;
 
   void _say(String msg) {
     final t = DateTime.now().toString().substring(11, 19);
@@ -96,6 +98,9 @@ class _SpikeHomeState extends State<SpikeHome> {
     }
     setState(() => _busy = true);
     final label = usePrinterSettings ? 'pakai setelan driver' : 'pakai format aplikasi';
+    _say(_inkSaver
+        ? '   Mode: HEMAT TINTA (garis tipis, ~2% coverage)'
+        : '   Mode: WARNA PENUH (blok solid, ~95% coverage — boros tinta)');
     _say('🖨️  Mengirim halaman uji ke "${_selected!.name}" ($label)...');
     _say('    PERHATIKAN LAYAR: tidak boleh ada dialog muncul.');
     try {
@@ -116,85 +121,161 @@ class _SpikeHomeState extends State<SpikeHome> {
     }
   }
 
-  /// Halaman uji borderless: blok warna menyentuh keempat tepi + penanda sudut.
+  /// Halaman uji borderless.
+  ///
+  /// Mode HEMAT TINTA (default): kertas dibiarkan putih. Yang dicetak hanya
+  /// garis-garis tipis di tepi plus tangga penanda milimeter, sehingga kamu
+  /// tidak cuma tahu "borderless gagal", tapi tahu **berapa milimeter** yang
+  /// terpotong. Coverage tinta sekitar 2%.
+  ///
+  /// Mode WARNA PENUH: blok solid sampai tepi. Boros tinta, dipakai hanya bila
+  /// perlu memeriksa warna dan cakupan penuh menjelang go-live.
   Future<Uint8List> _buildTestPdf(PdfPageFormat fmt) async {
     final doc = pw.Document();
     doc.addPage(
       pw.Page(
         pageFormat: fmt,
         margin: pw.EdgeInsets.zero,
-        build: (ctx) {
-          return pw.Stack(
-            children: [
-              // Latar penuh — harus menyentuh tepi kertas kalau borderless aktif
-              pw.Container(
-                width: double.infinity,
-                height: double.infinity,
-                decoration: const pw.BoxDecoration(color: PdfColors.indigo800),
-              ),
-              // Bingkai tepi berwarna, lebar 6pt, tepat di pinggir halaman
-              pw.Container(
-                width: double.infinity,
-                height: double.infinity,
-                decoration: pw.BoxDecoration(
-                  border: pw.Border.all(color: PdfColors.amber, width: 6),
-                ),
-              ),
-              // Penanda sudut — kalau salah satu terpotong/ada garis putih,
-              // borderless belum benar
-              _corner(0, 0), _corner(0, null), _corner(null, 0), _corner(null, null),
-              pw.Center(
-                child: pw.Column(
-                  mainAxisAlignment: pw.MainAxisAlignment.center,
-                  children: [
-                    pw.Text('SPIKE C0',
-                        style: pw.TextStyle(
-                            color: PdfColors.white,
-                            fontSize: 34,
-                            fontWeight: pw.FontWeight.bold)),
-                    pw.SizedBox(height: 10),
-                    pw.Text('Uji Silent Print 4R Borderless',
-                        style: const pw.TextStyle(
-                            color: PdfColors.amber, fontSize: 14)),
-                    pw.SizedBox(height: 26),
-                    pw.Text('Bingkai kuning harus menyentuh',
-                        style: const pw.TextStyle(
-                            color: PdfColors.white, fontSize: 11)),
-                    pw.Text('keempat tepi kertas.',
-                        style: const pw.TextStyle(
-                            color: PdfColors.white, fontSize: 11)),
-                    pw.SizedBox(height: 26),
-                    pw.Text(
-                      '${fmt.width.toStringAsFixed(1)} x '
-                      '${fmt.height.toStringAsFixed(1)} pt',
-                      style: const pw.TextStyle(
-                          color: PdfColors.grey300, fontSize: 10),
-                    ),
-                    pw.Text(DateTime.now().toString().substring(0, 19),
-                        style: const pw.TextStyle(
-                            color: PdfColors.grey300, fontSize: 10)),
-                  ],
-                ),
-              ),
-            ],
-          );
-        },
+        build: (ctx) => _inkSaver ? _inkSaverPage(fmt) : _fullColorPage(fmt),
       ),
     );
     return doc.save();
   }
 
-  pw.Widget _corner(double? left, double? top) => pw.Positioned(
-        left: left,
-        top: top,
-        right: left == null ? 0 : null,
-        bottom: top == null ? 0 : null,
-        child: pw.Container(
-          width: 30,
-          height: 30,
-          decoration: const pw.BoxDecoration(color: PdfColors.red),
+  // ── Halaman hemat tinta ──────────────────────────────────────────────────
+  pw.Widget _inkSaverPage(PdfPageFormat fmt) {
+    const mm = PdfPageFormat.mm;
+    return pw.Stack(
+      children: [
+        // Garis tepat di tepi halaman. Kalau borderless benar, keempatnya
+        // ikut tercetak. Kalau ada yang hilang, sisi itulah yang terpotong.
+        pw.Container(
+          width: double.infinity,
+          height: double.infinity,
+          decoration: pw.BoxDecoration(
+            border: pw.Border.all(color: PdfColors.black, width: 1),
+          ),
         ),
-      );
+        // Garis acuan 3 mm dari tepi — pembanding kalau garis tepi hilang.
+        pw.Container(
+          width: double.infinity,
+          height: double.infinity,
+          padding: const pw.EdgeInsets.all(3 * mm),
+          child: pw.Container(
+            decoration: pw.BoxDecoration(
+              border: pw.Border.all(color: PdfColors.grey500, width: 0.4),
+            ),
+          ),
+        ),
+        // Penanda sudut berbentuk L (garis, bukan blok terisi).
+        ..._cornerMarks(fmt),
+        // Tangga milimeter di tepi atas & kiri — untuk MENGUKUR potongan.
+        ..._mmLadder(),
+        pw.Center(
+          child: pw.Column(
+            mainAxisAlignment: pw.MainAxisAlignment.center,
+            children: [
+              pw.Text('SPIKE C0',
+                  style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 6),
+              pw.Text('Uji 4R Borderless — mode hemat tinta',
+                  style: const pw.TextStyle(fontSize: 8)),
+              pw.SizedBox(height: 14),
+              pw.Text('Garis hitam harus menyentuh keempat tepi kertas.',
+                  style: const pw.TextStyle(fontSize: 7)),
+              pw.Text('Tangga mm menunjukkan berapa yang terpotong.',
+                  style: const pw.TextStyle(fontSize: 7)),
+              pw.SizedBox(height: 14),
+              pw.Text(
+                '${(fmt.width / mm).toStringAsFixed(0)} x '
+                '${(fmt.height / mm).toStringAsFixed(0)} mm  ·  '
+                '${DateTime.now().toString().substring(0, 16)}',
+                style: const pw.TextStyle(fontSize: 6, color: PdfColors.grey700),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Penanda sudut L di keempat pojok, panjang 10 mm, tebal 1 pt.
+  List<pw.Widget> _cornerMarks(PdfPageFormat fmt) {
+    const mm = PdfPageFormat.mm;
+    const len = 10 * mm;
+    const w = 1.0;
+    return [
+      // kiri-atas
+      pw.Positioned(left: 0, top: 0, child: pw.Container(width: len, height: w, color: PdfColors.black)),
+      pw.Positioned(left: 0, top: 0, child: pw.Container(width: w, height: len, color: PdfColors.black)),
+      // kanan-atas
+      pw.Positioned(right: 0, top: 0, child: pw.Container(width: len, height: w, color: PdfColors.black)),
+      pw.Positioned(right: 0, top: 0, child: pw.Container(width: w, height: len, color: PdfColors.black)),
+      // kiri-bawah
+      pw.Positioned(left: 0, bottom: 0, child: pw.Container(width: len, height: w, color: PdfColors.black)),
+      pw.Positioned(left: 0, bottom: 0, child: pw.Container(width: w, height: len, color: PdfColors.black)),
+      // kanan-bawah
+      pw.Positioned(right: 0, bottom: 0, child: pw.Container(width: len, height: w, color: PdfColors.black)),
+      pw.Positioned(right: 0, bottom: 0, child: pw.Container(width: w, height: len, color: PdfColors.black)),
+    ];
+  }
+
+  /// Tangga penanda 1-10 mm dari tepi atas dan tepi kiri.
+  /// Angka terkecil yang MASIH terlihat = besarnya potongan di sisi itu.
+  List<pw.Widget> _mmLadder() {
+    const mm = PdfPageFormat.mm;
+    const steps = <int>[1, 2, 3, 4, 5, 6, 8, 10];
+    final out = <pw.Widget>[];
+    for (final d in steps) {
+      final off = d * mm;
+      // tepi ATAS: garis mendatar pendek, makin jauh dari tepi makin ke bawah
+      out.add(pw.Positioned(
+          left: 14 * mm,
+          top: off,
+          child: pw.Container(width: 7 * mm, height: 0.5, color: PdfColors.black)));
+      out.add(pw.Positioned(
+          left: 21.5 * mm,
+          top: off - 1.6,
+          child: pw.Text('$d', style: const pw.TextStyle(fontSize: 4.5))));
+      // tepi KIRI: garis tegak pendek
+      out.add(pw.Positioned(
+          left: off,
+          top: 30 * mm,
+          child: pw.Container(width: 0.5, height: 7 * mm, color: PdfColors.black)));
+      out.add(pw.Positioned(
+          left: off - 1.2,
+          top: 37.5 * mm,
+          child: pw.Text('$d', style: const pw.TextStyle(fontSize: 4.5))));
+    }
+    return out;
+  }
+
+  // ── Halaman warna penuh (boros tinta, dipakai seperlunya) ───────────────
+  pw.Widget _fullColorPage(PdfPageFormat fmt) {
+    return pw.Stack(
+      children: [
+        pw.Container(
+          width: double.infinity,
+          height: double.infinity,
+          decoration: const pw.BoxDecoration(color: PdfColors.indigo800),
+        ),
+        pw.Container(
+          width: double.infinity,
+          height: double.infinity,
+          decoration: pw.BoxDecoration(
+            border: pw.Border.all(color: PdfColors.amber, width: 6),
+          ),
+        ),
+        pw.Center(
+          child: pw.Text('SPIKE C0 — UJI WARNA PENUH',
+              style: pw.TextStyle(
+                  color: PdfColors.white,
+                  fontSize: 16,
+                  fontWeight: pw.FontWeight.bold)),
+        ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -228,7 +309,18 @@ class _SpikeHomeState extends State<SpikeHome> {
                 ),
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 6),
+            SwitchListTile(
+              value: _inkSaver,
+              onChanged: _busy ? null : (v) => setState(() => _inkSaver = v),
+              dense: true,
+              title: Text(_inkSaver
+                  ? 'Hemat tinta — garis tipis (~2% coverage)'
+                  : 'Warna penuh — blok solid (~95% coverage, BOROS)'),
+              subtitle: const Text(
+                  'Hemat tinta sudah cukup untuk menilai borderless, dan bisa mengukur berapa mm yang terpotong.'),
+            ),
+            const SizedBox(height: 8),
             if (_printers.isNotEmpty)
               DropdownButton<Printer>(
                 value: _selected,

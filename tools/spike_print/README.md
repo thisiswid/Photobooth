@@ -46,6 +46,38 @@ flutter pub get
 flutter run -d windows
 ```
 
+## Urutan hemat: jangan bakar kertas foto dulu
+
+### Putaran 1 — nol kertas, nol tinta
+
+**Pause printernya dulu** sebelum menjalankan spike:
+
+> Settings → Bluetooth & devices → Printers & scanners → Epson L8050 →
+> Open print queue → menu Printer → **Pause Printing**
+
+Lalu jalankan spike dan tekan tombol cetak. Job masuk antrean tanpa mencetak
+apa pun, dan kamu sudah bisa membuktikan bagian terpenting dari C0:
+
+- **C0-4** tidak ada dialog muncul sama sekali
+- job diterima dengan nama dan ukuran halaman yang benar (lihat di print queue)
+- **C0-1** printer terdeteksi
+
+Ulangi sebanyak yang kamu mau. Nol biaya. Hapus job dari antrean setelah dicek.
+
+### Putaran 2 — satu lembar untuk borderless
+
+Resume printing, pastikan mode **Hemat tinta** menyala (default), lalu cetak
+**satu** lembar. Coverage tintanya sekitar 2% — kertas dibiarkan putih, yang
+dicetak hanya garis tepi dan tangga penanda.
+
+### Putaran 3 — hanya bila perlu
+
+Mode **Warna penuh** (blok solid sampai tepi, ~95% coverage) baru dipakai
+menjelang go-live, saat kamu ingin memeriksa warna dan cakupan penuh. Jangan
+dipakai untuk uji berulang.
+
+---
+
 ## Yang diuji
 
 Tekan tombolnya berurutan, catat hasilnya di
@@ -57,13 +89,21 @@ Tekan tombolnya berurutan, catat hasilnya di
 | 2. CETAK UJI (format aplikasi) | **C0-2, C0-3, C0-4** | Kertas keluar, borderless benar, **nol dialog** |
 | 3. CETAK UJI (setelan driver) | pembanding | Bandingkan mana yang borderless-nya benar |
 
-### Cara menilai borderless
+### Cara menilai borderless (mode hemat tinta)
 
-Halaman uji dirancang supaya bisa dinilai dengan mata, tanpa alat ukur:
+Halaman ujinya tidak cuma bilang lulus/gagal — dia **mengukur**:
 
-- **Bingkai kuning** harus menyentuh keempat tepi kertas
-- **Empat kotak merah di sudut** harus utuh sampai ke pojok kertas
-- Kalau ada **garis putih** di pinggir mana pun → borderless **belum** aktif
+- **Garis hitam tepi** harus tercetak di keempat sisi. Sisi yang garisnya hilang
+  adalah sisi yang terpotong.
+- **Penanda sudut L** harus utuh sampai ke pojok kertas.
+- **Tangga milimeter** di tepi atas dan kiri: angka terkecil yang **masih
+  terlihat** menunjukkan berapa milimeter yang dipotong printer di sisi itu.
+  Kalau angka 1 dan 2 hilang tapi 3 terlihat, berarti terpotong sekitar 3 mm.
+- Garis abu-abu 3 mm dari tepi adalah pembanding — kalau garis hitam tepi hilang
+  tapi yang abu-abu ada, potongannya di bawah 3 mm.
+
+Informasi ini yang kamu butuhkan untuk mengatur ulang setelan driver, bukan
+sekadar tahu bahwa borderless gagal.
 
 Kalau tombol 2 memberi garis putih tapi tombol 3 tidak, berarti jawabannya ada
 di setelan default driver Epson — atur 4R borderless di Printing Preferences
