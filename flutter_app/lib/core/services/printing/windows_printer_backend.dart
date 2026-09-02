@@ -8,6 +8,8 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
+import 'windows_printer_status.dart';
+
 /// Backend cetak untuk Windows.
 ///
 /// ─────────────────────────────────────────────────────────────────────────
@@ -161,34 +163,70 @@ class WindowsPrinterBackend {
 
     if (printers.isEmpty) {
       return {
-        'status': 'offline',
+        'status': PrinterHealth.offline.code,
         'message': 'Tidak ada printer terdaftar di Windows.',
         'printerName': null,
         'totalPrinters': 0,
+        'canPrint': false,
+        'detailStatusAvailable': false,
       };
     }
     if (printer == null) {
       return {
-        'status': 'offline',
+        'status': PrinterHealth.offline.code,
         'message': 'Printer target tidak ditemukan.',
         'printerName': null,
         'totalPrinters': printers.length,
+        'canPrint': false,
+        'detailStatusAvailable': false,
       };
     }
+
+    // Status sungguhan dari WMI: kertas habis, tinta habis, macet, dsb.
+    final health = await WindowsPrinterStatus.read(printer.name);
+    if (health == null) {
+      // WMI gagal dibaca — jangan mengarang. Turunkan ke fakta yang pasti:
+      // printer terdaftar di spooler.
+      return {
+        'status': PrinterHealth.unknown.code,
+        'message': 'Printer terdaftar (${printer.name}), '
+            'status rinci tidak terbaca.',
+        'printerName': printer.name,
+        'isDefault': printer.isDefault,
+        'totalPrinters': printers.length,
+        'canPrint': true,
+        'detailStatusAvailable': false,
+      };
+    }
+
     return {
-      'status': 'ready',
-      'message': 'Printer siap: ${printer.name}',
+      'status': health.code,
+      'message': health.message,
       'printerName': printer.name,
       'isDefault': printer.isDefault,
       'totalPrinters': printers.length,
-      // Belum tersedia tanpa printing_ffi / windows_printer:
-      'detailStatusAvailable': false,
+      'canPrint': health.canPrint,
+      'needsAttention': health.needsAttention,
+      'detailStatusAvailable': true,
     };
   }
 
+  /// Kondisi printer sebagai enum. Dipakai heartbeat dan panel settings.
+  static Future<PrinterHealth> health() async {
+    final printer = await resolvePrinter();
+    if (printer == null) return PrinterHealth.offline;
+    return (await WindowsPrinterStatus.read(printer.name)) ??
+        PrinterHealth.unknown;
+  }
+
+  /// "Terjangkau" di Windows berarti masih layak menerima job — bukan sekadar
+  /// terdaftar. Printer yang kertasnya habis TIDAK dianggap terjangkau, supaya
+  /// kiosk berhenti menerima pesanan sebelum pelanggan terlanjur membayar.
   static Future<bool> isReachable() async {
-    final s = await getStatus();
-    return s['status'] == 'ready';
+    final h = await health();
+    // unknown tetap dianggap layak: lebih baik mencoba mencetak daripada
+    // menolak pesanan hanya karena WMI tidak terbaca.
+    return h.canPrint || h == PrinterHealth.unknown;
   }
 
   // ─── Cetak ────────────────────────────────────────────────────────────────

@@ -49,10 +49,11 @@ class HeartbeatService {
       }
 
       // Cek status hardware terkini
-      String printerStatus = 'ready';
+      // Status printer sesungguhnya. Di Windows ini membedakan kertas habis,
+      // tinta habis, dan macet — bukan sekadar hidup/mati seperti di Android.
+      String printerStatus = 'unknown';
       try {
-        final isPrinterOk = await PrinterService.isPrinterReachable();
-        printerStatus = isPrinterOk ? 'ready' : 'offline';
+        printerStatus = await PrinterService.getHealthCode();
       } catch (_) {
         printerStatus = 'error';
       }

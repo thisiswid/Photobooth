@@ -9,6 +9,7 @@ import 'package:image/image.dart' as img;
 import 'error_logger.dart';
 import 'ipp/ipp_client.dart';
 import 'printing/windows_printer_backend.dart';
+import 'printing/windows_printer_status.dart';
 import 'ipp/network_scan.dart';
 
 /// Result status of a print job
@@ -391,7 +392,31 @@ class PrinterService {
     return false;
   }
 
+  /// Kode status printer untuk telemetri heartbeat.
+  ///
+  /// Windows mengembalikan kondisi sesungguhnya dari WMI: `ready`,
+  /// `out_of_paper`, `no_ink`, `paper_jam`, `offline`, dan seterusnya.
+  ///
+  /// Android hanya bisa membedakan terjangkau atau tidak — bukan keterbatasan
+  /// kode ini, melainkan memang tidak ada API-nya.
+  static Future<String> getHealthCode() async {
+    if (Platform.isWindows) {
+      return (await WindowsPrinterBackend.health()).code;
+    }
+    try {
+      return (await isPrinterReachable())
+          ? PrinterHealth.ready.code
+          : PrinterHealth.offline.code;
+    } catch (_) {
+      return PrinterHealth.error.code;
+    }
+  }
+
   static Future<Map<String, dynamic>> getPrinterStatus() async {
+    if (Platform.isWindows) {
+      return WindowsPrinterBackend.getStatus();
+    }
+
     final usbStatus = await detectUsbPrinter();
     final wifiIp = await getIpAddress();
     final wifiReachable = await isPrinterReachable(ip: wifiIp);
