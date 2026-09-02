@@ -17,7 +17,7 @@ Legenda status: `⬜ belum` · `🟨 jalan` · `✅ selesai` · `⛔ terblokir`
 | **C1** | Kerangka Windows | 2-3 hari | ✅ | 2026-09-01 | 2026-09-02 |
 | **C2** | Jalur cetak | 3-4 hari | ✅ | 2026-09-02 | 2026-09-02 |
 | **C3** | Kamera capture card 🎯 **BISA PRODUKSI** | 3-4 hari | ✅ | 2026-09-02 | 2026-09-02 |
-| **C4** | Shutter Sony SDK ⛔ **DITUNDA** | 1-2 minggu | ⏸️ | 2026-09-02 | keputusan terbuka |
+| **C4** | Shutter Sony ✅ **GERBANG LULUS** | 1-2 minggu | 🟨 | 2026-09-02 | POC PASS |
 | **C5** | Settings & diagnostik | 3-4 hari | ✅ | 2026-09-02 | 2026-09-02 |
 | **C6** | Kalibrasi layar sentuh | 2 hari | ⬜ | | |
 | **C7** | Packaging & penguncian kiosk | 3-4 hari | ⬜ | | |
@@ -203,8 +203,25 @@ dashboard ≤ 60 detik.
 > saat dikendalikan aplikasi, tidak menyiratkan Sony pembuat aplikasi, dan
 > menanggung dukungan pelanggan sendiri.
 >
-> **KEPUTUSAN 2026-09-02: DITUNDA.** Kiosk tetap jalan di 1080p dari capture
-> card. C5 dan C6 dikerjakan lebih dulu karena tidak bergantung kamera.
+> ✅ **GERBANG LULUS 2026-09-02 — lewat jalan yang berbeda.**
+>
+> Kesimpulan "ZV-E10 tidak didukung" ternyata **hanya berlaku untuk Camera
+> Remote SDK**. Produk yang berbeda, **Camera Remote Command**, mendukung
+> ZV-E10 generasi pertama pada PTP 2 maupun PTP 3.
+>
+> POC lengkap P1-P8 **PASS** dengan eksekusi nyata. Hasil akhir **6000 x 4000
+> (24,0 MP)** — melampaui baseline Imaging Edge yang 21,3 MP, karena batas itu
+> ternyata cuma setelan Aspect Ratio 4:3 di kamera.
+>
+> Rincian: [08 — POC Camera Remote Command](08-camera-remote-command-poc.md)
+>
+> **Tidak perlu ganti kamera. Tidak perlu reverse engineering. Tidak perlu
+> Zadig.** Opsi 2 dan 3 di bawah gugur — yang berlaku sekarang adalah jalur
+> keempat yang belum terbayang saat daftar itu ditulis.
+>
+> Sisa pekerjaan C4: menulis helper produksi sendiri berdasarkan Command
+> Reference (contoh Sony dilarang dipakai di produk), lalu menyambungkannya ke
+> Flutter lewat socket lokal dengan degradasi ke `windowsCamera`.
 >
 > **Tiga jalan keluar, semuanya keputusan bisnis bukan teknis:**
 >

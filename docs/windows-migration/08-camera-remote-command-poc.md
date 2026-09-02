@@ -151,7 +151,20 @@ lengkap) dan menyimpan PTP 2 sebagai cadangan bila ada perintah yang bermasalah.
 | P5 | JPEG transfer | **PASS** ✅ | JPEG sampai ke disk lewat Save Destination = Host Device |
 | P6 | Original JPEG | **PASS** ✅ | 11-13 MB, bukan thumbnail/preview |
 | P7 | Resolution | **PASS — MELAMPAUI TARGET** ✅ | **6000 x 4000 (24,0 MP)** pada Aspect Ratio 3:2 |
-| P8 | 10 captures | **BELUM DIUJI** | berikutnya |
+| P8 | 10 captures | **PASS** ✅ | DSC05118-DSC05127, 10 berkas berurutan, semua 6000x4000, semua utuh |
+
+### Verifikasi P8 — diperiksa berkasnya, bukan hanya dilaporkan
+
+Sepuluh capture berturut-turut: `DSC05118.JPG` sampai `DSC05127.JPG`.
+
+| Pemeriksaan | Hasil |
+|---|---|
+| Jumlah berkas | 10, berurutan tanpa lompatan |
+| Dimensi | 6000 x 4000 pada **seluruh** berkas |
+| Ukuran | 9,30 - 13,11 MB, wajar dan konsisten |
+| Integritas | Penanda akhir JPEG (EOI `FFD9`) ada di **semua** berkas — **0 rusak** |
+| Nama bertabrakan | Tidak ada |
+| Hang / crash / koneksi putus | Tidak ada |
 
 ### 3.1 Transport — WIA, BUKAN libusb
 
@@ -358,7 +371,7 @@ orang lain.
 
 ## 6. Conclusion
 
-**PASS untuk P1-P7. P8 (sepuluh capture berturut-turut) belum dijalankan.**
+**PASS. Seluruh P1-P8 lulus.**
 
 Camera Remote Command memenuhi seluruh kebutuhan dasar remote shutter dan
 transfer JPEG untuk ZV-E10 generasi pertama, **tanpa Imaging Edge sebagai
@@ -374,8 +387,9 @@ ZV-E10**:
 - Transfer JPEG: `GetObjectInfo` + `ExecuteGetObject` pada `SHOT_OBJECT_HANDLE`
 - Transport WIA — **tidak perlu Zadig, tidak perlu ganti driver ke WinUSB**
 
-Seluruhnya sudah **dibuktikan dengan eksekusi nyata pada 2026-09-02**, bukan
-hanya dari dokumentasi. Yang tersisa hanya P8.
+Seluruhnya **dibuktikan dengan eksekusi nyata pada 2026-09-02**, bukan hanya
+dari dokumentasi. Setiap berkas hasil diperiksa langsung di disk — dimensi,
+ukuran, dan penanda akhir JPEG — bukan sekadar dilihat di GUI.
 
 Penghalang driver sudah terselesaikan: setelah libusbK dilepas, kamera mengikat
 ke `WUDFWpdMtp` bawaan Windows dan terlihat oleh WIA.
