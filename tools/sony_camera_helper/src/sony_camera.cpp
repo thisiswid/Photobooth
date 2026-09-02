@@ -177,6 +177,29 @@ std::string Utf16ToUtf8(const wchar_t* text, int chars) {
 
 }  // namespace
 
+const char* PtpResponseName(uint16_t code) {
+  switch (code) {
+    case 0x2001: return "OK";
+    case 0x2002: return "General_Error";
+    case 0x2003:
+      return "Session_Not_Open (sesi PTP driver sudah tertutup - cabut lalu "
+             "colok ulang kamera)";
+    case 0x2004: return "Invalid_TransactionID";
+    case 0x2005: return "Operation_Not_Supported";
+    case 0x2006: return "Parameter_Not_Supported";
+    case 0x2007: return "Incomplete_Transfer";
+    case 0x2008: return "Invalid_StorageID";
+    case 0x2009: return "Invalid_ObjectHandle";
+    case 0x200A: return "DeviceProp_Not_Supported";
+    case 0x200D: return "Store_Full";
+    case 0x2013: return "Store_Not_Available";
+    case 0x2019: return "Device_Busy";
+    case 0x201E: return "Invalid_Parameter";
+    case 0x201F: return "Session_Already_Open";
+    default: return "unknown";
+  }
+}
+
 const char* AfStatusLabel(uint64_t value) {
   switch (value) {
     case kAfUnlock: return "unlock";
@@ -221,7 +244,8 @@ bool SonyCamera::Connect(const std::wstring& device_id,
     if (!res.ok()) {
       std::ostringstream os;
       os << "SDIO_Connect(" << phase << ") response=0x" << std::hex
-         << res.responseCode;
+         << res.responseCode << " (" << PtpResponseName(res.responseCode)
+         << ")";
       *err = os.str();
       return false;
     }
@@ -282,12 +306,21 @@ bool SonyCamera::Connect(const std::wstring& device_id,
 
 void SonyCamera::Disconnect() {
   if (connected_) {
+    // Lepaskan setengah-tekan supaya kamera tidak ditinggal dalam keadaan S1.
     std::string ignored;
     ControlDevice(kDpcS1Button, kButtonUp, &ignored);
-    EscapeResult res;
-    transport_.Escape(kOcCloseSession, nullptr, 0, kNextPhaseReadData, nullptr,
-                      0, 0x1000, &res, &ignored);
   }
+  // SENGAJA TIDAK mengirim CloseSession (0x1003).
+  //
+  // Sesi PTP-nya bukan milik kita: yang membukanya adalah driver WIA/WPD
+  // Windows, dan kita menumpang lewat IWiaItemExtras::Escape. Menutup sesi itu
+  // membuat driver mengira sesinya masih hidup padahal kamera sudah menutupnya,
+  // sehingga sambungan BERIKUTNYA gagal dengan Session_Not_Open (0x2003) dan
+  // baru pulih setelah kamera dicabut-colok. Terbukti di perangkat 2026-09-02.
+  //
+  // Contoh Sony memanggil CloseSession, tetapi hanya sekali saat aplikasinya
+  // ditutup total. Helper ini connect/disconnect berkali-kali sepanjang hari,
+  // jadi pola itu tidak berlaku di sini. Melepas handle WIA sudah cukup.
   connected_ = false;
   props_.clear();
   transport_.Close();
@@ -302,8 +335,8 @@ bool SonyCamera::RefreshProperties(std::string* detail) {
   }
   if (!res.ok()) {
     std::ostringstream os;
-    os << "SDIO_GetAllExtDevicePropInfo response=0x" << std::hex
-       << res.responseCode;
+    os << "SDIO_GetAllExtDevicePropInfo response=0x" << std::hex << res.responseCode
+       << " (" << PtpResponseName(res.responseCode) << ")";
     *detail = os.str();
     return false;
   }
@@ -402,7 +435,7 @@ bool SonyCamera::ControlDevice(uint16_t control_code, uint32_t value,
   if (!res.ok()) {
     std::ostringstream os;
     os << "SDIO_ControlDevice(0x" << std::hex << control_code << ") response=0x"
-       << res.responseCode;
+       << res.responseCode << " (" << PtpResponseName(res.responseCode) << ")";
     *detail = os.str();
     return false;
   }
@@ -419,7 +452,8 @@ bool SonyCamera::GetObjectInfoFor(DWORD handle, ObjectInfo* out,
   }
   if (!res.ok()) {
     std::ostringstream os;
-    os << "GetObjectInfo response=0x" << std::hex << res.responseCode;
+    os << "GetObjectInfo response=0x" << std::hex << res.responseCode << " ("
+       << PtpResponseName(res.responseCode) << ")";
     *detail = os.str();
     return false;
   }
@@ -464,7 +498,8 @@ bool SonyCamera::GetObjectData(DWORD handle, uint32_t size,
   }
   if (!res.ok()) {
     std::ostringstream os;
-    os << "GetObject response=0x" << std::hex << res.responseCode;
+    os << "GetObject response=0x" << std::hex << res.responseCode << " ("
+       << PtpResponseName(res.responseCode) << ")";
     *detail = os.str();
     return false;
   }

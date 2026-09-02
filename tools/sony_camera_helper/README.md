@@ -151,6 +151,19 @@ selalu dilaporkan lewat `stale_discarded` dan `extra_discarded`.
   Responder secara berkala memakai `SDIO_GetAllExtDevicePropInfo`. Transport
   WIA `Escape` juga tidak menyediakan kanal event sama sekali.
 
+## Kenapa `disconnect` tidak menutup sesi PTP
+
+Sesi PTP dibuka dan dimiliki **driver WIA/WPD Windows**; helper hanya menumpang
+lewat `IWiaItemExtras::Escape`. Mengirim `CloseSession` (0x1003) menutup sesi
+milik driver tanpa driver-nya tahu, sehingga sambungan **berikutnya** gagal
+dengan `Session_Not_Open` (0x2003) dan baru pulih setelah kamera dicabut-colok.
+Terbukti di perangkat 2026-09-02.
+
+Contoh Sony memanggil `CloseSession`, tetapi hanya sekali saat aplikasinya
+ditutup total. Helper ini connect/disconnect berkali-kali sepanjang hari, jadi
+pola itu tidak berlaku. `disconnect` di sini hanya melepas S1 dan melepas
+handle WIA.
+
 ## Fokus manual
 
 `--af-mode skip` melewati S1 sepenuhnya (untuk lensa manual focus).
