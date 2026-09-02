@@ -245,6 +245,8 @@ class WindowsPrinterBackend {
     String jobName = 'Photobooth_Print',
     int copies = 1,
     String orientation = 'Auto',
+    double offsetXmm = 0,
+    double offsetYmm = 0,
   }) async {
     final printer = await resolvePrinter();
     if (printer == null) {
@@ -263,6 +265,7 @@ class WindowsPrinterBackend {
         '${(format.width / PdfPageFormat.mm).toStringAsFixed(1)}x'
         '${(format.height / PdfPageFormat.mm).toStringAsFixed(1)} mm, '
         '$safeCopies lembar, '
+        'geser=${offsetXmm}x${offsetYmm}mm, '
         'setelan=${useDriverSettings ? "DRIVER" : "APLIKASI"}');
 
     try {
@@ -275,6 +278,8 @@ class WindowsPrinterBackend {
           imageBytes: imageBytes,
           format: format,
           copies: safeCopies,
+          offsetXmm: offsetXmm,
+          offsetYmm: offsetYmm,
         ),
       );
       if (ok) {
@@ -358,22 +363,44 @@ class WindowsPrinterBackend {
     required Uint8List imageBytes,
     required PdfPageFormat format,
     required int copies,
+    double offsetXmm = 0,
+    double offsetYmm = 0,
   }) async {
     final doc = pw.Document();
     final image = pw.MemoryImage(imageBytes);
+    final dx = offsetXmm * PdfPageFormat.mm;
+    final dy = offsetYmm * PdfPageFormat.mm;
+
     for (var i = 0; i < copies; i++) {
       doc.addPage(
         pw.Page(
           pageFormat: format,
           margin: pw.EdgeInsets.zero,
-          build: (_) => pw.Container(
-            width: double.infinity,
-            height: double.infinity,
-            // BoxFit.cover: penuhi seluruh halaman, sisi berlebih dipotong.
-            // Untuk cetak foto ini yang benar — jangan pernah menyisakan
-            // bidang putih hanya demi menampilkan seluruh gambar.
-            child: pw.Image(image, fit: pw.BoxFit.cover),
-          ),
+          build: (_) {
+            // Gambar SELALU memenuhi seluruh halaman (BoxFit.cover). Untuk
+            // cetak foto ini yang benar — jangan pernah menyisakan bidang putih
+            // hanya demi menampilkan seluruh gambar.
+            final canvas = pw.SizedBox(
+              width: format.width,
+              height: format.height,
+              child: pw.Image(image, fit: pw.BoxFit.cover),
+            );
+
+            if (dx == 0 && dy == 0) return canvas;
+
+            // Geseran halus untuk mengoreksi pemotongan borderless yang tidak
+            // simetris. Bidang gambar TIDAK diperkecil — hanya digeser, jadi
+            // kertas tetap tertutup penuh dan tidak muncul tepi putih.
+            //
+            // Nilai POSITIF menggeser gambar ke kanan / ke bawah.
+            // Kalau tepi BAWAH cetakan terpotong, isi offsetY NEGATIF supaya
+            // gambar naik dan bagian penting ikut terangkat.
+            return pw.Stack(
+              children: [
+                pw.Positioned(left: dx, top: dy, child: canvas),
+              ],
+            );
+          },
         ),
       );
     }

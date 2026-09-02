@@ -919,11 +919,26 @@ class PrinterService {
       if (Platform.isWindows) {
         final copiesSetting = await getCopies();
         final orientation = await getOrientation();
+
+        // Setelan margin di panel settings dipakai sebagai GESERAN gambar,
+        // bukan margin dalam arti menyisakan tepi kosong. Borderless berarti
+        // gambar wajib menutup seluruh kertas; yang bisa dikoreksi hanyalah
+        // BAGIAN MANA dari gambar yang terpotong.
+        //
+        // Contoh: tepi bawah cetakan terpotong -> isi margin vertikal dengan
+        // nilai NEGATIF supaya gambar bergeser ke atas.
+        final unit = await getMarginUnit();
+        final toMm = unit == 'inch' ? 25.4 : 1.0;
+        final offsetX = (await getMarginHorizontal()) * toMm;
+        final offsetY = (await getMarginVertical()) * toMm;
+
         final out = await WindowsPrinterBackend.printImageBytes(
           imageBytes: imageBytes,
           jobName: jobName,
           copies: copies > 1 ? copies : copiesSetting,
           orientation: orientation,
+          offsetXmm: offsetX,
+          offsetYmm: offsetY,
         );
         lastPrintWasSilent = out.isSuccess;
         return PrintJobResult(
