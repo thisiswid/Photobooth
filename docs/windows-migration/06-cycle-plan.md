@@ -15,8 +15,8 @@ Legenda status: `⬜ belum` · `🟨 jalan` · `✅ selesai` · `⛔ terblokir`
 | **P** | Persiapan & baseline | 2-3 hari | ⬜ | | |
 | **C0** | Spike cetak ⛔ **GERBANG** | 1 hari | ⬜ | | |
 | **C1** | Kerangka Windows | 2-3 hari | ✅ | 2026-09-01 | 2026-09-02 |
-| **C2** | Jalur cetak | 3-4 hari | 🟨 | 2026-09-02 | |
-| **C3** | Kamera capture card 🎯 **BISA PRODUKSI** | 3-4 hari | ⬜ | | |
+| **C2** | Jalur cetak | 3-4 hari | ✅ | 2026-09-02 | 2026-09-02 |
+| **C3** | Kamera capture card 🎯 **BISA PRODUKSI** | 3-4 hari | 🟨 | 2026-09-02 | |
 | **C4** | Shutter Sony SDK ⛔ **GERBANG** | 1-2 minggu | ⬜ | | |
 | **C5** | Settings & diagnostik | 3-4 hari | ⬜ | | |
 | **C6** | Kalibrasi layar sentuh | 2 hari | ⬜ | | |
@@ -126,19 +126,22 @@ dan status printer terbaca secara programatik.
 - [x] **C2-5** Lock `_isPrintingBusy` tetap berlaku di jalur Windows
 - [x] **C2-6** `copies` dan `orientation` akhirnya dibaca jalur cetak
 - [~] **C2-7** TIDAK BERLAKU di Windows: margin diurus driver lewat borderless, quality diatur di Printing Defaults. Setelan margin/quality di aplikasi sengaja diabaikan supaya tidak bertabrakan dengan driver
-- [ ] **C2-8** Baca status spooler: `ready` / `out_of_paper` / `low_ink` / `offline` / `error`
-- [ ] **C2-9** Kirim status printer di payload `HeartbeatService`
+- [x] **C2-8** Status spooler dibaca lewat WMI `Win32_Printer` (PowerShell CIM), dipetakan ke enum `PrinterHealth` — 13 kondisi termasuk `out_of_paper`, `no_ink`, `paper_jam`
+- [x] **C2-9** `HeartbeatService` mengirim kode status rinci, bukan lagi ready/offline
 - [x] **C2-10** Cabut kabel printer → gagal terkendali
-- [ ] **C2-11** **Build Android masih hijau**
+- [x] **C2-11** **Build Android masih hijau**
 
-> ⚠️ **C2 BELUM SELESAI.** Tiga item tersisa, dan C2-8 adalah salah satu dari
-> empat tujuan bernama di PRD (G-2: status printer terbaca):
+> ✅ **C2 SELESAI 2026-09-02.** Dua dari empat tujuan PRD tercapai:
+> G-1 silent print sejati, dan G-2 status printer terbaca.
 >
-> - **C2-8** status spooler rinci — butuh `printing_ffi` / `windows_printer`.
->   Sekarang heartbeat hanya mengirim `ready` / `offline`, belum bisa
->   membedakan kertas habis dari printer mati
-> - **C2-9** kirim status rinci itu di heartbeat
-> - **C2-11** verifikasi ulang build Android — `printer_service.dart` disentuh
+> Keputusan teknis: status dibaca lewat **PowerShell CIM**, bukan FFI atau
+> package pembungkus. Dibaca sekali per 60 detik sehingga biaya ~300ms tidak
+> terasa, dan tidak ada struct FFI yang bisa salah ukuran. Pindah ke Win32 FFI
+> hanya bila kelak perlu dibaca berkali-kali per detik.
+>
+> Perubahan perilaku: `isPrinterReachable()` di Windows kini berarti "masih
+> layak menerima job". Printer yang kertasnya habis dianggap TIDAK terjangkau,
+> supaya kiosk berhenti menerima pesanan sebelum pelanggan membayar.
 
 **Selesai bila:** WR-02 sampai WR-06 terpenuhi dan status kertas habis muncul di
 dashboard ≤ 60 detik.

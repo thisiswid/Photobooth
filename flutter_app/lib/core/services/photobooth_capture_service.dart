@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
+import 'camera_service.dart';
 import 'sony_ptp_camera_service.dart';
 import 'uvc_camera_service.dart';
 
@@ -22,6 +23,19 @@ enum CaptureMode {
 
   /// Tidak ada kamera eksternal — pakai kamera tablet.
   tabletOnly,
+
+  /// WINDOWS: preview DAN foto dari satu perangkat kamera yang dikenali
+  /// Windows sebagai webcam biasa — biasanya HDMI capture card.
+  ///
+  /// Di Windows tidak ada jalur UVC khusus seperti di Android: MediaFoundation
+  /// sudah menyajikan capture card sebagai kamera standar, sehingga plugin
+  /// `camera` (lewat `camera_windows`) menangani preview sekaligus jepretan.
+  /// Seluruh fork `flutter_uvc_camera` beserta workaround generasi view-nya
+  /// tidak terpakai sama sekali di sini.
+  ///
+  /// Kualitas foto mengikuti resolusi capture card (umumnya 1080p, ~2 MP).
+  /// Untuk 24 MP tetap dibutuhkan jalur PTP — itu Cycle C4.
+  windowsCamera,
 }
 
 /// Sumber sebuah foto hasil capture.
@@ -90,6 +104,22 @@ class PhotoboothCaptureService {
 
   /// Deteksi perangkat & tentukan mode. Panggil sekali saat masuk layar kamera.
   Future<CaptureMode> detectMode() async {
+    // ── WINDOWS ───────────────────────────────────────────────────────────
+    // SonyPtpCameraService bergantung pada USB Host API Android dan tidak
+    // punya arti di sini. Yang dipakai: daftar kamera dari MediaFoundation.
+    if (Platform.isWindows) {
+      final cams = await CameraService.getAvailableCamerasList();
+      _uvcReady = cams.isNotEmpty;
+      _ptpReady = false;
+      _mode = cams.isEmpty ? CaptureMode.tabletOnly : CaptureMode.windowsCamera;
+      _lastDiagnostic = cams.isEmpty
+          ? 'WINDOWS — tidak ada kamera terdeteksi'
+          : 'WINDOWS — ${cams.length} kamera terdeteksi: '
+              '${cams.map((c) => c.name).join(", ")}';
+      debugPrint('🎯 [Capture] $_lastDiagnostic');
+      return _mode;
+    }
+
     final status = await SonyPtpCameraService.getStatus();
     debugPrint(
       '🔎 [Capture] SDK=${status.androidSdkInt} '
@@ -121,6 +151,8 @@ class PhotoboothCaptureService {
         return 'PTP ONLY — foto resolusi penuh, preview dari kamera tablet';
       case CaptureMode.tabletOnly:
         return 'TABLET ONLY — tidak ada kamera eksternal terdeteksi';
+      case CaptureMode.windowsCamera:
+        return 'WINDOWS CAMERA — preview & foto dari capture card (~2 MP)';
     }
   }
 
@@ -355,6 +387,20 @@ class PhotoboothCaptureService {
         success: false,
         source: CaptureSource.uvc,
         message: 'Gagal mengambil gambar dari HDMI.',
+      );
+    }
+
+    // ── MODE WINDOWS-CAMERA: diserahkan ke layar ──
+    //
+    // Layar kamera sudah memegang CameraController-nya sendiri untuk preview,
+    // jadi jepretan diambil di sana lewat takePicture(). Menduplikasi
+    // controller di service hanya akan membuat dua pemilik untuk satu
+    // perangkat — sumber bug klasik pada kamera.
+    if (_mode == CaptureMode.windowsCamera) {
+      return const CaptureOutcome(
+        success: false,
+        source: CaptureSource.tablet,
+        message: 'Jepretan diambil oleh layar lewat CameraController.',
       );
     }
 

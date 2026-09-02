@@ -759,6 +759,8 @@ class _PreviewArea extends StatelessWidget {
         return (label: 'PTP ONLY · tanpa live HDMI', color: const Color(0xFFB26A00));
       case CaptureMode.tabletOnly:
         return (label: 'KAMERA TABLET', color: const Color(0xFF9E2A2B));
+      case CaptureMode.windowsCamera:
+        return (label: 'CAPTURE CARD · foto 2MP', color: const Color(0xFFB26A00));
     }
   }
 
