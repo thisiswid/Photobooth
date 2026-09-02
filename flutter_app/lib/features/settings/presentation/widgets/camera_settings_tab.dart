@@ -300,7 +300,7 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
         if (_sonyStatus?.isDetected == true || _sonyStatus?.isUvc == true)
           // Kartu UVC memakai flutter_uvc_camera yang Android-only. Di Windows
           // capture card muncul sebagai kamera biasa di daftar di bawah.
-          if (Platform.isAndroid) _buildUvcCameraCard(),
+          if (dart_io.Platform.isAndroid) _buildUvcCameraCard(),
 
         if (_cameras.isEmpty && _sonyStatus?.isDetected != true)
           Container(
@@ -484,7 +484,7 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
         //
         // Jalur PTP di Windows adalah Cycle C4, dan per 2026-09-02 ditunda
         // karena ZV-E10 generasi pertama tidak didukung Sony Camera Remote SDK.
-        if (Platform.isAndroid) ...[
+        if (dart_io.Platform.isAndroid) ...[
           SizedBox(height: 16.h),
           _buildSectionHeader('SONY ZV-E10 USB PC REMOTE (PTP DIRECT)'),
           SizedBox(height: 8.h),
