@@ -1,5 +1,9 @@
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:window_manager/window_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'core/theme/app_theme.dart';
@@ -11,16 +15,7 @@ import 'core/services/heartbeat_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Allow all orientations for tablets, phones, and windows desktops
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.landscapeLeft,
-    DeviceOrientation.landscapeRight,
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
-
-  // Full-screen immersive mode
-  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  await _setupKioskDisplay();
 
   // Initialize DioClient (dev mode for now)
   DioClient.instance.initialize(isProduction: false);
@@ -33,6 +28,38 @@ void main() async {
       child: SnapTechBoothApp(),
     ),
   );
+}
+
+/// Menyiapkan tampilan kiosk sesuai platform.
+///
+/// Android : orientasi bebas + immersive sticky lewat SystemChrome.
+/// Windows : SystemChrome.setEnabledSystemUIMode TIDAK MELAKUKAN APA PUN di
+///           desktop. Fullscreen harus lewat window_manager, kalau tidak
+///           jendela tetap punya title bar dan taskbar tetap terlihat.
+Future<void> _setupKioskDisplay() async {
+  if (!kIsWeb && Platform.isWindows) {
+    await windowManager.ensureInitialized();
+    const options = WindowOptions(
+      fullScreen: true,
+      titleBarStyle: TitleBarStyle.hidden,
+      skipTaskbar: false,
+    );
+    await windowManager.waitUntilReadyToShow(options, () async {
+      await windowManager.setFullScreen(true);
+      await windowManager.show();
+      await windowManager.focus();
+    });
+    return;
+  }
+
+  // Jalur Android — perilakunya sengaja dibiarkan persis seperti sebelumnya.
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 }
 
 class SnapTechBoothApp extends ConsumerWidget {
