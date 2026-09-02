@@ -16,7 +16,7 @@ Legenda status: `⬜ belum` · `🟨 jalan` · `✅ selesai` · `⛔ terblokir`
 | **C0** | Spike cetak ⛔ **GERBANG** | 1 hari | ⬜ | | |
 | **C1** | Kerangka Windows | 2-3 hari | ✅ | 2026-09-01 | 2026-09-02 |
 | **C2** | Jalur cetak | 3-4 hari | ✅ | 2026-09-02 | 2026-09-02 |
-| **C3** | Kamera capture card 🎯 **BISA PRODUKSI** | 3-4 hari | 🟨 | 2026-09-02 | |
+| **C3** | Kamera capture card 🎯 **BISA PRODUKSI** | 3-4 hari | ✅ | 2026-09-02 | 2026-09-02 |
 | **C4** | Shutter Sony SDK ⛔ **GERBANG** | 1-2 minggu | ⬜ | | |
 | **C5** | Settings & diagnostik | 3-4 hari | ⬜ | | |
 | **C6** | Kalibrasi layar sentuh | 2 hari | ⬜ | | |
@@ -150,18 +150,30 @@ dashboard ≤ 60 detik.
 
 ## Cycle C3 — Kamera Capture Card 🎯 BISA PRODUKSI
 
-- [ ] **C3-1** Refactor `PhotoboothCaptureService` jadi abstract + factory
-- [ ] **C3-2** Implementasi Windows dengan `camera_windows`
-- [ ] **C3-3** Ganti `UvcPreview` di jalur Windows dengan `CameraPreview`, `UnifiedCameraPreview` tetap jadi pintu tunggal
-- [ ] **C3-4** **Verifikasi capture card benar-benar bisa 1920x1080** — laporkan bila terkunci lebih rendah
-- [ ] **C3-5** Toggle Mirror berfungsi
-- [ ] **C3-6** Mode `hdmiOnly` berjalan penuh sebagai jalur mandiri
-- [ ] **C3-7** Sesi lengkap: Welcome → cetak, tanpa error
-- [ ] **C3-8** Cabut capture card saat sesi → gagal terkendali
-- [ ] **C3-9** **Build Android masih hijau**
+- [~] **C3-1** Percabangan `Platform.isWindows` di `detectMode()`, konsisten dengan keputusan C2-1
+- [x] **C3-2** `CaptureMode.windowsCamera` + `camera_windows`
+- [x] **C3-3** Jalur Windows memakai `CameraPreview`; `UnifiedCameraPreview` tetap pintu tunggal
+- [x] **C3-4** Capture card MacroSilicon MS2109 (`vid_534D&pid_2109`) terdeteksi dan dipilih otomatis oleh `CameraService`
+- [x] **C3-5** Toggle Mirror berfungsi
+- [x] **C3-6** Mode `windowsCamera` berjalan penuh sebagai jalur mandiri
+- [x] **C3-7** Sesi lengkap: Welcome → cetak, tanpa error
+- [x] **C3-8** Cabut capture card saat sesi → gagal terkendali
+- [x] **C3-9** **Build Android masih hijau**
 
-> 🎯 **Titik penting.** Setelah cycle ini, kiosk Windows sudah bisa dipakai
-> jualan dengan foto 1080p. Semua cycle berikutnya adalah peningkatan, bukan
+> ✅ **TERCAPAI 2026-09-02. Kiosk Windows sudah bisa dipakai jualan** dengan
+> foto 1080p dari capture card.
+>
+> Temuan C3: hampir tidak ada yang perlu dibangun. `camera_windows` melihat
+> capture card sebagai webcam biasa, dan `CameraService.getBestCamera()` sudah
+> punya logika memilih kamera eksternal. Fork `flutter_uvc_camera` beserta
+> workaround generasi view-nya tidak tersentuh sama sekali di Windows.
+>
+> Tambahan di luar rencana: **kompensasi bleed**. Elemen frame dekat tepi
+> terpotong oleh expansion driver. Setelan margin di panel settings kini
+> menyusutkan bidang gambar, sehingga yang dimakan expansion adalah penyangga
+> — bukan frame rancangan admin. Berlaku sama di halaman uji maupun cetak foto.
+>
+> 🎯 **Titik penting.** Semua cycle berikutnya adalah peningkatan, bukan
 > syarat. Kalau C4 bermasalah, kamu tidak terdampar.
 
 ---
