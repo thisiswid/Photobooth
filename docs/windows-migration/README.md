@@ -18,6 +18,7 @@ Status per 2026-09-01: **disetujui untuk Fase 0 (spike cetak)**.
 | [05 — Daftar Risiko](05-risk-register.md) | Pemilik proyek |
 | [06 — Rencana Cycle & Papan Pelacakan](06-cycle-plan.md) | **Papan kerja harian.** Checklist per cycle, gerbang, catatan harian |
 | [07 — Alur Kerja Kamera](07-camera-workflow.md) | Alur kamera sekarang di Windows, pembanding Android, dan tiga opsi C4 beserta konsekuensinya |
+| [08 — POC Camera Remote Command](08-camera-remote-command-poc.md) | **ZV-E10 ternyata DIDUKUNG Camera Remote Command** (beda dari SDK). Temuan pra-coding, rencana POC, status BLOCKED |
 | [Prompt untuk AI Agent](../windows-migration-prompt.md) | Instruksi kerja rinci per fase |
 
 ## Inti Persoalan
