@@ -1,4 +1,4 @@
-# LumaBooth Documentation
+# SnapTechBooth Documentation
 
 ## Canonical Customer Flow
 

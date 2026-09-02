@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-// Spike Cycle C0 — LumaBooth Windows Migration
+// Spike Cycle C0 — SnapTechBooth Windows Migration
 //
 // Tujuan: membuktikan Epson L8050 bisa dicetak dari Flutter Windows TANPA
 // dialog, dengan hasil borderless yang benar untuk 4R maupun strip 2x6.
@@ -235,7 +235,7 @@ class _SpikeHomeState extends State<SpikeHome> {
           child: pw.Column(
             mainAxisAlignment: pw.MainAxisAlignment.center,
             children: [
-              pw.Text('LUMABOOTH',
+              pw.Text('SNAPTECHBOOTH',
                   style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
               pw.SizedBox(height: 5),
               pw.Text('TEST PRINT',

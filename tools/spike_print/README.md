@@ -242,7 +242,7 @@ sedang mencetak 4R atau strip.
 Kalau kiosk hanya pernah mencetak SATU ukuran, mengandalkan default driver sudah
 cukup dan `printing` saja memadai.
 
-Tapi LumaBooth mencetak **4R dan strip 2x6**. Berpindah ukuran per job berarti
+Tapi SnapTechBooth mencetak **4R dan strip 2x6**. Berpindah ukuran per job berarti
 aplikasi harus bisa mengubah DEVMODE saat mengirim job — dan `printing` tidak
 menyediakan itu. Artinya `printer_service_windows.dart` kemungkinan besar butuh
 **`printing_ffi`** atau **`windows_printer`**, bukan `printing` saja.
@@ -315,7 +315,7 @@ Isinya:
 | Bingkai abu-abu 3 mm dari tepi | Kalau bingkai luar hilang tapi ini ada, potongan di bawah 3 mm |
 | Penanda sudut L | Memastikan keempat pojok utuh |
 | Kata **ATAS / BAWAH / KIRI / KANAN** dekat tiap tepi (1,5 mm) | Kata yang tidak tercetak menunjukkan sisi mana yang terpotong lebih dari 1,5 mm — tanpa perlu mengukur |
-| Tulisan tengah: LUMABOOTH / TEST PRINT / BORDERLESS CHECK | Konfirmasi teks tercetak dan posisinya di tengah |
+| Tulisan tengah: SNAPTECHBOOTH / TEST PRINT / BORDERLESS CHECK | Konfirmasi teks tercetak dan posisinya di tengah |
 | Garis potong (khusus opsi STRIP) | Memeriksa geometri strip sebelum dipotong |
 
 Coverage tinta sekitar **1%**. Mode warna penuh sudah dihapus — tidak dipakai

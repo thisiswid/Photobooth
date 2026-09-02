@@ -4,9 +4,9 @@
 flowchart LR
     Customer["Customer"]
     Admin["Admin"]
-    App["LumaBooth Customer App\nFlutter / Lenovo Legion Y700\n(Landscape)"]
-    AdminPanel["LumaBooth Admin Panel\nLaravel + Filament PHP"]
-    API["LumaBooth Backend\nLaravel REST API"]
+    App["SnapTechBooth Customer App\nFlutter / Lenovo Legion Y700\n(Landscape)"]
+    AdminPanel["SnapTechBooth Admin Panel\nLaravel + Filament PHP"]
+    API["SnapTechBooth Backend\nLaravel REST API"]
     DB[("PostgreSQL")]
     Storage[("Cloud Storage")]
     Xendit["Xendit Payment Gateway"]

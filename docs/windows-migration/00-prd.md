@@ -1,4 +1,4 @@
-# PRD — Migrasi Kiosk LumaBooth dari Android ke Windows
+# PRD — Migrasi Kiosk SnapTechBooth dari Android ke Windows
 
 | | |
 |---|---|
@@ -11,7 +11,7 @@
 
 ## 1. Ringkasan Eksekutif
 
-Aplikasi kiosk LumaBooth saat ini berjalan di tablet Android (Lenovo Legion
+Aplikasi kiosk SnapTechBooth saat ini berjalan di tablet Android (Lenovo Legion
 Y700). Ketiga jalur hardware yang menopang produk ini — cetak, shutter kamera,
 dan preview — semuanya berjalan di atas workaround, bukan API resmi, karena
 Android secara desain mencegah aplikasi mengendalikan perangkat tanpa pengawasan

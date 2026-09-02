@@ -1,4 +1,4 @@
-# Migrasi Kiosk LumaBooth: Android → Windows
+# Migrasi Kiosk SnapTechBooth: Android → Windows
 
 Kumpulan dokumen untuk pemindahan aplikasi kiosk **sisi pelanggan** dari tablet
 Android ke Windows desktop. Backend Laravel dan Admin Panel Filament tidak ikut

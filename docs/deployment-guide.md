@@ -1,4 +1,4 @@
-# LumaBooth — Deployment Guide
+# SnapTechBooth — Deployment Guide
 
 ## Overview
 
@@ -26,7 +26,7 @@ cd laravel_backend
 composer install
 cp .env.example .env
 php artisan key:generate
-createdb lumabooth
+createdb snaptechbooth
 php artisan migrate --seed
 php artisan storage:link
 php artisan serve --port=8000
@@ -34,15 +34,15 @@ php artisan queue:work --queue=default
 ```
 
 Default admin credentials after seeding:
-- URL: `http://lumabooth.test/admin` (Herd) or `http://localhost:8000/admin`
-- Email: `admin@lumabooth.com`
+- URL: `http://snaptechbooth.test/admin` (Herd) or `http://localhost:8000/admin`
+- Email: `admin@snaptechbooth.com`
 - Password: `password`
 
 ---
 
 ## 2. Filament Admin Panel
 
-Access: `http://lumabooth.test/admin`
+Access: `http://snaptechbooth.test/admin`
 
 Available panels:
 - Dashboard — stats, charts
@@ -100,11 +100,11 @@ PrinterService
 ## 5. Environment Variables (Laravel .env)
 
 ```env
-APP_NAME=LumaBooth
+APP_NAME=SnapTechBooth
 APP_URL=https://your-domain.com
 
 DB_CONNECTION=pgsql
-DB_DATABASE=lumabooth
+DB_DATABASE=snaptechbooth
 
 XENDIT_SECRET_KEY=xnd_production_...
 XENDIT_WEBHOOK_TOKEN=...
@@ -132,7 +132,7 @@ https://your-domain.com/api/webhooks/xendit/payment
 ```
 
 Jobs:
-- `lumabooth:cleanup` — daily at 2am, removes expired results (30-day retention)
+- `snaptechbooth:cleanup` — daily at 2am, removes expired results (30-day retention)
 
 ---
 
