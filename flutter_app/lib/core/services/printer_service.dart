@@ -1054,7 +1054,19 @@ class PrinterService {
     try {
       // ── WINDOWS: halaman uji dibentuk langsung oleh backend ───────────────
       if (Platform.isWindows) {
-        final out = await WindowsPrinterBackend.printTestPage();
+        // Halaman uji WAJIB memakai kompensasi yang sedang disetel — inilah
+        // alat untuk mencari angkanya. Tanpa ini, operator mengubah nilai dan
+        // tidak melihat perubahan apa pun.
+        final unit = await getMarginUnit();
+        final toMm = unit == 'inch' ? 25.4 : 1.0;
+        final compX = (await getMarginHorizontal()) * toMm;
+        final compY = (await getMarginVertical()) * toMm;
+        debugPrint('🧭 [TestPrint] Kompensasi terbaca: H=$compX mm, V=$compY mm');
+
+        final out = await WindowsPrinterBackend.printTestPage(
+          compensationXmm: compX,
+          compensationYmm: compY,
+        );
         lastPrintWasSilent = out.isSuccess;
         return PrintJobResult(
           isSuccess: out.isSuccess,

@@ -306,7 +306,10 @@ class WindowsPrinterBackend {
 
   /// Halaman uji: bingkai tepi + tulisan, hemat tinta (~1% coverage).
   /// Isinya sengaja tetap supaya dua hasil cetak bisa dibandingkan langsung.
-  static Future<WindowsPrintOutcome> printTestPage() async {
+  static Future<WindowsPrintOutcome> printTestPage({
+    double compensationXmm = 0,
+    double compensationYmm = 0,
+  }) async {
     final printer = await resolvePrinter();
     if (printer == null) {
       return const WindowsPrintOutcome(
@@ -317,13 +320,18 @@ class WindowsPrinterBackend {
     try {
       final useDriverSettings = await getUsePrinterSettings();
       debugPrint('🖨️ [WinPrint] Halaman uji ke "${printer.name}", '
+          'kompensasi=${compensationXmm}x${compensationYmm}mm, '
           'setelan=${useDriverSettings ? "DRIVER" : "APLIKASI"}');
       final ok = await Printing.directPrintPdf(
         printer: printer,
         name: 'SnapTechBooth Test Page',
         format: page4R,
         usePrinterSettings: useDriverSettings,
-        onLayout: (_) => _buildTestPdf(page4R),
+        onLayout: (_) => _buildTestPdf(
+          page4R,
+          compensationXmm: compensationXmm,
+          compensationYmm: compensationYmm,
+        ),
       );
       return WindowsPrintOutcome(
         isSuccess: ok,
@@ -453,65 +461,106 @@ class WindowsPrinterBackend {
     return doc.save();
   }
 
-  static Future<Uint8List> _buildTestPdf(PdfPageFormat format) async {
+  /// Halaman uji, ikut memakai kompensasi bleed yang sedang disetel.
+  ///
+  /// Ini WAJIB: halaman uji adalah satu-satunya alat untuk mencari angka
+  /// kompensasi yang pas. Kalau halaman uji mengabaikan setelannya, operator
+  /// mengubah angka dan tidak melihat perubahan apa pun — persis kebingungan
+  /// yang terjadi 2026-09-02.
+  ///
+  /// Bingkai digambar pada bidang yang SUDAH dikompensasi, jadi efeknya
+  /// langsung terlihat: makin besar kompensasi, makin masuk ke dalam garis
+  /// bingkainya.
+  static Future<Uint8List> _buildTestPdf(
+    PdfPageFormat format, {
+    double compensationXmm = 0,
+    double compensationYmm = 0,
+  }) async {
     final doc = pw.Document();
+    final cx = compensationXmm * PdfPageFormat.mm;
+    final cy = compensationYmm * PdfPageFormat.mm;
+    final w = format.width - (cx * 2);
+    final h = format.height - (cy * 2);
+
     doc.addPage(pw.Page(
       pageFormat: format,
       margin: pw.EdgeInsets.zero,
       build: (_) => pw.Stack(children: [
-        pw.Container(
-          width: double.infinity,
-          height: double.infinity,
-          decoration: pw.BoxDecoration(
-            border: pw.Border.all(color: PdfColors.black, width: 1),
-          ),
-        ),
-        pw.Container(
-          width: double.infinity,
-          height: double.infinity,
-          padding: const pw.EdgeInsets.all(3 * PdfPageFormat.mm),
+        // Basis berukuran penuh — Stack di package pdf butuh ini untuk
+        // menentukan ukurannya sendiri.
+        pw.SizedBox(width: format.width, height: format.height),
+
+        // Garis tepi HALAMAN. Kalau ini hilang dari hasil cetak, berarti
+        // expansion driver memotong sampai ke sini.
+        pw.Positioned(
+          left: 0,
+          top: 0,
           child: pw.Container(
+            width: format.width,
+            height: format.height,
             decoration: pw.BoxDecoration(
-              border: pw.Border.all(color: PdfColors.grey600, width: 0.4),
+              border: pw.Border.all(color: PdfColors.grey500, width: 0.4),
             ),
           ),
         ),
+
+        // Bidang aman setelah kompensasi. INI yang harus utuh di kertas.
         pw.Positioned(
-            top: 1.5 * PdfPageFormat.mm,
-            left: 0,
-            right: 0,
-            child: pw.Center(
-                child: pw.Text('ATAS',
-                    style: const pw.TextStyle(fontSize: 6)))),
-        pw.Positioned(
-            bottom: 1.5 * PdfPageFormat.mm,
-            left: 0,
-            right: 0,
-            child: pw.Center(
-                child: pw.Text('BAWAH',
-                    style: const pw.TextStyle(fontSize: 6)))),
-        pw.Positioned(
-            left: 1.5 * PdfPageFormat.mm,
-            top: format.height / 2 - 3,
-            child: pw.Text('KIRI', style: const pw.TextStyle(fontSize: 6))),
-        pw.Positioned(
-            right: 1.5 * PdfPageFormat.mm,
-            top: format.height / 2 - 3,
-            child: pw.Text('KANAN', style: const pw.TextStyle(fontSize: 6))),
-        pw.Center(
-          child: pw.Column(
-            mainAxisAlignment: pw.MainAxisAlignment.center,
-            children: [
-              pw.Text('SNAPTECHBOOTH',
-                  style: pw.TextStyle(
-                      fontSize: 16, fontWeight: pw.FontWeight.bold)),
-              pw.SizedBox(height: 5),
-              pw.Text('TEST PRINT', style: const pw.TextStyle(fontSize: 9)),
-              pw.SizedBox(height: 3),
-              pw.Text('BORDERLESS CHECK',
-                  style: const pw.TextStyle(
-                      fontSize: 7, color: PdfColors.grey700)),
-            ],
+          left: cx,
+          top: cy,
+          child: pw.Container(
+            width: w,
+            height: h,
+            decoration: pw.BoxDecoration(
+              border: pw.Border.all(color: PdfColors.black, width: 1),
+            ),
+            child: pw.Stack(children: [
+              pw.SizedBox(width: w, height: h),
+              pw.Positioned(
+                  top: 1.5 * PdfPageFormat.mm,
+                  left: 0,
+                  right: 0,
+                  child: pw.Center(
+                      child: pw.Text('ATAS',
+                          style: const pw.TextStyle(fontSize: 6)))),
+              pw.Positioned(
+                  bottom: 1.5 * PdfPageFormat.mm,
+                  left: 0,
+                  right: 0,
+                  child: pw.Center(
+                      child: pw.Text('BAWAH',
+                          style: const pw.TextStyle(fontSize: 6)))),
+              pw.Positioned(
+                  left: 1.5 * PdfPageFormat.mm,
+                  top: h / 2 - 3,
+                  child:
+                      pw.Text('KIRI', style: const pw.TextStyle(fontSize: 6))),
+              pw.Positioned(
+                  right: 1.5 * PdfPageFormat.mm,
+                  top: h / 2 - 3,
+                  child:
+                      pw.Text('KANAN', style: const pw.TextStyle(fontSize: 6))),
+              pw.Center(
+                child: pw.Column(
+                  mainAxisAlignment: pw.MainAxisAlignment.center,
+                  children: [
+                    pw.Text('SNAPTECHBOOTH',
+                        style: pw.TextStyle(
+                            fontSize: 16, fontWeight: pw.FontWeight.bold)),
+                    pw.SizedBox(height: 5),
+                    pw.Text('TEST PRINT',
+                        style: const pw.TextStyle(fontSize: 9)),
+                    pw.SizedBox(height: 3),
+                    pw.Text(
+                      'KOMPENSASI  H ${compensationXmm.toStringAsFixed(1)}'
+                      '  V ${compensationYmm.toStringAsFixed(1)} mm',
+                      style: const pw.TextStyle(
+                          fontSize: 7, color: PdfColors.grey700),
+                    ),
+                  ],
+                ),
+              ),
+            ]),
           ),
         ),
       ]),
