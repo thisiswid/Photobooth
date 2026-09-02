@@ -16,6 +16,11 @@ analyzer:
     - windows/**
     - macos/**
     - linux/**
+    # Contoh bawaan plugin flutter_uvc_camera. Tidak ikut dibangun (bukan
+    # bagian dari pubspec), tapi ikut dianalisis dan memunculkan puluhan error
+    # palsu karena mengimpor package-nya sendiri lewat path relatif yang sudah
+    # tidak berlaku setelah plugin di-vendor.
+    - packages/_unused/**
 include: package:flutter_lints/flutter.yaml
 
 linter:

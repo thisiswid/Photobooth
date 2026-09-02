@@ -30,6 +30,27 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+
+            // R8 dimatikan untuk release.
+            //
+            // Library UVC (com.jiangdg.*) mendaftarkan method native dari sisi
+            // C++ BERDASARKAN NAMA. Begitu R8 me-rename/menghapusnya, JNI gagal
+            // memuat library dan aplikasi crash saat membuka kamera:
+            //   NoSuchMethodError: com.jiangdg.uvc.UVCCamera.nativeSetStatusCallback
+            //
+            // Blok ini sebelumnya tidak mendeklarasikan proguardFiles sama
+            // sekali, sehingga app/proguard-rules.pro TIDAK PERNAH dipakai —
+            // keep rule yang sudah ditulis di sana pun tidak berpengaruh.
+            //
+            // Untuk aplikasi kiosk, ukuran APK tidak penting sementara
+            // keandalan sangat penting. proguardFiles tetap disambungkan agar
+            // aturannya benar bila suatu saat R8 dinyalakan lagi.
+            isMinifyEnabled = false
+            isShrinkResources = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }

@@ -13,6 +13,7 @@ import 'package:uuid/uuid.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/services/camera_service.dart';
 import '../../../core/services/error_logger.dart';
+import '../../../core/services/photo_upload_prep_service.dart';
 import '../../../core/services/photobooth_capture_service.dart';
 import '../../../core/services/uvc_camera_service.dart';
 import '../../../core/theme/app_colors.dart';
@@ -69,6 +70,9 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   /// True begitu kita memutuskan me-render UvcPreview (sebelum open selesai).
   bool _showUvcView = false;
 
+  /// Teks status saat penyiapan kamera, ditampilkan di kotak viewfinder.
+  String? _prepMessage;
+
   /// Resolusi HDMI yang diminta — dipakai juga untuk rasio kotak viewfinder
   /// agar panel dan gambar benar-benar sebangun (tanpa letterbox).
   static const double _uvcPreviewWidth = 1920;
@@ -104,7 +108,9 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     _cameraController = null;
     // Hanya lepaskan sesi PTP. Kamera UVC dikelola oleh UvcPreview — menutupnya
     // di sini akan mematikan preview halaman berikutnya.
-    PhotoboothCaptureService.instance.releasePtp();
+    // Sesi PTP sengaja TIDAK diputus di sini. Membukanya lagi mengharuskan
+    // stream HDMI dihentikan sementara, jadi memutusnya tiap dispose berarti
+    // kedipan preview di setiap perpindahan layar.
     super.dispose();
   }
 
@@ -123,16 +129,32 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
       if (!mounted) return;
 
       if (capture.usesUvcPreview) {
-        // Tampilkan preview LEBIH DULU. UvcPreview yang membuka kamera untuk
-        // generasi view-nya sendiri.
-        setState(() {
-          _captureMode = mode;
-          _showUvcView = true;
-        });
-        // Handshake PTP jalan PARALEL di latar belakang — jangan di-await di
-        // sini. Menunggunya (2-6 detik) membuat layar gelap sampai hitungan
-        // mundur sudah berjalan. Hasilnya ditunggu tepat sebelum menjepret.
-        capture.startShutterPath();
+        setState(() => _captureMode = mode);
+
+        // Handshake PTP DULU, sebelum stream HDMI dinyalakan.
+        //
+        // Ini satu-satunya jendela di mana bus USB cukup lengang: capture card
+        // dan kamera berbagi hub yang sama, dan selama capture card streaming
+        // 1080p30, pembacaan balasan OpenSession selalu gagal (endpoint IN
+        // ter-stall, respons 0x0000, lalu semua perintah ditolak 0x2003).
+        //
+        // Sesi PTP dipakai ulang dan tidak diputus saat dispose, jadi
+        // penyiapan ini hanya terjadi sekali per aplikasi berjalan —
+        // kunjungan berikutnya ke halaman kamera langsung menampilkan preview.
+        if (!capture.ptpReady) {
+          setState(() => _prepMessage = 'Menyiapkan kamera Sony...');
+          // WAJIB lewat ensureShutterPath(), bukan memanggil
+          // prepareShutterPathWithUvcPaused() langsung. Panggilan langsung
+          // melewati penjaga single-flight, sehingga jaring pengaman di
+          // _onUvcOpenResult bisa menyalakan handshake KEDUA yang berjalan
+          // bersamaan di perangkat USB yang sama — keduanya lalu saling
+          // menutup koneksi dan sama-sama gagal.
+          await capture.ensureShutterPath();
+          if (!mounted) return;
+          setState(() => _prepMessage = null);
+        }
+
+        setState(() => _showUvcView = true);
         return;
       }
 
@@ -158,6 +180,18 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
         _isUvcReady = true;
         _isCameraReady = true;
       });
+
+      // Jaring pengaman: normalnya handshake PTP sudah selesai di
+      // _initExternalCamera() SEBELUM preview dinyalakan. Kalau ternyata
+      // belum (mis. sesi putus di tengah jalan), coba sekali lagi dengan
+      // menjeda stream — tanpa menunggu, jadi preview tetap bisa dipakai.
+      if (!PhotoboothCaptureService.instance.ptpReady) {
+        Future<void>.delayed(const Duration(milliseconds: 1200), () {
+          if (mounted) {
+            PhotoboothCaptureService.instance.startShutterPathWithUvcPaused();
+          }
+        });
+      }
       return;
     }
 
@@ -195,8 +229,36 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
 
   // ── Flow Actions ──────────────────────────────────────────────────────────
 
-  void _startCountdown() {
+  /// True bila preview sudah benar-benar menampilkan gambar.
+  bool get _isPreviewLive {
+    if (_showUvcView || _isUvcReady) return UvcCameraService.instance.isOpen;
+    return _isCameraReady && _cameraController != null;
+  }
+
+  /// Tunggu preview hidup sebelum hitungan mundur dimulai.
+  ///
+  /// Tanpa ini, angka mundur sudah berjalan sementara layar masih gelap —
+  /// tamu kehilangan beberapa detik untuk bersiap.
+  Future<void> _waitForPreview({
+    Duration timeout = const Duration(seconds: 6),
+  }) async {
+    if (_isPreviewLive) return;
+    final deadline = DateTime.now().add(timeout);
+    while (mounted && !_isPreviewLive && DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+  }
+
+  Future<void> _startCountdown() async {
     ref.read(sessionNotifierProvider.notifier).setMirror(_isMirrorEnabled);
+
+    // Tampilkan layar tunggu, bukan hitungan mundur, selama kamera belum siap.
+    if (!_isPreviewLive) {
+      setState(() => _step = _CaptureStep.initialPreview);
+      await _waitForPreview();
+      if (!mounted) return;
+    }
+
     setState(() {
       _step = _CaptureStep.countdown;
       _countdownValue = _countdownSeconds;
@@ -252,8 +314,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
       // memberi waktu beberapa detik.
       await PhotoboothCaptureService.instance.awaitShutterPath();
 
-      // Jalur eksternal: shutter PTP (resolusi penuh) → frame HDMI → tablet.
-      // Semua langkah punya timeout, jadi UI tidak pernah menggantung.
       final outcome = await PhotoboothCaptureService.instance.capture();
       if (!mounted) return;
 
@@ -271,8 +331,25 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
         return;
       }
 
-      debugPrint('⚠️ [CameraScreen] Kamera eksternal gagal (${outcome.message}) '
-          '— fallback ke kamera tablet');
+      // Mode hybrid / ptpOnly: kamera Sony adalah SATU-SATUNYA sumber yang sah.
+      // Jangan turun diam-diam ke kamera tablet — itu menghasilkan foto yang
+      // bukan dari Sony sama sekali, dan tamu tidak akan tahu.
+      final mode = PhotoboothCaptureService.instance.mode;
+      if (mode == CaptureMode.hybrid || mode == CaptureMode.ptpOnly) {
+        debugPrint('❌ [CameraScreen] Capture GAGAL (${outcome.message}). '
+            'Mode $mode tidak mengizinkan fallback — silakan ulangi jepretan.');
+        ErrorLogger.instance.logCameraError(
+          message: 'Capture Sony PTP gagal: ${outcome.message}',
+        );
+        setState(() {
+          _lastCaptured = null;
+          _step = _CaptureStep.result;
+        });
+        return;
+      }
+
+      debugPrint('⚠️ [CameraScreen] Kamera eksternal tidak tersedia '
+          '(${outcome.message}) — memakai kamera tablet (mode $mode).');
       await _captureFromTabCamera();
     } catch (e, stack) {
       ErrorLogger.instance.logCameraError(
@@ -364,6 +441,13 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     final totalPoses = ref.read(sessionNotifierProvider).totalPoses;
     final nextPoseIndex = _currentPose + 1;
 
+    // Mulai memperkecil foto SEKARANG, selagi tamu bersiap untuk pose
+    // berikutnya. Saat halaman hasil dibuka, byte-nya sudah siap sehingga QR
+    // muncul jauh lebih cepat.
+    if (_lastCaptured != null) {
+      PhotoUploadPrepService.instance.warm(_lastCaptured!.path);
+    }
+
     setState(() {
       _capturedPhotos = [..._capturedPhotos, _lastCaptured];
       _lastCaptured = null;
@@ -449,6 +533,15 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   // ── Center Content (Live View / Countdown / Review Result) ────────────────
 
   Widget _buildCenterContent() {
+    // PENTING: SELALU kembalikan _buildCameraViewfinder(), termasuk pada tahap
+    // `result`. Dulu tahap result mengembalikan subtree lain
+    // (_buildPhotoResultDisplay), sehingga UvcPreview ter-unmount → detachView()
+    // → kamera native DITUTUP. Menekan "Lanjut" berarti membuka ulang kamera
+    // (400ms PlatformView + ~1-3 detik openUVCCamera + 350ms tirai), dan itulah
+    // kenapa layar gelap sementara hitungan mundur sudah berjalan.
+    //
+    // Sekarang hasil foto hanya ditumpuk sebagai overlay di atas preview yang
+    // tetap hidup, jadi kamera cukup dibuka SEKALI per sesi.
     switch (_step) {
       case _CaptureStep.initialPreview:
         return _buildCameraViewfinder(showOverlay: false);
@@ -468,26 +561,52 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
         );
 
       case _CaptureStep.result:
-        return _buildPhotoResultDisplay();
+        return _buildCameraViewfinder(
+          showOverlay: false,
+          overlayChild: _buildCapturedPhotoOverlay(),
+        );
     }
+  }
+
+  /// Hasil jepretan, ditumpuk menutupi preview (bukan menggantikannya).
+  Widget _buildCapturedPhotoOverlay() {
+    return Positioned.fill(
+      child: Container(
+        color: AppColors.darkCoffee,
+        child: _lastCaptured != null
+            ? Image.file(
+                dart_io.File(_lastCaptured!.path),
+                fit: BoxFit.cover,
+                width: double.infinity,
+                height: double.infinity,
+                // Batasi decode: foto 24 MP dari Sony tidak perlu di-decode
+                // penuh hanya untuk pratinjau.
+                cacheWidth: 1080,
+                filterQuality: FilterQuality.medium,
+              )
+            : Center(
+                child: Icon(
+                  Icons.image_outlined,
+                  size: 48.sp,
+                  color: AppColors.paper.withValues(alpha: 0.4),
+                ),
+              ),
+      ),
+    ).animate().fadeIn(duration: 200.ms);
   }
 
   /// Rasio kotak viewfinder.
   ///
-  /// PENTING: sebelumnya rasio selalu diambil dari `_cameraController`, padahal
-  /// di mode HDMI/UVC controller itu NULL — sehingga jatuh ke default
-  /// 720/1280 (potret 9:16). Itulah kenapa panel kamera berdiri tegak dan
-  /// feed 16:9 hanya muncul sebagai pita tipis di tengah.
-  ///
-  /// Di mode eksternal kita pakai rasio asli HDMI (16:9) supaya kotaknya
-  /// benar-benar mendatar dan gambar mengisi penuh tanpa letterbox.
+  /// PENTING: jangan ambil rasio dari `_cameraController` saja — di mode
+  /// HDMI/UVC controller itu NULL, dan dulu nilainya jatuh ke default
+  /// 720/1280 (potret 9:16). Itulah yang membuat panel kamera berdiri tegak
+  /// dan feed 16:9 hanya muncul sebagai pita tipis di tengah.
   double get _viewfinderAspectRatio {
     if (_showUvcView || _isUvcReady) return _uvcPreviewWidth / _uvcPreviewHeight;
 
     // Selama deteksi perangkat belum selesai, _cameraController masih null.
-    // Dulu di sini dipakai default 720/1280 (potret) sehingga panel sempat
-    // berdiri tegak lalu "melompat" jadi mendatar begitu HDMI terbuka.
-    // Default landscape membuat panel benar sejak frame pertama.
+    // Default landscape membuat panel benar sejak frame pertama, tanpa
+    // "melompat" dari tegak ke mendatar saat HDMI terbuka.
     final size = _cameraController?.value.previewSize;
     if (size == null) return _uvcPreviewWidth / _uvcPreviewHeight;
     return size.width / size.height;
@@ -539,18 +658,42 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
                 Container(
                   color: AppColors.darkCoffee,
                   child: Center(
-                    child: Icon(
-                      Icons.photo_camera_rounded,
-                      size: 42.sp,
-                      color: AppColors.paper.withValues(alpha: 0.35),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (_prepMessage != null)
+                          SizedBox(
+                            width: 28.r,
+                            height: 28.r,
+                            child: const CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: AppColors.gold,
+                            ),
+                          )
+                        else
+                          Icon(
+                            Icons.photo_camera_rounded,
+                            size: 42.sp,
+                            color: AppColors.paper.withValues(alpha: 0.35),
+                          ),
+                        if (_prepMessage != null) ...[
+                          SizedBox(height: 10.h),
+                          Text(
+                            _prepMessage!,
+                            style: TextStyle(
+                              color: AppColors.paper.withValues(alpha: 0.75),
+                              fontSize: 11.sp,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                 ),
 
-              if (showOverlay) ...[
+              if (showOverlay)
                 Container(color: Colors.black.withValues(alpha: 0.55)),
-                if (overlayChild != null) overlayChild,
-              ],
+              if (overlayChild != null) overlayChild,
               // Badge diagnostik jalur kamera (untuk operator)
               Positioned(
                 top: 8.h,
@@ -616,48 +759,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     );
   }
 
-  Widget _buildPhotoResultDisplay() {
-    // Samakan bentuk dengan viewfinder supaya panel tidak "melompat" ukuran
-    // saat berpindah dari live preview ke hasil foto.
-    return AspectRatio(
-      aspectRatio: _viewfinderAspectRatio,
-      child: Container(
-      decoration: BoxDecoration(
-        color: AppColors.darkCoffee,
-        borderRadius: BorderRadius.circular(16.r),
-        border: Border.all(color: AppColors.darkBrown, width: 2.0),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.darkBrown.withValues(alpha: 0.15),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(14.r),
-        child: _lastCaptured != null
-            ? Image.file(
-                dart_io.File(_lastCaptured!.path),
-                fit: BoxFit.cover,
-                width: double.infinity,
-                height: double.infinity,
-                // Batasi decode: tanpa ini foto 24 MP dari Sony di-decode
-                // penuh ke memori hanya untuk thumbnail preview.
-                cacheWidth: 1080,
-                filterQuality: FilterQuality.medium,
-              )
-            : Center(
-                child: Icon(
-                  Icons.image_outlined,
-                  size: 48.sp,
-                  color: AppColors.paper.withValues(alpha: 0.4),
-                ),
-              ),
-        ),
-      ),
-    ).animate().fadeIn(duration: 250.ms);
-  }
+
 
   // ── Bottom Action Controls ────────────────────────────────────────────────
 

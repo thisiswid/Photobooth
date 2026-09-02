@@ -58,6 +58,9 @@ class SonyPtpCameraManager(private val context: Context) {
         // Sony Vendor OpCodes (0x92xx)
         private const val SONY_OP_SDIO_CONNECT: Short = 0x9201.toShort()
         private const val SONY_OP_GET_EXT_DEVICE_INFO: Short = 0x9202.toShort()
+        // GetAllExtDevicePropInfo — WAJIB dipanggil setelah handshake sebelum
+        // perintah kontrol (0x9207) diterima kamera.
+        private const val SONY_OP_GET_ALL_EXT_DEVICE_PROP_INFO: Short = 0x9209.toShort()
         private const val SONY_OP_GET_LIVEVIEW_IMAGE: Short = 0x9203.toShort()
         private const val SONY_OP_GET_PARTIAL_OBJECT: Short = 0x9205.toShort()
         private const val SONY_OP_DO_CONTROL: Short = 0x9207.toShort()
@@ -382,11 +385,24 @@ class SonyPtpCameraManager(private val context: Context) {
 
             Log.i(TAG, "✅ USB Connection & Interface claimed successfully (IN=${epIn.address}, OUT=${epOut.address})")
 
-            // ─── PTP Device Reset sebelum membuka sesi ───
-            // Mengirim USB Still Image Class Request "Device Reset" (0x66) untuk mereset
-            // state PTP kamera ke kondisi awal. PENTING jika sesi sebelumnya tidak
-            // tertutup dengan benar (misalnya karena app lain masih menggantung,
-            // crash, atau kabel dicabut saat sesi aktif).
+            // ─── STRATEGI DUA TAHAP ───
+            //
+            // Dulu di sini SELALU dikirim PTP Device Reset (0x66) + CloseSession
+            // sebelum OpenSession. Urutan itu terlalu agresif untuk Sony:
+            // Device Reset dapat menjatuhkan kamera dari state PC Remote, dan
+            // CloseSession pada koneksi yang baru dibuka (belum ada sesi) bisa
+            // membuat kamera berhenti menjawab sama sekali — persis gejala
+            // "OpenSession 0x0000" yang kita kejar.
+            //
+            // libgphoto2 tidak melakukan keduanya: cukup claim interface lalu
+            // OpenSession. Jadi jalur bersih dicoba LEBIH DULU, dan urutan berat
+            // hanya dipakai sebagai penyelamat bila jalur bersih gagal.
+            Thread.sleep(150)
+            Log.i(TAG, "[PTP] Tahap 1 — handshake bersih (tanpa device reset)")
+            if (initPtpSession(gentle = true)) return true
+
+            Log.w(TAG, "[PTP] Tahap 1 gagal. Tahap 2 — device reset + pembersihan penuh...")
+
             Log.i(TAG, "🔧 Mengirim PTP Device Reset (USB Class Request 0x66)...")
             try {
                 val resetResult = conn.controlTransfer(
@@ -402,10 +418,9 @@ class SonyPtpCameraManager(private val context: Context) {
                 Log.w(TAG, "   PTP Device Reset exception (non-fatal): ${e.message}")
             }
 
-            // Tunggu kamera selesai reset internal
-            Thread.sleep(600)
+            // Kamera Sony butuh waktu cukup lama setelah device reset.
+            Thread.sleep(1500)
 
-            // Clear endpoint halts yang mungkin tersisa setelah reset
             try {
                 clearEndpointHalt(epIn)
                 clearEndpointHalt(epOut)
@@ -413,13 +428,10 @@ class SonyPtpCameraManager(private val context: Context) {
             } catch (_: Exception) {}
 
             Thread.sleep(300)
-
-            // Drain semua data stale dari endpoints
             drainEndpoints()
             Thread.sleep(200)
 
-            // Lakukan PTP Handshake (OpenSession)
-            return initPtpSession()
+            return initPtpSession(gentle = false)
 
         } catch (e: Exception) {
             Log.e(TAG, "Error saat openConnection: ${e.message}", e)
@@ -457,55 +469,70 @@ class SonyPtpCameraManager(private val context: Context) {
 
     // ─── 4. PTP Protocol & Handshake ───────────────────────────────────────────
 
-    private fun initPtpSession(): Boolean {
+    /**
+     * Membuka sesi PTP.
+     *
+     * @param gentle true = langsung OpenSession tanpa CloseSession pendahuluan.
+     *   CloseSession pada koneksi baru (belum ada sesi) adalah perintah yang
+     *   tidak diminta protokol dan pada Sony bisa membuat kamera berhenti
+     *   menjawab. Jalur ini dicoba lebih dulu.
+     */
+    private fun initPtpSession(gentle: Boolean = false): Boolean {
         transactionId = 1
 
-        // 0. Coba CloseSession dulu untuk menutup sesi lama yang mungkin menggantung
-        //    dari app lain atau crash sebelumnya. Jika tidak ada sesi aktif, kamera
-        //    akan mengembalikan error — itu normal dan kita abaikan.
-        Log.i(TAG, "PTP -> Mengirim CloseSession dulu (membersihkan sesi lama jika ada)...")
-        try {
-            sendPtpCommand(PTP_OP_CLOSE_SESSION, listOf(1), explicitTid = 0)
-        } catch (_: Exception) {
-            Log.d(TAG, "   CloseSession awal gagal (normal jika belum ada sesi).")
+        if (!gentle) {
+            // Bersihkan sesi lama yang mungkin menggantung dari app lain/crash.
+            Log.i(TAG, "PTP -> CloseSession pendahuluan (membersihkan sesi lama)...")
+            try {
+                sendPtpCommand(PTP_OP_CLOSE_SESSION, listOf(1), explicitTid = 0)
+            } catch (_: Exception) {
+                Log.d(TAG, "   CloseSession awal gagal (normal jika belum ada sesi).")
+            }
+            Thread.sleep(200)
+            try {
+                endpointIn?.let { clearEndpointHalt(it) }
+                endpointOut?.let { clearEndpointHalt(it) }
+            } catch (_: Exception) {}
+            drainEndpoints()
+            Thread.sleep(200)
+            transactionId = 1
         }
-        Thread.sleep(200)
 
-        // Clear endpoints setelah CloseSession
-        try {
-            endpointIn?.let { clearEndpointHalt(it) }
-            endpointOut?.let { clearEndpointHalt(it) }
-        } catch (_: Exception) {}
-        drainEndpoints()
-        Thread.sleep(200)
-
-        // Reset transaction ID setelah cleanup
+        // ─── PROBE: GetDeviceInfo (0x1001) ───
+        // Perintah standar PTP yang sah TANPA sesi terbuka. Ini memisahkan dua
+        // penyebab yang selama ini tampak identik:
+        //   - probe menjawab  → transport USB sehat, masalahnya di sesi/mode
+        //   - probe bisu juga → masalahnya di lapisan USB (kabel/daya/driver)
+        Log.i(TAG, "[PTP] Probe GetDeviceInfo (0x1001)...")
+        val probe = sendPtpCommand(PTP_OP_GET_DEVICE_INFO, emptyList(), explicitTid = 0)
+        val probeCode = probe.responseCode.toInt() and 0xFFFF
+        if (probeCode == 0 && probe.data == null) {
+            Log.e(TAG, "[PTP] Probe BISU — kamera tidak menjawab perintah PTP paling dasar.")
+            Log.e(TAG, "      Ini masalah lapisan USB (kabel data / daya / driver), " +
+                "BUKAN mode PC Remote.")
+        } else {
+            Log.i(TAG, "[PTP] Probe MENJAWAB (0x${String.format("%04X", probeCode)}, " +
+                "${probe.data?.size ?: 0} bytes data) — transport USB sehat.")
+        }
+        Thread.sleep(150)
         transactionId = 1
 
         // 1. Standar PTP OpenSession (SessionID=1, TransactionID=0 per PTP spec)
         Log.i(TAG, "PTP -> Mengirim OpenSession (0x1002, SessionID=1, TID=0)...")
         var respOpen = sendPtpCommand(PTP_OP_OPEN_SESSION, listOf(1), explicitTid = 0)
 
-        // Jika OpenSession gagal total (0x0 = no response), coba sekali lagi
-        // dengan PTP Device Reset ulang
-        if (respOpen.responseCode.toInt() == 0) {
-            Log.w(TAG, "⚠️ OpenSession tidak mendapat respons (0x0). Retry dengan Device Reset...")
-            try {
-                val conn = usbConnection
-                val iface = usbInterface
-                if (conn != null && iface != null) {
-                    conn.controlTransfer(0x21, 0x66, 0, iface.id, null, 0, 3000)
-                }
-            } catch (_: Exception) {}
-            Thread.sleep(800)
+        // Pada jalur bersih, satu kali percobaan sudah cukup untuk menilai.
+        // Retry berat hanya dilakukan pada tahap 2.
+        if (!gentle && respOpen.responseCode.toInt() == 0) {
+            Log.w(TAG, "⚠️ OpenSession tidak mendapat respons (0x0). Retry dengan jeda panjang...")
+            Thread.sleep(1500)
             try {
                 endpointIn?.let { clearEndpointHalt(it) }
                 endpointOut?.let { clearEndpointHalt(it) }
             } catch (_: Exception) {}
             drainEndpoints()
-            Thread.sleep(300)
+            Thread.sleep(500)
             transactionId = 1
-            Log.i(TAG, "PTP -> Retry OpenSession setelah Device Reset...")
             respOpen = sendPtpCommand(PTP_OP_OPEN_SESSION, listOf(1), explicitTid = 0)
         }
 
@@ -513,9 +540,15 @@ class SonyPtpCameraManager(private val context: Context) {
             Log.i(TAG, "✅ PTP OpenSession Berhasil! (Response=0x${String.format("%04X", respOpen.responseCode.toInt() and 0xFFFF)})")
             isSessionOpen = true
         } else {
-            Log.w(TAG, "⚠️ PTP OpenSession response: 0x${String.format("%04X", respOpen.responseCode.toInt() and 0xFFFF)} — tetap coba lanjutkan...")
-            // Tetap coba lanjutkan jika kamera sudah dalam state aktif
-            isSessionOpen = true
+            val code = String.format("%04X", respOpen.responseCode.toInt() and 0xFFFF)
+            if (gentle) {
+                Log.w(TAG, "[PTP] Tahap 1: OpenSession 0x$code — coba tahap 2.")
+            } else {
+                Log.e(TAG, "❌ PTP OpenSession GAGAL (0x$code). Sesi tidak dibuka.")
+            }
+            isSessionOpen = false
+            isRemoteReady = false
+            return false
         }
 
         Thread.sleep(100)
@@ -541,6 +574,27 @@ class SonyPtpCameraManager(private val context: Context) {
 
             Thread.sleep(200)
 
+            // ─── LANGKAH YANG SELAMA INI HILANG ───
+            //
+            // Antara Phase 2 dan Phase 3, libgphoto2 memanggil
+            // GetSDIOGetExtDeviceInfo (0x9202) dengan parameter 0xC8. Kamera
+            // memakai panggilan ini untuk menyerahkan daftar properti vendor
+            // yang didukung, dan BARU SETELAH ITU menerima perintah kontrol.
+            //
+            // Tanpa langkah ini, Phase 3 menjawab 0xA101 dan setiap perintah
+            // shutter (0x9207 → 0xD2C1 AF, 0xD2C2 capture) tidak dijawab sama
+            // sekali (0x0000) — persis gejala "Kamera menolak perintah AF".
+            Log.i(TAG, "[PTP] Sony GetSDIOGetExtDeviceInfo (0x9202, param 0xC8)...")
+            try {
+                val resInfo = sendPtpCommand(SONY_OP_GET_EXT_DEVICE_INFO, listOf(0xC8))
+                Log.i(TAG, "   ExtDeviceInfo Response: 0x${String.format("%04X", resInfo.responseCode.toInt() and 0xFFFF)}, " +
+                    "DataSize=${resInfo.data?.size ?: 0}")
+            } catch (e: Exception) {
+                Log.w(TAG, "   ExtDeviceInfo exception: ${e.message}")
+            }
+
+            Thread.sleep(200)
+
             // Sony SDIO Handshake Phase 3 (0x9201, param1=3, param2=0, param3=0)
             // Phase 3 bisa stall di beberapa kamera Sony — handle gracefully
             try {
@@ -549,6 +603,18 @@ class SonyPtpCameraManager(private val context: Context) {
                 Log.i(TAG, "   Phase 3 Response: 0x${String.format("%04X", res3.responseCode.toInt() and 0xFFFF)}")
             } catch (e3: Exception) {
                 Log.w(TAG, "Phase 3 exception (non-fatal): ${e3.message}")
+            }
+
+            // Priming properti: kamera menyiapkan tabel properti vendornya.
+            // libgphoto2 memanggil ini sebelum perintah kontrol pertama.
+            Thread.sleep(200)
+            Log.i(TAG, "[PTP] Sony GetAllExtDevicePropInfo (0x9209)...")
+            try {
+                val resProps = sendPtpCommand(SONY_OP_GET_ALL_EXT_DEVICE_PROP_INFO)
+                Log.i(TAG, "   AllExtDevicePropInfo Response: 0x${String.format("%04X", resProps.responseCode.toInt() and 0xFFFF)}, " +
+                    "DataSize=${resProps.data?.size ?: 0}")
+            } catch (e: Exception) {
+                Log.w(TAG, "   AllExtDevicePropInfo exception: ${e.message}")
             }
 
             // ─── PENTING: Recovery endpoint setelah SDIO handshake ───
@@ -584,29 +650,52 @@ class SonyPtpCameraManager(private val context: Context) {
     // ─── 5. Remote Capture & Image Transfer ───────────────────────────────────
 
     suspend fun capturePhoto(): Map<String, Any?> = withContext(Dispatchers.IO) {
-        val dev = findSonyCamera()
-        if (dev != null && isUvcDevice(dev)) {
-            Log.i(TAG, "📹 [HDMI Capture Card] Perangkat aktif adalah USB Video / HDMI Capture Card (${dev.deviceName}).")
+        // BUG LAMA (menyebabkan foto tidak pernah HD):
+        // dulu di sini dipanggil findSonyCamera(), yang MEMPRIORITASKAN HDMI
+        // capture card. Saat kedua kabel terpasang, cabang isUvcDevice() selalu
+        // menang dan fungsi ini langsung return "success = true" TANPA filePath —
+        // shutter Sony tidak pernah dijalankan sama sekali. Di sisi Dart, syarat
+        // `res.isSuccess && res.filePath != null` gagal, sehingga aplikasi selalu
+        // jatuh ke frame-grab HDMI 1920x1080. Itulah kenapa hasilnya terlihat
+        // seperti screenshot video, bukan foto 24 MP dari sensor.
+        //
+        // Sekarang: cari perangkat PTP secara spesifik.
+        val dev = findPtpCamera()
+        if (dev == null) {
+            val uvc = findUvcDevice()
+            Log.w(TAG, "📹 Kamera PTP tidak ditemukan; hanya ada " +
+                "${uvc?.productName ?: "perangkat non-PTP"}. Shutter mekanik dilewati.")
             return@withContext mapOf(
-                "success" to true,
-                "isUvc" to true,
-                "message" to "✅ HDMI Capture Card (USB Video 0x534D:0x2109 pada ${dev.deviceName}) aktif & terhubung! Stream video HDMI kamera langsung tampil di Live Preview Test."
+                "success" to false,
+                "isUvc" to (uvc != null),
+                "message" to "Kamera Sony (PTP) tidak terdeteksi. Pastikan kabel USB C-to-C " +
+                    "tersambung dan USB Connection = PC Remote."
             )
         }
 
-        // ─── SELALU buat koneksi fresh sebelum capture PTP ───
-        // Sesi PTP bisa expired/stale kapan saja (timeout, USB disconnect, dll).
-        // Fresh connection = fresh OpenSession + SDIO handshake → mencegah 0x2003 (SessionNotOpen).
-        Log.i(TAG, "📸 [Sony ZV-E10] Memulai Remote Shutter Capture via PTP...")
-        Log.i(TAG, "🔄 Membuka koneksi fresh untuk capture...")
-        closeConnection()
-        delay(800)
-        val opened = openConnection()
-        if (!opened) {
-            return@withContext mapOf(
-                "success" to false,
-                "message" to "Gagal menghubungkan kamera Sony via USB PTP."
-            )
+        Log.i(TAG, "[CAMERA] Capture started")
+        lastCaptureWidth = 0
+        lastCaptureHeight = 0
+
+        // PAKAI ULANG sesi yang sudah ada bila masih sehat.
+        //
+        // Dulu di sini SELALU closeConnection() + openConnection(), artinya
+        // handshake penuh (device reset, OpenSession, 3 fase SDIO) diulang pada
+        // SETIAP jepretan — dan itu terjadi saat capture card sedang streaming
+        // 1080p30 di hub USB yang sama. Perebutan bus itu membuat pembacaan
+        // balasan OpenSession gagal (0x0000) dan seluruh sesi tumbang.
+        if (isRemoteControlReady()) {
+            Log.i(TAG, "♻️ Memakai ulang sesi PTP yang sudah terbuka.")
+        } else {
+            Log.i(TAG, "🔄 Sesi belum siap — membuka koneksi fresh...")
+            closeConnection()
+            delay(800)
+            if (!openConnection()) {
+                return@withContext mapOf(
+                    "success" to false,
+                    "message" to "Gagal menghubungkan kamera Sony via USB PTP."
+                )
+            }
         }
 
         try {
@@ -669,7 +758,8 @@ class SonyPtpCameraManager(private val context: Context) {
 
             // 4. Tunggu ObjectAdded event (0x4002) dari interrupt endpoint
             //    Kamera butuh waktu menyimpan ke SD card sebelum object tersedia
-            Log.i(TAG, "⏳ Menunggu kamera selesai menyimpan foto (ObjectAdded event)...")
+            Log.i(TAG, "[PTP] Shutter triggered")
+            Log.i(TAG, "[PTP] Waiting for image")
             val objectAddedReceived = waitForObjectAddedEvent(timeoutMs = 5000)
             if (!objectAddedReceived) {
                 Log.w(TAG, "⚠️ Timeout menunggu ObjectAdded event. Tetap coba download...")
@@ -685,18 +775,25 @@ class SonyPtpCameraManager(private val context: Context) {
             }
 
             if (capturedFile != null && capturedFile.exists() && capturedFile.length() > 10000) {
-                Log.i(TAG, "✅ [Sony ZV-E10] Foto berhasil diambil & ditransfer: ${capturedFile.absolutePath} (${capturedFile.length() / 1024} KB)")
                 return@withContext mapOf(
                     "success" to true,
                     "filePath" to capturedFile.absolutePath,
                     "fileSizeBytes" to capturedFile.length(),
-                    "message" to "Foto berhasil diambil dari Sony ZV-E10 (${capturedFile.length() / 1024} KB)"
+                    // Dimensi ikut dikirim supaya sisi Dart bisa memverifikasi
+                    // sendiri bahwa ini benar foto sensor, bukan frame HDMI.
+                    "width" to lastCaptureWidth,
+                    "height" to lastCaptureHeight,
+                    "message" to "Foto ${lastCaptureWidth}x$lastCaptureHeight " +
+                        "(${capturedFile.length() / 1024} KB) dari Sony ZV-E10"
                 )
             } else {
+                Log.e(TAG, "[CAMERA] Capture FAILED — object tidak berhasil diunduh")
                 return@withContext mapOf(
                     "success" to false,
-                    "message" to "Shutter terpicu namun gagal mentransfer data JPEG dari kamera. " +
-                        "Pastikan SD Card terpasang di kamera."
+                    "width" to 0,
+                    "height" to 0,
+                    "message" to "Shutter terpicu namun JPEG gagal ditransfer. " +
+                        "Pastikan SD Card terpasang dan ada ruang kosong di kamera."
                 )
             }
 
@@ -803,12 +900,48 @@ class SonyPtpCameraManager(private val context: Context) {
      * Ini adalah cara yang benar untuk Sony ZV-E10 — kamera tidak push
      * raw JPEG ke bulk-in, melainkan menyimpan ke memory card dulu.
      */
+    /**
+     * Membaca dimensi JPEG langsung dari marker SOF, tanpa men-decode gambar.
+     *
+     * Dipakai untuk MEMBUKTIKAN bahwa foto benar-benar berasal dari sensor
+     * Sony (mis. 6000x4000) dan bukan frame HDMI 1920x1080. "Shutter berhasil"
+     * tidak sama dengan "foto beresolusi penuh berhasil diunduh".
+     *
+     * @return Pair(width, height) atau null bila tidak ditemukan.
+     */
+    private fun readJpegDimensions(bytes: ByteArray): Pair<Int, Int>? {
+        try {
+            var i = 2 // lewati SOI (FFD8)
+            while (i + 9 < bytes.size) {
+                if ((bytes[i].toInt() and 0xFF) != 0xFF) { i++; continue }
+                val marker = bytes[i + 1].toInt() and 0xFF
+                // SOF0..SOF15 kecuali DHT(C4), JPG(C8), DAC(CC)
+                if (marker in 0xC0..0xCF && marker != 0xC4 && marker != 0xC8 && marker != 0xCC) {
+                    val h = ((bytes[i + 5].toInt() and 0xFF) shl 8) or (bytes[i + 6].toInt() and 0xFF)
+                    val w = ((bytes[i + 7].toInt() and 0xFF) shl 8) or (bytes[i + 8].toInt() and 0xFF)
+                    return Pair(w, h)
+                }
+                val segLen = ((bytes[i + 2].toInt() and 0xFF) shl 8) or (bytes[i + 3].toInt() and 0xFF)
+                if (segLen <= 0) break
+                i += 2 + segLen
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "readJpegDimensions error: ${e.message}")
+        }
+        return null
+    }
+
+    /** Dimensi foto terakhir yang berhasil diunduh via PTP. */
+    private var lastCaptureWidth = 0
+    private var lastCaptureHeight = 0
+
     private fun downloadLatestImageViaPtp(): File? {
         val conn = usbConnection ?: return null
 
         // 1. GetObjectHandles: param1=0xFFFFFFFF (all storage),
         //    param2=0x00000000 (all formats), param3=0xFFFFFFFF (all objects)
-        Log.i(TAG, "📂 PTP GetObjectHandles...")
+        Log.i(TAG, "[PTP] Waiting for image")
+        Log.i(TAG, "[PTP] GetObjectHandles")
         val handlesResp = sendPtpCommand(
             PTP_OP_GET_OBJECT_HANDLES,
             listOf(0xFFFFFFFF.toInt(), 0x00000000, 0xFFFFFFFF.toInt())
@@ -816,42 +949,70 @@ class SonyPtpCameraManager(private val context: Context) {
 
         val handlesData = handlesResp.data
         if (handlesData == null || handlesData.size < 4) {
-            Log.w(TAG, "GetObjectHandles: data kosong atau terlalu kecil (${handlesData?.size ?: 0} bytes)")
+            Log.e(TAG, "[PTP] Object handles empty (data ${handlesData?.size ?: 0} bytes)")
+            Log.e(TAG, "[CAMERA] Capture FAILED")
             return null
         }
 
         // Parse array of handles: [count(4)] [handle1(4)] [handle2(4)] ...
         val bb = ByteBuffer.wrap(handlesData).order(ByteOrder.LITTLE_ENDIAN)
         val count = bb.int
-        Log.i(TAG, "GetObjectHandles: $count object ditemukan")
+        Log.i(TAG, "[PTP] Object handles received: $count")
 
         if (count <= 0) {
-            Log.w(TAG, "GetObjectHandles: tidak ada object di kamera")
+            Log.e(TAG, "[PTP] Object handles empty")
+            Log.e(TAG, "[CAMERA] Capture FAILED")
             return null
         }
 
         // Ambil handle terakhir (foto paling baru)
         val handles = IntArray(count) { bb.int }
         val latestHandle = handles.last()
-        Log.i(TAG, "📷 Mengambil object handle terbaru: 0x${latestHandle.toString(16)}")
+        Log.i(TAG, "[PTP] Latest JPEG object found: 0x${latestHandle.toString(16)}")
 
         // 2. GetObject: download JPEG bytes untuk handle ini
-        Log.i(TAG, "⬇️ PTP GetObject (0x${latestHandle.toString(16)})...")
+        Log.i(TAG, "[PTP] Download started")
         val objectResp = sendPtpCommand(PTP_OP_GET_OBJECT, listOf(latestHandle))
 
         val jpegBytes = objectResp.data
         if (jpegBytes == null || jpegBytes.size < 10000) {
-            Log.w(TAG, "GetObject: data JPEG terlalu kecil atau kosong (${jpegBytes?.size ?: 0} bytes)")
+            Log.e(TAG, "[PTP] Download failed — data ${jpegBytes?.size ?: 0} bytes")
+            Log.e(TAG, "[CAMERA] Capture FAILED")
             return null
         }
 
         // Verifikasi SOI marker JPEG (0xFF 0xD8)
         if ((jpegBytes[0].toInt() and 0xFF) != 0xFF || (jpegBytes[1].toInt() and 0xFF) != 0xD8) {
-            Log.w(TAG, "GetObject: data tidak diawali JPEG SOI marker")
+            Log.e(TAG, "[PTP] Data bukan JPEG (SOI marker tidak ditemukan)")
+            Log.e(TAG, "[CAMERA] Capture FAILED")
             return null
         }
 
-        Log.i(TAG, "✅ JPEG valid: ${jpegBytes.size / 1024} KB")
+        Log.i(TAG, "[PTP] Download completed")
+
+        // VALIDASI RESOLUSI — pembeda utama foto sensor vs frame HDMI.
+        val dims = readJpegDimensions(jpegBytes)
+        if (dims == null) {
+            Log.e(TAG, "[PTP] Tidak bisa membaca dimensi JPEG")
+            Log.e(TAG, "[CAMERA] Capture FAILED")
+            return null
+        }
+        lastCaptureWidth = dims.first
+        lastCaptureHeight = dims.second
+
+        val mp = (dims.first.toLong() * dims.second) / 1_000_000.0
+        Log.i(TAG, "[CAMERA] Image size: ${jpegBytes.size} bytes")
+        Log.i(TAG, "[CAMERA] Resolution: ${dims.first} x ${dims.second} " +
+            "(${String.format("%.1f", mp)} MP)")
+
+        // Foto sensor Sony jauh di atas 1920x1080. Bila yang datang justru
+        // seukuran frame HDMI, berarti sumbernya salah — jangan diloloskan.
+        if (dims.first <= 1920 && dims.second <= 1080) {
+            Log.e(TAG, "[CAMERA] Resolusi ${dims.first}x${dims.second} setara frame HDMI, " +
+                "bukan foto sensor. Ditolak.")
+            Log.e(TAG, "[CAMERA] Capture FAILED")
+            return null
+        }
 
         // Simpan ke file cache internal
         val photoDir = File(context.cacheDir, "sony_photos")
@@ -859,7 +1020,7 @@ class SonyPtpCameraManager(private val context: Context) {
         val photoFile = File(photoDir, "sony_capture_${System.currentTimeMillis()}.jpg")
         FileOutputStream(photoFile).use { it.write(jpegBytes) }
 
-        Log.i(TAG, "💾 Foto disimpan: ${photoFile.absolutePath}")
+        Log.i(TAG, "[CAMERA] Capture SUCCESS — ${photoFile.absolutePath}")
         return photoFile
     }
 
@@ -937,9 +1098,23 @@ class SonyPtpCameraManager(private val context: Context) {
      * Menangani USB Pipe Stall dengan clearHalt otomatis.
      */
     private fun sendPtpCommand(opCode: Short, params: List<Int> = emptyList(), explicitTid: Int? = null): PtpResponse {
-        val conn = usbConnection ?: return PtpResponse(0, null)
-        val epOut = endpointOut ?: return PtpResponse(0, null)
-        val epIn = endpointIn ?: return PtpResponse(0, null)
+        // Dulu ketiga baris ini keluar DIAM-DIAM dengan responseCode 0x0000,
+        // sehingga koneksi yang ditutup oleh proses lain (dua handshake
+        // berjalan bersamaan) terbaca persis seperti "kamera tidak menjawab".
+        // Sekarang kondisi itu selalu tercatat.
+        val conn = usbConnection ?: run {
+            Log.e(TAG, "❌ sendPtpCommand 0x${String.format("%04X", opCode.toInt() and 0xFFFF)}: " +
+                "usbConnection NULL — koneksi ditutup di tengah jalan (kemungkinan ada proses PTP lain).")
+            return PtpResponse(0, null)
+        }
+        val epOut = endpointOut ?: run {
+            Log.e(TAG, "❌ sendPtpCommand: endpointOut NULL — koneksi sudah dilepas.")
+            return PtpResponse(0, null)
+        }
+        val epIn = endpointIn ?: run {
+            Log.e(TAG, "❌ sendPtpCommand: endpointIn NULL — koneksi sudah dilepas.")
+            return PtpResponse(0, null)
+        }
 
         val tid = explicitTid ?: transactionId++
         val length = 12 + (params.size * 4)
@@ -954,16 +1129,16 @@ class SonyPtpCameraManager(private val context: Context) {
         }
 
         val cmdBytes = bb.array()
+        val opHex = String.format("%04X", opCode.toInt() and 0xFFFF)
         var outRes = conn.bulkTransfer(epOut, cmdBytes, cmdBytes.size, 3000)
         if (outRes < 0) {
-            val opCodeHex = String.format("%04X", opCode.toInt() and 0xFFFF)
-            Log.w(TAG, "⚠️ Endpoint OUT stalled on 0x$opCodeHex, clearing halt...")
+            Log.w(TAG, "⚠️ Endpoint OUT stalled on 0x$opHex, clearing halt...")
             try {
                 clearEndpointHalt(epOut)
                 outRes = conn.bulkTransfer(epOut, cmdBytes, cmdBytes.size, 3000)
             } catch (_: Exception) {}
             if (outRes < 0) {
-                Log.e(TAG, "❌ Gagal mengirim PTP command 0x$opCodeHex setelah retry.")
+                Log.e(TAG, "❌ Gagal mengirim PTP command 0x$opHex setelah retry.")
                 return PtpResponse(0, null)
             }
         }
@@ -978,8 +1153,19 @@ class SonyPtpCameraManager(private val context: Context) {
             attempts++
             val inRes = conn.bulkTransfer(epIn, inBuffer, inBuffer.size, 3000)
             if (inRes < 12) {
+                // DIAGNOSTIK: bedakan dua kegagalan yang selama ini tampak sama.
+                //   inRes  < 0  → pipa error / endpoint halt (masalah protokol atau bus)
+                //   inRes == 0  → kamera diam saja, tidak mengirim apa pun (timeout)
+                // Keduanya sebelumnya sama-sama berakhir jadi respons 0x0000
+                // sehingga penyebabnya tidak bisa dibedakan dari log.
                 if (inRes < 0) {
+                    Log.e(TAG, "❌ 0x$opHex: bulk IN error (inRes=$inRes) — pipa bermasalah/halt. " +
+                        "OUT terkirim $outRes bytes.")
                     try { clearEndpointHalt(epIn) } catch (_: Exception) {}
+                } else {
+                    Log.e(TAG, "❌ 0x$opHex: kamera TIDAK menjawab dalam 3 detik " +
+                        "(inRes=$inRes, OUT terkirim $outRes/${cmdBytes.size} bytes). " +
+                        "Perintah terkirim tapi tidak ada balasan.")
                 }
                 break
             }
@@ -1028,9 +1214,20 @@ class SonyPtpCameraManager(private val context: Context) {
      * Format ini wajib untuk SonySetControlDeviceProperty (0x9207) seperti Shutter Press & AF Lock.
      */
     private fun sendPtpCommandWithDataOut(opCode: Short, param1: Int, dataPayload: ByteArray): PtpResponse {
-        val conn = usbConnection ?: return PtpResponse(0, null)
-        val epOut = endpointOut ?: return PtpResponse(0, null)
-        val epIn = endpointIn ?: return PtpResponse(0, null)
+        // Sama seperti di sendPtpCommand: jangan gagal diam-diam. Koneksi yang
+        // hilang di tengah jalan harus bisa dibedakan dari kamera yang bisu.
+        val conn = usbConnection ?: run {
+            Log.e(TAG, "❌ sendPtpCommandWithDataOut: usbConnection NULL — koneksi ditutup di tengah jalan.")
+            return PtpResponse(0, null)
+        }
+        val epOut = endpointOut ?: run {
+            Log.e(TAG, "❌ sendPtpCommandWithDataOut: endpointOut NULL.")
+            return PtpResponse(0, null)
+        }
+        val epIn = endpointIn ?: run {
+            Log.e(TAG, "❌ sendPtpCommandWithDataOut: endpointIn NULL.")
+            return PtpResponse(0, null)
+        }
 
         val tid = transactionId++
 

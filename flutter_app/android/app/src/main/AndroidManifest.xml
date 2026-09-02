@@ -1,6 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Menutupi dialog cetak Android dengan layar kiosk sendiri, supaya
+         pelanggan tidak pernah melihat print spooler. Dialognya tetap terbuka
+         di baliknya dan tetap ditekan oleh KioskAutoPrintService. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Storage legacy. CATATAN: jangan tambahkan android:maxSdkVersion di sini —

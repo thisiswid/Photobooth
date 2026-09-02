@@ -1,10 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  packageNames sengaja TIDAK dibatasi.
+
+  Sebelumnya dikunci ke "com.android.printspooler", padahal dialog cetak di
+  banyak ROM OEM (ColorOS, MIUI, One UI) memakai package spooler yang berbeda.
+  Bila package-nya tidak cocok, service tidak pernah menerima event dan tombol
+  Print tidak pernah ditekan — cetak diam-diam berhenti tanpa pesan apa pun.
+
+  Sebagai gantinya, service hanya bekerja saat "armed": MainActivity menyalakan
+  jendela waktu singkat tepat sebelum PrintManager.print() dipanggil. Di luar
+  jendela itu, setiap event langsung diabaikan pada baris pertama.
+-->
 <accessibility-service
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
     android:accessibilityFeedbackType="feedbackGeneric"
-    android:accessibilityFlags="flagDefault|flagReportViewIds"
+    android:accessibilityFlags="flagDefault|flagReportViewIds|flagRetrieveInteractiveWindows"
     android:canRetrieveWindowContent="true"
     android:description="@string/accessibility_service_description"
-    android:notificationTimeout="100"
-    android:packageNames="com.android.printspooler" />
+    android:notificationTimeout="100" />

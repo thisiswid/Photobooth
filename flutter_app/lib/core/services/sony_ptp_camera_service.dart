@@ -94,12 +94,30 @@ class SonyCaptureResult {
   final int fileSizeBytes;
   final String message;
 
+  /// Dimensi asli JPEG yang diunduh dari kamera.
+  ///
+  /// Ini bukti bahwa foto berasal dari sensor Sony (mis. 6000x4000) dan bukan
+  /// frame HDMI 1920x1080. "Shutter berhasil" tidak sama dengan "foto
+  /// resolusi penuh berhasil diunduh".
+  final int width;
+  final int height;
+
   const SonyCaptureResult({
     required this.isSuccess,
     this.filePath,
     this.fileSizeBytes = 0,
     required this.message,
+    this.width = 0,
+    this.height = 0,
   });
+
+  double get megapixels => (width * height) / 1000000;
+
+  /// Foto sensor Sony selalu jauh di atas 1920x1080.
+  bool get looksLikeSensorPhoto => width > 1920 || height > 1080;
+
+  String get dimensionLabel =>
+      width > 0 ? '${width}x$height (${megapixels.toStringAsFixed(1)} MP)' : 'dimensi tidak diketahui';
 
   factory SonyCaptureResult.fromMap(Map<dynamic, dynamic>? map) {
     if (map == null) {
@@ -112,6 +130,8 @@ class SonyCaptureResult {
       isSuccess: map['success'] == true,
       filePath: map['filePath'] as String?,
       fileSizeBytes: (map['fileSizeBytes'] as num?)?.toInt() ?? 0,
+      width: (map['width'] as num?)?.toInt() ?? 0,
+      height: (map['height'] as num?)?.toInt() ?? 0,
       message: map['message'] as String? ?? '',
     );
   }

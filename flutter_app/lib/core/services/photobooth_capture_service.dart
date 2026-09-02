@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -132,16 +133,102 @@ class PhotoboothCaptureService {
   /// kamera gelap lama — itu sebabnya gambar baru muncul di hitungan ke-3.
   /// Preview HDMI tidak bergantung pada PTP, jadi keduanya dijalankan paralel.
   void startShutterPath() {
-    _shutterFuture ??= prepareShutterPath();
+    _shutterFuture ??= _prepareWithRetry().whenComplete(() => _shutterFuture = null);
+  }
+
+  /// Handshake PTP dengan satu kali percobaan ulang.
+  ///
+  /// Kegagalan paling sering disebabkan bus USB yang sedang sibuk oleh stream
+  /// HDMI, dan biasanya berhasil pada percobaan kedua setelah jeda. Tanpa retry,
+  /// satu kegagalan mematikan shutter PTP untuk SELURUH sesi dan semua foto
+  /// diam-diam turun jadi frame-grab 1080p.
+  Future<bool> _prepareWithRetry() async {
+    if (await prepareShutterPath()) return true;
+
+    debugPrint('🔁 [Capture] Handshake PTP gagal — mencoba sekali lagi dalam 2 detik...');
+    await Future<void>.delayed(const Duration(seconds: 2));
+    final ok = await prepareShutterPath();
+    if (!ok) {
+      debugPrint('❌ [Capture] Shutter PTP tidak tersedia. '
+          'Foto akan memakai frame HDMI 1080p (bukan 24 MP).');
+    }
+    return ok;
+  }
+
+  /// Handshake PTP dengan stream HDMI DIHENTIKAN sementara.
+  ///
+  /// Ini bukan optimasi — ini syarat mutlak.
+  ///
+  /// Capture card dan kamera berbagi hub USB yang sama. Selama capture card
+  /// streaming 1080p30, pembacaan balasan `OpenSession` dari kamera SELALU
+  /// gagal: endpoint IN ter-stall dan responsnya kembali 0x0000, lalu seluruh
+  /// perintah berikutnya ditolak 0x2003 (SessionNotOpen). Menambah jeda tidak
+  /// menolong karena stream-nya tidak pernah berhenti sendiri.
+  ///
+  /// Bukti dari lapangan: handshake hanya berhasil ketika kebetulan berjalan
+  /// di sela perpindahan halaman, yaitu saat UVCCameraView sedang tidak
+  /// ter-mount dan stream mati.
+  ///
+  /// Karena sesi PTP dipakai ulang antar jepretan, jeda ini hanya perlu sekali
+  /// di awal sesi foto.
+  Future<bool> prepareShutterPathWithUvcPaused() async {
+    if (_mode != CaptureMode.hybrid && _mode != CaptureMode.ptpOnly) return false;
+
+    final uvcWasOpen = UvcCameraService.instance.isOpen;
+    if (uvcWasOpen) {
+      debugPrint('⏸️ [Capture] Menghentikan stream HDMI sementara untuk handshake PTP...');
+      UvcCameraService.instance.close();
+      // Beri waktu libusb melepas bus sepenuhnya.
+      await Future<void>.delayed(const Duration(milliseconds: 900));
+    }
+
+    bool ok = false;
+    try {
+      ok = await _prepareWithRetry();
+    } finally {
+      if (uvcWasOpen) {
+        debugPrint('▶️ [Capture] Menyalakan kembali stream HDMI...');
+        final reopened = await UvcCameraService.instance.open();
+        _uvcReady = reopened;
+        if (!reopened) {
+          debugPrint('⚠️ [Capture] Stream HDMI gagal dinyalakan ulang: '
+              '${UvcCameraService.instance.lastError}');
+        }
+      }
+    }
+    return ok;
+  }
+
+  /// SATU-SATUNYA titik masuk penyiapan shutter dari layar kamera.
+  ///
+  /// Mengembalikan future yang sama bila penyiapan sedang berjalan, sehingga
+  /// tidak akan pernah ada dua handshake bersamaan.
+  ///
+  /// Ini bukan sekadar optimasi. Dua handshake paralel pada perangkat USB yang
+  /// sama saling menghancurkan: yang satu memanggil closeConnection() (yang
+  /// meng-null-kan usbConnection dan endpoint) tepat saat yang lain sedang di
+  /// tengah sendPtpCommand. Akibatnya sendPtpCommand keluar lewat early-return
+  /// `usbConnection ?: return PtpResponse(0, null)` — DIAM-DIAM, tanpa log —
+  /// dan hasilnya terbaca sebagai "OpenSession 0x0000", persis seperti gejala
+  /// bus sibuk. Itulah kenapa menambah jeda tidak pernah menolong.
+  Future<bool> ensureShutterPath() {
+    return _shutterFuture ??= prepareShutterPathWithUvcPaused()
+        .whenComplete(() => _shutterFuture = null);
+  }
+
+  /// Versi tembak-lupakan dari [ensureShutterPath].
+  void startShutterPathWithUvcPaused() {
+    unawaited(ensureShutterPath());
   }
 
   /// Tunggu jalur shutter selesai disiapkan, dengan batas waktu.
   /// Dipanggil tepat sebelum menjepret, bukan saat membuka halaman.
   Future<void> awaitShutterPath({
-    Duration timeout = const Duration(seconds: 8),
+    Duration timeout = const Duration(seconds: 12),
   }) async {
     final f = _shutterFuture;
     if (f == null) return;
+    debugPrint('⏳ [Capture] Menunggu penyiapan shutter selesai...');
     try {
       await f.timeout(timeout, onTimeout: () => false);
     } catch (_) {}
@@ -207,65 +294,139 @@ class PhotoboothCaptureService {
   ///   2. UVC  — grab frame HDMI 1080p (fallback bila PTP gagal/tidak ada)
   ///   3. null — pemanggil harus fallback ke kamera tablet
   Future<CaptureOutcome> capture() async {
-    // ── 1. PTP: shutter kamera asli ──────────────────────────────────────
-    if (_ptpReady) {
-      try {
-        // Timeout keras: transfer JPEG 24MP lewat bulk USB bisa lama, tapi
-        // tidak boleh membuat UI kiosk menggantung selamanya.
-        final res = await SonyPtpCameraService.capturePhoto().timeout(
-          const Duration(seconds: 20),
-          onTimeout: () => const SonyCaptureResult(
-            isSuccess: false,
-            message: 'Timeout menunggu shutter PTP (20 detik).',
-          ),
-        );
-        if (res.isSuccess && res.filePath != null) {
-          final f = File(res.filePath!);
-          if (f.existsSync() && f.lengthSync() > 0) {
-            debugPrint('📸 [Capture] Foto PTP: ${res.filePath} (${res.fileSizeBytes} bytes)');
-            return CaptureOutcome(success: true, source: CaptureSource.ptp, file: f);
-          }
-        }
-        debugPrint('⚠️ [Capture] PTP gagal (${res.message}) — fallback ke frame HDMI.');
-      } catch (e) {
-        debugPrint('⚠️ [Capture] PTP error: $e — fallback ke frame HDMI.');
+    // ── MODE HYBRID / PTP-ONLY: Sony PTP adalah SATU-SATUNYA sumber foto ──
+    //
+    // TIDAK ADA fallback diam-diam ke frame HDMI di sini. Sebelumnya, kegagalan
+    // PTP diam-diam diganti frame-grab 1080p dan tetap dilaporkan "sukses" —
+    // hasil akhir turun dari 24 MP ke ~2 MP tanpa siapa pun tahu. Kegagalan
+    // sekarang dilaporkan sebagai kegagalan.
+    if (_mode == CaptureMode.hybrid || _mode == CaptureMode.ptpOnly) {
+      // Sesi PTP bisa hilang kapan saja — perangkat USB yang re-enumerate
+      // (nomor device berubah, izin USB hilang) membuat sesi lama tidak valid.
+      // Jangan menyerah permanen: coba bangun ulang sekali di sini, supaya
+      // tamu cukup menekan jepret lagi tanpa harus keluar-masuk halaman.
+      if (!_ptpReady) {
+        debugPrint('🔄 [Capture] Sesi PTP tidak aktif — mencoba menyiapkan ulang...');
+        await ensureShutterPath();
       }
+
+      if (!_ptpReady) {
+        debugPrint('❌ [Capture] Jalur shutter PTP belum siap — capture DIBATALKAN.');
+        debugPrint('   Mode $_mode mewajibkan foto berasal dari sensor Sony.');
+        return const CaptureOutcome(
+          success: false,
+          source: CaptureSource.ptp,
+          message: 'Kamera Sony belum siap. Periksa kabel USB-C dan '
+              'pastikan USB Connection = PC Remote.',
+        );
+      }
+
+      // Dua percobaan: shutter PTP sesekali gagal karena sesi basi.
+      for (var attempt = 1; attempt <= 2; attempt++) {
+        final outcome = await _capturePtpOnce(attempt);
+        if (outcome != null) return outcome;
+        if (attempt == 1) {
+          debugPrint('🔁 [Capture] Percobaan shutter PTP ke-2...');
+          await Future<void>.delayed(const Duration(milliseconds: 800));
+        }
+      }
+
+      debugPrint('❌ [Capture] Shutter PTP gagal setelah 2 percobaan. '
+          'TIDAK memakai frame HDMI sebagai foto final.');
+      return const CaptureOutcome(
+        success: false,
+        source: CaptureSource.ptp,
+        message: 'Gagal mengambil foto dari kamera Sony. Silakan coba lagi.',
+      );
     }
 
-    // ── 2. UVC: grab frame dari stream HDMI ──────────────────────────────
-    // Pakai isOpen (bukan _uvcReady) supaya generasi view yang sudah tidak
-    // valid tidak dipakai — itu penyebab capture menggantung sebelumnya.
-    if (UvcCameraService.instance.isOpen) {
+    // ── MODE HDMI-ONLY: frame-grab memang satu-satunya sumber yang ada ──
+    if (_mode == CaptureMode.hdmiOnly && UvcCameraService.instance.isOpen) {
       final f = await UvcCameraService.instance.takePhoto();
       if (f != null) {
-        debugPrint('📸 [Capture] Foto frame-grab HDMI: ${f.path}');
-        return CaptureOutcome(
-          success: true,
-          source: CaptureSource.uvc,
-          file: f,
-          message: _ptpReady ? 'Fallback dari PTP ke frame HDMI.' : '',
-        );
+        debugPrint('📸 [Capture] SUMBER = FRAME-GRAB HDMI (mode hdmiOnly, ~2 MP)');
+        debugPrint('           file: ${f.path} '
+            '(${(f.lengthSync() / 1048576).toStringAsFixed(2)} MB)');
+        return CaptureOutcome(success: true, source: CaptureSource.uvc, file: f);
       }
-      debugPrint('⚠️ [Capture] Frame-grab HDMI gagal: '
+      debugPrint('❌ [Capture] Frame-grab HDMI gagal: '
           '${UvcCameraService.instance.lastError}');
-    } else if (_uvcReady) {
-      debugPrint('⚠️ [Capture] View UVC sudah tidak valid — lewati frame-grab.');
+      return const CaptureOutcome(
+        success: false,
+        source: CaptureSource.uvc,
+        message: 'Gagal mengambil gambar dari HDMI.',
+      );
     }
 
-    // ── 3. Serahkan ke pemanggil (kamera tablet) ─────────────────────────
+    // ── MODE TABLET-ONLY: serahkan ke pemanggil ──
     return const CaptureOutcome(
       success: false,
       source: CaptureSource.tablet,
-      message: 'Jalur kamera eksternal tidak tersedia — memakai kamera tablet.',
+      message: 'Tidak ada kamera eksternal — memakai kamera tablet.',
     );
   }
 
-  /// Lepaskan HANYA sesi PTP.
+  /// Satu kali percobaan shutter PTP, lengkap dengan validasi berlapis.
   ///
-  /// Kamera UVC sengaja TIDAK ditutup di sini: controller-nya singleton dan
-  /// dipakai bersama semua layar. Menutupnya saat berpindah halaman akan
-  /// mematikan preview halaman berikutnya. Siklus hidup view UVC ditangani
-  /// oleh widget `UvcPreview`.
+  /// Mengembalikan null bila gagal (agar pemanggil bisa mencoba lagi).
+  Future<CaptureOutcome?> _capturePtpOnce(int attempt) async {
+    try {
+      final res = await SonyPtpCameraService.capturePhoto().timeout(
+        const Duration(seconds: 25),
+        onTimeout: () => const SonyCaptureResult(
+          isSuccess: false,
+          message: 'Timeout menunggu shutter & transfer PTP (25 detik).',
+        ),
+      );
+
+      // Validasi 1: native melaporkan sukses
+      if (!res.isSuccess || res.filePath == null) {
+        debugPrint('❌ [Capture] Percobaan $attempt gagal: ${res.message}');
+        return null;
+      }
+
+      // Validasi 2: file benar-benar ada dan tidak kosong
+      final f = File(res.filePath!);
+      if (!f.existsSync()) {
+        debugPrint('❌ [Capture] Percobaan $attempt: file tidak ada (${res.filePath})');
+        return null;
+      }
+      final bytes = f.lengthSync();
+      if (bytes <= 0) {
+        debugPrint('❌ [Capture] Percobaan $attempt: file kosong (0 byte)');
+        return null;
+      }
+
+      // Validasi 3: resolusi harus setara sensor, bukan frame HDMI
+      if (!res.looksLikeSensorPhoto) {
+        debugPrint('❌ [Capture] Percobaan $attempt: resolusi ${res.dimensionLabel} '
+            'setara frame HDMI — ditolak, bukan foto sensor.');
+        return null;
+      }
+
+      debugPrint('📸 [Capture] ✅ SUMBER = SHUTTER PTP (sensor Sony)');
+      debugPrint('           resolusi: ${res.dimensionLabel}');
+      debugPrint('           ukuran  : ${(bytes / 1048576).toStringAsFixed(2)} MB');
+      debugPrint('           file    : ${res.filePath}');
+      return CaptureOutcome(success: true, source: CaptureSource.ptp, file: f);
+    } catch (e) {
+      debugPrint('❌ [Capture] Percobaan $attempt error: $e');
+      return null;
+    }
+  }
+
+
+  /// Lepaskan sesi PTP.
+  ///
+  /// JANGAN dipanggil saat berpindah halaman kamera. Membuka ulang sesi PTP
+  /// mengharuskan stream HDMI dihentikan lagi (lihat
+  /// [prepareShutterPathWithUvcPaused]) — memutusnya di setiap dispose berarti
+  /// kedipan preview di setiap perpindahan layar, dan berisiko gagal.
+  /// Sesi sengaja dibiarkan hidup selama aplikasi berjalan.
+  ///
+  /// Kamera UVC juga TIDAK ditutup di sini: controller-nya singleton dan
+  /// dipakai bersama semua layar. Siklus hidup view UVC ditangani oleh widget
+  /// `UvcPreview`.
   Future<void> releasePtp() async {
     try {
       if (_ptpReady) await SonyPtpCameraService.disconnect();

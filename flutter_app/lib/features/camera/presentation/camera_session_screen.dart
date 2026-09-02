@@ -86,7 +86,9 @@ class _CameraSessionScreenState extends ConsumerState<CameraSessionScreen> {
     _countdownTimer?.cancel();
     _cameraController?.dispose();
     // Jangan menutup UVC di sini — UvcPreview yang mengelola siklus view.
-    PhotoboothCaptureService.instance.releasePtp();
+    // Sesi PTP sengaja TIDAK diputus di sini. Membukanya lagi mengharuskan
+    // stream HDMI dihentikan sementara, jadi memutusnya tiap dispose berarti
+    // kedipan preview di setiap perpindahan layar.
     super.dispose();
   }
 
@@ -97,9 +99,11 @@ class _CameraSessionScreenState extends ConsumerState<CameraSessionScreen> {
       final mode = await capture.detectMode();
       if (mounted) setState(() => _captureMode = mode);
 
-      // 2. Jalur SHUTTER (PTP) disiapkan PARALEL — jangan di-await, karena
-      //    handshake-nya 2-6 detik dan akan menunda tampilnya preview.
-      capture.startShutterPath();
+      // 2. Jalur SHUTTER (PTP) TIDAK dimulai di sini bila preview UVC dipakai:
+      //    capture card dan kamera berbagi hub USB, dan handshake yang
+      //    bersamaan dengan pembukaan stream membuat OpenSession gagal.
+      //    Untuk mode non-UVC, mulai sekarang saja.
+      if (!capture.usesUvcPreview) capture.startShutterPath();
 
       // 3. Jalur PREVIEW HDMI: cukup render UvcPreview. Widget itu yang
       //    mendaftarkan generasi view & memanggil open() pada waktu yang tepat
@@ -129,6 +133,15 @@ class _CameraSessionScreenState extends ConsumerState<CameraSessionScreen> {
         _isUvcReady = true;
         _isCameraReady = true;
       });
+      // Handshake PTP hanya bisa berhasil saat stream HDMI berhenti, jadi
+      // jalur ini menjeda stream sebentar. Dilewati bila sesi sudah siap.
+      if (!PhotoboothCaptureService.instance.ptpReady) {
+        Future<void>.delayed(const Duration(milliseconds: 1200), () {
+          if (mounted) {
+            PhotoboothCaptureService.instance.startShutterPathWithUvcPaused();
+          }
+        });
+      }
       return;
     }
 
