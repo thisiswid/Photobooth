@@ -50,3 +50,6 @@ tools/sony_camera_remote_poc/vendor/
 tools/sony_camera_remote_poc/results/*.JPG
 tools/sony_camera_remote_poc/results/*.jpg
 tools/sony_camera_remote_poc/results/*.ARW
+
+# Build helper kamera Sony (artefak lokal)
+tools/sony_camera_helper/build/

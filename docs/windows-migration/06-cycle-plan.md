@@ -239,19 +239,31 @@ dashboard ≤ 60 detik.
 
 Implementasi:
 
-- [ ] **C4-1** Bangun helper `.exe` **proses terpisah** (bukan DLL in-process) — isolasi crash
-- [ ] **C4-2** Protokol socket lokal: `connect` / `status` / `capture` / `disconnect`
-- [ ] **C4-3** `sony_remote_sdk_service.dart` sebagai klien helper
-- [ ] **C4-4** **Tunggu properti AF lock**, jangan salin delay hardcoded dari `SonyPtpCameraManager.kt`
-- [ ] **C4-5** Pakai callback SDK untuk tahu foto siap — jangan polling
-- [ ] **C4-6** SDK mengirim gambar langsung ke PC
-- [ ] **C4-7** Capture menghasilkan file 6000x4000 di disk
+- [x] **C4-1** Helper `.exe` **proses terpisah** — `tools/sony_camera_helper/`. Win32 + WIA murni, tanpa MFC/ATL, jadi tidak terkena jebakan toolset v141 yang mengunci program contoh Sony. Semua panggilan COM terisolasi di satu thread STA dengan pompa pesan; thread socket punya batas waktu sendiri, sehingga lapisan kamera yang macet menjawab `busy`/`timeout` alih-alih menggantung
+- [x] **C4-2** Protokol socket loopback baris-JSON: `connect` / `status` / `capture` / `disconnect`, plus `ping` / `list` / `shutdown`. Tabel kode error ada di README helper
+- [ ] **C4-3** Klien Dart + integrasi `PhotoboothCaptureService` — **ditahan sampai C4-B lulus** (pola buktikan-dulu-baru-integrasi). Catatan: nama `sony_remote_sdk_service.dart` dibatalkan, karena yang dipakai Camera Remote **Command**, bukan SDK
+- [x] **C4-4** **Menunggu Focus Indication (0xD213)** bernilai `0x02`/`0x06`. Tidak ada delay tebakan di jalur AF, dan tidak ada satu pun angka yang disalin dari `SonyPtpCameraManager.kt`. Satu-satunya `Sleep` adalah durasi tahan tombol rana (`--s2-hold`) dan jeda antar pembacaan status
+- [x] **C4-5** Foto siap dideteksi lewat **Shooting File Info (0xD215)** bit `0x8000`. Ini pembacaan berkala, dan itu memang **mekanisme resmi**: Reference bagian Overview menyatakan Initiator sebaiknya *tidak* memakai PTP vendor event (model lama tidak menjamin semua event terkirim) dan harus membaca properti Responder secara berkala lewat `SDIO_GetAllExtDevicePropInfo`. Transport WIA `Escape` juga tidak punya kanal event sama sekali
+- [x] **C4-6** Gambar ditarik langsung ke PC lewat `GetObjectInfo`/`GetObject` pada handle `0xFFFFC001`, divalidasi SOI/EOI, lalu ditulis atomik (`.part` → `MoveFileEx`)
+- [ ] **C4-7** Capture menghasilkan file 6000x4000 di disk — perlu uji hardware
 - [ ] **C4-8** Uji AF di cahaya redup → foto tajam, bukan lembut
-- [ ] **C4-9** **Cabut kabel kamera di tengah sesi → jatuh ke `hdmiOnly`, sesi tidak mati**
+- [ ] **C4-9** **Cabut kabel kamera di tengah sesi → jatuh ke `windowsCamera`, sesi tidak mati**
 - [ ] **C4-10** Matikan paksa proses helper → perilaku sama seperti C4-9
 - [ ] **C4-11** Degradasi terlaporkan lewat heartbeat (`capture_mode`)
 - [ ] **C4-12** 50 jepretan berturut-turut tanpa kebocoran memori / hang
 - [ ] **C4-13** **Build Android masih hijau**
+
+### C4-B — Uji helper berdiri sendiri (sebelum menyentuh Flutter)
+
+Dijalankan dari mesin Windows, kamera di `USB Connection = PC Remote`:
+
+- [ ] **C4-B1** `tools\sony_camera_helper\build.bat` selesai tanpa error
+- [ ] **C4-B2** `sony_camera_helper.exe --list` menampilkan ZV-E10 beserta device id
+- [ ] **C4-B3** `sony_camera_helper.exe --selftest --verbose` → `connect` ok, `capture` ok
+- [ ] **C4-B4** File hasil dibuka: utuh, dimensi sesuai setelan Aspect Ratio kamera
+- [ ] **C4-B5** Mode server: `--serve --verbose`, lalu kirim perintah manual, tiap balasan wajar
+- [ ] **C4-B6** Uji gagal fokus: tutup lensa → `af_timeout`/`af_failed`, **bukan** foto buram yang dilaporkan sukses
+- [ ] **C4-B7** Cabut USB saat `--serve` jalan → `status` melaporkan `connected:false`, helper tidak crash
 
 ---
 
