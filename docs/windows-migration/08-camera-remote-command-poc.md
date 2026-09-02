@@ -376,6 +376,26 @@ Pakai **v3** lebih dulu (fitur lebih lengkap); v2 sebagai cadangan.
 
 Ini menguji P1, P2, P5, P6, P7 sekaligus, tanpa menulis satu baris kode pun.
 
+#### Masalah build yang sudah ditemui
+
+**MSB8020 — Platform Toolset v143 tidak ditemukan.**
+Solusi Sony dibuat untuk Visual Studio 2022 (`v143`); laptop memakai Visual
+Studio 18 (`v180`). Bukan masalah path.
+
+Perbaikan: klik kanan **solution** (bukan project) → **Retarget solution** →
+pilih toolset yang tersedia + Windows SDK terbaru. Tidak perlu unduh apa pun.
+
+**Kemungkinan menyusul: MFC dan ATL belum terpasang.**
+Contoh ini berbasis MFC (`afxdialogex.h`, `atlimage.h`, `CComPtr`), dan
+komponen itu tidak ikut terpasang secara default. Kalau muncul
+`cannot open source file "afxdialogex.h"`, buka Visual Studio Installer →
+Modify → Individual components, centang **C++ MFC** dan **C++ ATL** untuk
+build tools terbaru (x86 & x64).
+
+**Cadangan bila retarget gagal:** pasang Build Tools untuk Visual Studio 2022
+(v143) berdampingan dengan VS 18. Unduhannya besar tapi menghilangkan seluruh
+variabel versi compiler.
+
 ### Langkah 3 — catat hasilnya
 
 Isi tabel §3 dan §4 dokumen ini dengan hasil sungguhan. Untuk P7, ukur file di
