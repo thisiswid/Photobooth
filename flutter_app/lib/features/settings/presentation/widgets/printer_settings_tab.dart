@@ -651,7 +651,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('Horizontal Margin', style: TextStyle(color: Colors.white70, fontSize: 12.sp)),
-                        Text('Geser gambar kiri/kanan. MINUS = ke kiri', style: TextStyle(color: Colors.white38, fontSize: 9.sp)),
+                        Text('Kompensasi bleed kiri & kanan. Naikkan bila tepi frame terpotong', style: TextStyle(color: Colors.white38, fontSize: 9.sp)),
                       ],
                     ),
                     SizedBox(
@@ -693,7 +693,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('Vertical Margin', style: TextStyle(color: Colors.white70, fontSize: 12.sp)),
-                        Text('Geser gambar naik/turun. MINUS = naik (pakai bila tepi bawah terpotong)', style: TextStyle(color: Colors.white38, fontSize: 9.sp)),
+                        Text('Kompensasi bleed atas & bawah. Naikkan bila tepi frame terpotong', style: TextStyle(color: Colors.white38, fontSize: 9.sp)),
                       ],
                     ),
                     SizedBox(

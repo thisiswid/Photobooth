@@ -245,8 +245,8 @@ class WindowsPrinterBackend {
     String jobName = 'Photobooth_Print',
     int copies = 1,
     String orientation = 'Auto',
-    double offsetXmm = 0,
-    double offsetYmm = 0,
+    double compensationXmm = 0,
+    double compensationYmm = 0,
   }) async {
     final printer = await resolvePrinter();
     if (printer == null) {
@@ -265,7 +265,7 @@ class WindowsPrinterBackend {
         '${(format.width / PdfPageFormat.mm).toStringAsFixed(1)}x'
         '${(format.height / PdfPageFormat.mm).toStringAsFixed(1)} mm, '
         '$safeCopies lembar, '
-        'geser=${offsetXmm}x${offsetYmm}mm, '
+        'kompensasi=${compensationXmm}x${compensationYmm}mm, '
         'setelan=${useDriverSettings ? "DRIVER" : "APLIKASI"}');
 
     try {
@@ -278,8 +278,8 @@ class WindowsPrinterBackend {
           imageBytes: imageBytes,
           format: format,
           copies: safeCopies,
-          offsetXmm: offsetXmm,
-          offsetYmm: offsetYmm,
+          compensationXmm: compensationXmm,
+          compensationYmm: compensationYmm,
         ),
       );
       if (ok) {
@@ -359,17 +359,49 @@ class WindowsPrinterBackend {
     }
   }
 
+  /// Membentuk PDF foto dengan KOMPENSASI BLEED.
+  ///
+  /// ─────────────────────────────────────────────────────────────────────
+  /// MASALAH YANG DIPECAHKAN
+  ///
+  /// Borderless bekerja dengan memperbesar gambar melewati tepi kertas, lalu
+  /// memotong kelebihannya. Besar perbesaran itu ditentukan driver (setelan
+  /// Expansion) dan tidak bisa dibaca aplikasi.
+  ///
+  /// Akibatnya, elemen frame yang dirancang admin dekat tepi — garis pinggir,
+  /// logo sudut, tulisan bawah — ikut masuk zona potong dan hilang.
+  ///
+  /// SOLUSINYA BUKAN menggeser gambar, dan BUKAN mengubah desain frame.
+  /// Yang benar: menyusutkan bidang gambar sedikit di dalam halaman, sehingga
+  /// yang dimakan expansion adalah bidang penyangga, bukan frame-nya.
+  ///
+  ///   kompensasi 0 mm          kompensasi 2 mm
+  ///   ┌───────────────┐        ┌───────────────┐
+  ///   │▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓│        │░░░░░░░░░░░░░░░│ <- penyangga, boleh terpotong
+  ///   │▓▓▓ FRAME ▓▓▓▓▓│        │░░▓▓ FRAME ▓▓░░│
+  ///   │▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓│        │░░░░░░░░░░░░░░░│
+  ///   └───────────────┘        └───────────────┘
+  ///    tepi frame kena          tepi frame selamat
+  ///
+  /// Nilai POSITIF menyusutkan gambar (kompensasi bleed — kasus umum).
+  /// Nilai NEGATIF membesarkan gambar melewati halaman, untuk kasus sebaliknya
+  /// yaitu bila justru muncul tepi putih yang tidak diinginkan.
+  ///
+  /// Bidang penyangga diisi salinan gambar yang di-zoom, BUKAN putih — supaya
+  /// kalau expansion driver ternyata lebih kecil dari kompensasi, yang terlihat
+  /// di pinggir adalah lanjutan foto, bukan garis putih yang merusak borderless.
+  /// ─────────────────────────────────────────────────────────────────────
   static Future<Uint8List> _buildPhotoPdf({
     required Uint8List imageBytes,
     required PdfPageFormat format,
     required int copies,
-    double offsetXmm = 0,
-    double offsetYmm = 0,
+    double compensationXmm = 0,
+    double compensationYmm = 0,
   }) async {
     final doc = pw.Document();
     final image = pw.MemoryImage(imageBytes);
-    final dx = offsetXmm * PdfPageFormat.mm;
-    final dy = offsetYmm * PdfPageFormat.mm;
+    final cx = compensationXmm * PdfPageFormat.mm;
+    final cy = compensationYmm * PdfPageFormat.mm;
 
     for (var i = 0; i < copies; i++) {
       doc.addPage(
@@ -377,31 +409,41 @@ class WindowsPrinterBackend {
           pageFormat: format,
           margin: pw.EdgeInsets.zero,
           build: (_) {
-            // Gambar SELALU memenuhi seluruh halaman (BoxFit.cover). Untuk
-            // cetak foto ini yang benar — jangan pernah menyisakan bidang putih
-            // hanya demi menampilkan seluruh gambar.
-            final canvas = pw.SizedBox(
-              width: format.width,
-              height: format.height,
-              child: pw.Image(image, fit: pw.BoxFit.cover),
-            );
+            if (cx == 0 && cy == 0) {
+              return pw.SizedBox(
+                width: format.width,
+                height: format.height,
+                child: pw.Image(image, fit: pw.BoxFit.cover),
+              );
+            }
 
-            if (dx == 0 && dy == 0) return canvas;
+            // Ukuran bidang gambar setelah dikompensasi.
+            final w = format.width - (cx * 2);
+            final h = format.height - (cy * 2);
 
-            // Geseran halus untuk mengoreksi pemotongan borderless yang tidak
-            // simetris. Bidang gambar TIDAK diperkecil — hanya digeser, jadi
-            // kertas tetap tertutup penuh dan tidak muncul tepi putih.
-            //
-            // Nilai POSITIF menggeser gambar ke kanan / ke bawah.
-            // Kalau tepi BAWAH cetakan terpotong, isi offsetY NEGATIF supaya
-            // gambar naik dan bagian penting ikut terangkat.
-            // PENTING: Stack di package `pdf` mengambil ukurannya dari anak
-            // yang TIDAK di-Positioned. Tanpa basis berukuran penuh di bawah
-            // ini, Stack menciut dan geserannya tidak berefek sama sekali.
             return pw.Stack(
               children: [
-                pw.SizedBox(width: format.width, height: format.height),
-                pw.Positioned(left: dx, top: dy, child: canvas),
+                // Basis WAJIB ada dan tidak di-Positioned: Stack di package pdf
+                // mengambil ukurannya dari anak seperti ini. Tanpa basis, Stack
+                // menciut dan seluruh isinya tidak terlihat.
+                //
+                // Sekaligus jadi penyangga: salinan gambar berukuran penuh,
+                // sehingga pinggiran tidak pernah putih.
+                pw.SizedBox(
+                  width: format.width,
+                  height: format.height,
+                  child: pw.Image(image, fit: pw.BoxFit.cover),
+                ),
+                // Bidang gambar sesungguhnya, disusutkan dan ditengahkan.
+                pw.Positioned(
+                  left: cx,
+                  top: cy,
+                  child: pw.SizedBox(
+                    width: w,
+                    height: h,
+                    child: pw.Image(image, fit: pw.BoxFit.cover),
+                  ),
+                ),
               ],
             );
           },

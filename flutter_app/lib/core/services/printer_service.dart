@@ -920,28 +920,31 @@ class PrinterService {
         final copiesSetting = await getCopies();
         final orientation = await getOrientation();
 
-        // Setelan margin di panel settings dipakai sebagai GESERAN gambar,
-        // bukan margin dalam arti menyisakan tepi kosong. Borderless berarti
-        // gambar wajib menutup seluruh kertas; yang bisa dikoreksi hanyalah
-        // BAGIAN MANA dari gambar yang terpotong.
+        // Setelan margin dipakai sebagai KOMPENSASI BLEED, bukan tepi kosong.
         //
-        // Contoh: tepi bawah cetakan terpotong -> isi margin vertikal dengan
-        // nilai NEGATIF supaya gambar bergeser ke atas.
+        // Borderless memperbesar gambar melewati tepi kertas lalu memotong
+        // kelebihannya, dan besar perbesaran itu milik driver — tidak bisa
+        // dibaca aplikasi. Kompensasi ini menyusutkan bidang gambar sedikit di
+        // dalam halaman, sehingga yang dimakan expansion adalah penyangga,
+        // bukan tepi frame rancangan admin.
+        //
+        // POSITIF menyusutkan (kasus umum: tepi frame terpotong).
+        // NEGATIF membesarkan (kasus sebaliknya: muncul tepi putih).
         final unit = await getMarginUnit();
         final toMm = unit == 'inch' ? 25.4 : 1.0;
-        final offsetX = (await getMarginHorizontal()) * toMm;
-        final offsetY = (await getMarginVertical()) * toMm;
+        final compX = (await getMarginHorizontal()) * toMm;
+        final compY = (await getMarginVertical()) * toMm;
 
-        debugPrint('🧭 [Print] Setelan margin terbaca: '
-            'H=$offsetX mm, V=$offsetY mm (unit tersimpan: $unit)');
+        debugPrint('🧭 [Print] Kompensasi bleed terbaca: '
+            'H=$compX mm, V=$compY mm (unit tersimpan: $unit)');
 
         final out = await WindowsPrinterBackend.printImageBytes(
           imageBytes: imageBytes,
           jobName: jobName,
           copies: copies > 1 ? copies : copiesSetting,
           orientation: orientation,
-          offsetXmm: offsetX,
-          offsetYmm: offsetY,
+          compensationXmm: compX,
+          compensationYmm: compY,
         );
         lastPrintWasSilent = out.isSuccess;
         return PrintJobResult(
