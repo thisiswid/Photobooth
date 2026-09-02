@@ -37,3 +37,16 @@ flutter_app/.packages
 *.bak
 *.orig
 flutter_app/packages/_unused/
+
+# ── Materi berlisensi Sony (ditambahkan 2026-09-02) ──────────────────────────
+# Camera Remote Command adalah materi milik Sony untuk pelanggan korporat.
+# Simpan di LUAR repo (mis. E:\sony-crc). Aturan di bawah hanya pengaman
+# kalau ada yang tanpa sengaja menyalinnya ke dalam repo.
+**/CameraRemoteCommand*/
+**/camera_remote_command*/
+**/sony-crc/
+**/SonyCameraRemote*/
+tools/sony_camera_remote_poc/vendor/
+tools/sony_camera_remote_poc/results/*.JPG
+tools/sony_camera_remote_poc/results/*.jpg
+tools/sony_camera_remote_poc/results/*.ARW
