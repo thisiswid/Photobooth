@@ -144,14 +144,14 @@ lengkap) dan menyimpan PTP 2 sebagai cadangan bila ada perintah yang bermasalah.
 
 | Test | Requirement | Result | Evidence |
 |---|---|---|---|
-| P1 | USB connect | **KAMERA TERLIHAT WIA** ✅ | probe-wia.ps1, 2026-09-02 21:30 |
-| P2 | Shutter | **TERDOKUMENTASI** | `SDIOControlDevice(DPC_S1/S2_BUTTON)` |
-| P3 | AF status | **SUPPORTED** ✅ | `DPC_AF_STATUS = 0xD213` di `PTPDef.h` |
-| P4 | Photo complete | **SUPPORTED** ✅ | `DPC_SHOOTING_FILE_INFOMATION = 0xD215` |
-| P5 | JPEG transfer | **TERDOKUMENTASI** | `ExecuteGetObject(SHOT_OBJECT_HANDLE)` |
-| P6 | Original JPEG | **BELUM DIUJI** | menunggu eksekusi |
-| P7 | Resolution | **BELUM DIUJI** | baseline pembanding: 5328x4000 |
-| P8 | 10 captures | **BELUM DIUJI** | menunggu P1-P7 |
+| P1 | USB connect | **PASS** ✅ | GUI menampilkan Model ZV-E10, Device Version 2.03, Serial 7242356 |
+| P2 | Shutter | **PASS** ✅ | S1 lalu S2 ditekan, kamera benar-benar menjepret |
+| P3 | AF status | **PASS** ✅ | `DPC_AF_STATUS = 0xD213`; kolom "AF status" hidup di GUI, berubah saat S1 |
+| P4 | Photo complete | **PASS** ✅ | `DPC_SHOOTING_FILE_INFOMATION = 0xD215`; file muncul otomatis di Save Folder |
+| P5 | JPEG transfer | **PASS** ✅ | JPEG sampai ke disk lewat Save Destination = Host Device |
+| P6 | Original JPEG | **PASS** ✅ | 11-13 MB, bukan thumbnail/preview |
+| P7 | Resolution | **PASS — MELAMPAUI TARGET** ✅ | **6000 x 4000 (24,0 MP)** pada Aspect Ratio 3:2 |
+| P8 | 10 captures | **BELUM DIUJI** | berikutnya |
 
 ### 3.1 Transport — WIA, BUKAN libusb
 
@@ -284,14 +284,28 @@ di menu kamera, bukan pekerjaan koding.
 
 Catat rasio yang dipakai saat POC supaya hasilnya bisa dibandingkan setara.
 
-Hasil POC — diisi setelah eksekusi:
+Hasil POC — **terukur dari file di disk**, bukan dari tampilan GUI:
 
-| | Nilai |
-|---|---|
-| filename | _belum_ |
-| dimensions | _belum_ |
-| file size | _belum_ |
-| format | _belum_ |
+| Berkas | Waktu | Dimensi | Ukuran | Sumber |
+|---|---|---|---|---|
+| `DSC09582.JPG` | 08:50 | 5328 x 4000 (21,3 MP) | 13,99 MB | Imaging Edge (baseline) |
+| `DSC04094.JPG` | 14:35 | 5328 x 4000 (21,3 MP) | 11,71 MB | **Camera Remote Command**, Aspect 4:3 |
+| `DSC05118.JPG` | 14:37 | **6000 x 4000 (24,0 MP)** | 13,11 MB | **Camera Remote Command**, Aspect 3:2 |
+
+Format: JPEG, Image Size L, JPEG Quality Extra Fine, Save Destination Host Device.
+
+### Kesimpulan resolusi
+
+Camera Remote Command **menyamai baseline pada setelan yang sama**, lalu
+**melampauinya** begitu Aspect Ratio diubah ke 3:2.
+
+Batas 5328 x 4000 yang selama ini terlihat **bukan batasan protokol maupun
+batasan Imaging Edge** — itu semata setelan Aspect Ratio 4:3 di kamera, yang
+memotong sisi lebar sensor. Dengan 3:2, sensor terpakai penuh: **6000 x 4000,
+24,0 MP.**
+
+Target awal C4 adalah 24 MP. Tercapai, dari kamera yang dua hari lalu
+disimpulkan tidak bisa dikendalikan API resmi Sony.
 
 > Resolusi **wajib diukur dari file di disk**, bukan dari tampilan aplikasi.
 > Catatan: 1920x1080 yang sempat terlihat di Viewer ternyata hanya representasi
@@ -344,7 +358,11 @@ orang lain.
 
 ## 6. Conclusion
 
-**PARTIAL — dokumentasi PASS, eksekusi belum dijalankan.**
+**PASS untuk P1-P7. P8 (sepuluh capture berturut-turut) belum dijalankan.**
+
+Camera Remote Command memenuhi seluruh kebutuhan dasar remote shutter dan
+transfer JPEG untuk ZV-E10 generasi pertama, **tanpa Imaging Edge sebagai
+dependency**, dan menghasilkan JPEG 24 MP penuh.
 
 Seluruh kemampuan yang dibutuhkan **terdokumentasi resmi dan berlaku untuk
 ZV-E10**:
@@ -356,10 +374,11 @@ ZV-E10**:
 - Transfer JPEG: `GetObjectInfo` + `ExecuteGetObject` pada `SHOT_OBJECT_HANDLE`
 - Transport WIA — **tidak perlu Zadig, tidak perlu ganti driver ke WinUSB**
 
-Yang tersisa murni eksekusi: P1, P2, P5, P6, P7, P8.
+Seluruhnya sudah **dibuktikan dengan eksekusi nyata pada 2026-09-02**, bukan
+hanya dari dokumentasi. Yang tersisa hanya P8.
 
-Satu penghalang nyata sebelum P1 bisa dicoba: **kamera saat ini terikat driver
-libusbK dan tidak muncul sebagai Portable Device**, padahal WIA membutuhkannya.
+Penghalang driver sudah terselesaikan: setelah libusbK dilepas, kamera mengikat
+ke `WUDFWpdMtp` bawaan Windows dan terlihat oleh WIA.
 
 ---
 
