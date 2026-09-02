@@ -14,7 +14,7 @@ Legenda status: `⬜ belum` · `🟨 jalan` · `✅ selesai` · `⛔ terblokir`
 |---|---|---|---|---|---|
 | **P** | Persiapan & baseline | 2-3 hari | ⬜ | | |
 | **C0** | Spike cetak ⛔ **GERBANG** | 1 hari | ⬜ | | |
-| **C1** | Kerangka Windows | 2-3 hari | ⬜ | | |
+| **C1** | Kerangka Windows | 2-3 hari | 🟨 | 2026-09-01 | |
 | **C2** | Jalur cetak | 3-4 hari | ⬜ | | |
 | **C3** | Kamera capture card 🎯 **BISA PRODUKSI** | 3-4 hari | ⬜ | | |
 | **C4** | Shutter Sony SDK ⛔ **GERBANG** | 1-2 minggu | ⬜ | | |
@@ -87,15 +87,20 @@ dan status printer terbaca secara programatik.
 ## Cycle C1 — Kerangka Windows
 
 - [ ] **C1-1** `flutter build windows` berhasil apa adanya
-- [ ] **C1-2** Tambah `window_manager`, ganti `SystemChrome.setEnabledSystemUIMode` di `main.dart` (fungsi itu tidak berefek di Windows)
-- [ ] **C1-3** Jalur Android tetap memakai `SystemChrome` seperti sebelumnya
-- [ ] **C1-4** Aplikasi jalan fullscreen, tanpa taskbar, tanpa border
+- [x] **C1-2** Tambah `window_manager`, ganti `SystemChrome.setEnabledSystemUIMode` di `main.dart` (fungsi itu tidak berefek di Windows)
+- [x] **C1-3** Jalur Android tetap memakai `SystemChrome` seperti sebelumnya
+- [x] **C1-4** Aplikasi jalan fullscreen, tanpa taskbar, tanpa border
 - [ ] **C1-5** Seluruh rute `go_router` bisa dinavigasi tanpa kamera/printer
 - [ ] **C1-6** Provisioning: pairing key tersimpan (DPAPI) dan device terhubung ke tenant
 - [ ] **C1-7** Heartbeat sampai ke dashboard admin
 - [ ] **C1-8** **Build Android masih hijau**
 
 **Selesai bila:** aplikasi Windows jalan fullscreen dan sudah ter-pair ke backend.
+
+> 📌 Temuan C1: paket `camera` TIDAK meng-endorse Windows. `camera_windows`
+> harus ditambahkan eksplisit ke pubspec, kalau tidak `availableCameras()`
+> mengembalikan kosong. Terlihat dari `generated_plugins.cmake` yang semula
+> hanya memuat 4 plugin.
 
 ---
 
