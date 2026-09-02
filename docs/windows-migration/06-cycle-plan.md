@@ -241,7 +241,7 @@ Implementasi:
 
 - [x] **C4-1** Helper `.exe` **proses terpisah** — `tools/sony_camera_helper/`. Win32 + WIA murni, tanpa MFC/ATL, jadi tidak terkena jebakan toolset v141 yang mengunci program contoh Sony. Semua panggilan COM terisolasi di satu thread STA dengan pompa pesan; thread socket punya batas waktu sendiri, sehingga lapisan kamera yang macet menjawab `busy`/`timeout` alih-alih menggantung
 - [x] **C4-2** Protokol socket loopback baris-JSON: `connect` / `status` / `capture` / `disconnect`, plus `ping` / `list` / `shutdown`. Tabel kode error ada di README helper
-- [ ] **C4-3** Klien Dart + integrasi `PhotoboothCaptureService` — **ditahan sampai C4-B lulus** (pola buktikan-dulu-baru-integrasi). Catatan: nama `sony_remote_sdk_service.dart` dibatalkan, karena yang dipakai Camera Remote **Command**, bukan SDK
+- [x] **C4-3** `sony_camera_helper_client.dart` + mode `CaptureMode.windowsSony`. Aplikasi menjalankan helper sendiri sebagai proses anak dengan `--parent-pid`, socket tersambung, sesi kamera terbuka. Nama `sony_remote_sdk_service.dart` dibatalkan — yang dipakai Camera Remote **Command**, bukan SDK
 - [x] **C4-4** **Menunggu Focus Indication (0xD213)** bernilai `0x02`/`0x06`. Tidak ada delay tebakan di jalur AF, dan tidak ada satu pun angka yang disalin dari `SonyPtpCameraManager.kt`. Satu-satunya `Sleep` adalah durasi tahan tombol rana (`--s2-hold`) dan jeda antar pembacaan status
 - [x] **C4-5** Foto siap dideteksi lewat **Shooting File Info (0xD215)** bit `0x8000`. Ini pembacaan berkala, dan itu memang **mekanisme resmi**: Reference bagian Overview menyatakan Initiator sebaiknya *tidak* memakai PTP vendor event (model lama tidak menjamin semua event terkirim) dan harus membaca properti Responder secara berkala lewat `SDIO_GetAllExtDevicePropInfo`. Transport WIA `Escape` juga tidak punya kanal event sama sekali
 - [x] **C4-6** Gambar ditarik langsung ke PC lewat `GetObjectInfo`/`GetObject` pada handle `0xFFFFC001`, divalidasi SOI/EOI, lalu ditulis atomik (`.part` → `MoveFileEx`)
@@ -249,7 +249,7 @@ Implementasi:
 - [ ] **C4-8** Uji AF di cahaya redup → foto tajam, bukan lembut
 - [ ] **C4-9** **Cabut kabel kamera di tengah sesi → jatuh ke `windowsCamera`, sesi tidak mati**
 - [ ] **C4-10** Matikan paksa proses helper → perilaku sama seperti C4-9
-- [ ] **C4-11** Degradasi terlaporkan lewat heartbeat (`capture_mode`)
+- [x] **C4-11** Heartbeat mengirim `capture_mode`, `capture_degraded`, dan alasannya. Saat terdegradasi nilainya `windowsCamera(from:windowsSony)`
 - [ ] **C4-12** 50 jepretan berturut-turut tanpa kebocoran memori / hang
 - [ ] **C4-13** **Build Android masih hijau**
 
@@ -260,10 +260,25 @@ Dijalankan dari mesin Windows, kamera di `USB Connection = PC Remote`:
 - [x] **C4-B1** `build.bat` lulus sekali jalan, MSVC 14.51 (v145). Tanpa MFC, tanpa retarget, tanpa sentuh Visual Studio
 - [x] **C4-B2** `--list` menampilkan `ZV-E10` beserta device id WIA
 - [x] **C4-B3** `--selftest` PASS **dua kali berturut-turut tanpa cabut-colok**. `6000x4000` (24,0 MP), `object_format 0x3801` Exif/JPEG, `stale_discarded 0`, `extra_discarded 0`. AF ~780 ms, transfer ~795 ms, **total ~2,26 s per jepretan**
-- [ ] **C4-B4** File hasil dibuka: utuh, dimensi sesuai setelan Aspect Ratio kamera
-- [ ] **C4-B5** Mode server via `scripts\test-server.ps1`: tiga capture berurutan lewat satu sambungan
+- [x] **C4-B4** File dibuka dan diperiksa langsung — sesuai
+- [x] **C4-B5** Tiga capture berurutan lewat satu sambungan, `stale_discarded` dan `extra_discarded` tetap 0
 - [ ] **C4-B6** Uji gagal fokus: tutup lensa → `af_timeout`/`af_failed`, **bukan** foto buram yang dilaporkan sukses
 - [ ] **C4-B7** Cabut USB saat `--serve` jalan → `status` melaporkan `connected:false`, helper tidak crash
+
+### Jebakan pemasangan yang ditemukan saat integrasi
+
+**Izin privasi kamera Windows mematikan capture card tanpa error.** Aplikasi
+melapor "tidak ada perangkat kamera", `availableCameras()` mengembalikan daftar
+kosong (bukan error), padahal `Get-PnpDevice` menampilkan kartu MS2109 berstatus
+`OK` dan `camera_windows` terdaftar benar. Sebabnya Media Foundation menyaring
+enumerasi berdasarkan izin privasi; WIA tidak, sehingga jalur Sony tetap jalan
+dan gejalanya terlihat seperti "sebagian kamera rusak".
+
+Perbaikan: Settings → Privacy & security → Camera, nyalakan `Camera access`
+**dan** `Let desktop apps access your camera`, lalu restart aplikasi.
+
+**Ini wajib masuk checklist C7 untuk tiap unit kiosk** — setelan per-mesin dan
+per-pengguna, tidak ikut terbawa installer.
 
 Dua bug ditemukan uji hardware dan sudah diperbaiki — keduanya tidak akan
 terlihat tanpa kamera nyata:
