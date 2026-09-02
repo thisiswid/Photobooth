@@ -45,6 +45,7 @@ class WindowsPrinterBackend {
 
   static const _storage = FlutterSecureStorage();
   static const _selectedPrinterKey = 'windows_selected_printer';
+  static const _usePrinterSettingsKey = 'windows_use_printer_settings';
 
   /// 4R = 4 x 6 inci, tanpa margin. Hasil C0.
   static final PdfPageFormat page4R = PdfPageFormat(
@@ -59,6 +60,31 @@ class WindowsPrinterBackend {
     4 * PdfPageFormat.inch,
     marginAll: 0,
   );
+
+  /// Apakah job dikirim memakai DEVMODE milik driver (`true`) atau memakai
+  /// ukuran halaman dari aplikasi (`false`).
+  ///
+  /// DEFAULT `true`, dan ini penting: ukuran kertas serta borderless HANYA
+  /// dikenali kalau job memakai setelan driver. Dengan `false`, package
+  /// `printing` menimpa DEVMODE dengan ukuran dari parameter `format:`, dan
+  /// driver Epson kehilangan konteks borderless-nya — hasilnya bertepi putih
+  /// walaupun Printing Defaults sudah disetel 4x6 borderless.
+  ///
+  /// Ini persis temuan spike C0: yang berhasil adalah tombol
+  /// "CETAK UJI (setelan driver)".
+  static Future<bool> getUsePrinterSettings() async {
+    try {
+      return (await _storage.read(key: _usePrinterSettingsKey)) != 'false';
+    } catch (_) {
+      return true;
+    }
+  }
+
+  static Future<void> setUsePrinterSettings(bool v) async {
+    try {
+      await _storage.write(key: _usePrinterSettingsKey, value: v.toString());
+    } catch (_) {}
+  }
 
   // ─── Pemilihan printer ────────────────────────────────────────────────────
 
@@ -194,16 +220,19 @@ class WindowsPrinterBackend {
     final safeCopies = copies.clamp(1, 10);
     final format = await _resolveFormat(imageBytes, orientation);
 
+    final useDriverSettings = await getUsePrinterSettings();
     debugPrint('🖨️ [WinPrint] Kirim ke "${printer.name}" — '
         '${(format.width / PdfPageFormat.mm).toStringAsFixed(1)}x'
         '${(format.height / PdfPageFormat.mm).toStringAsFixed(1)} mm, '
-        '$safeCopies lembar');
+        '$safeCopies lembar, '
+        'setelan=${useDriverSettings ? "DRIVER" : "APLIKASI"}');
 
     try {
       final ok = await Printing.directPrintPdf(
         printer: printer,
         name: jobName,
         format: format,
+        usePrinterSettings: useDriverSettings,
         onLayout: (_) => _buildPhotoPdf(
           imageBytes: imageBytes,
           format: format,
@@ -243,10 +272,14 @@ class WindowsPrinterBackend {
       );
     }
     try {
+      final useDriverSettings = await getUsePrinterSettings();
+      debugPrint('🖨️ [WinPrint] Halaman uji ke "${printer.name}", '
+          'setelan=${useDriverSettings ? "DRIVER" : "APLIKASI"}');
       final ok = await Printing.directPrintPdf(
         printer: printer,
         name: 'SnapTechBooth Test Page',
         format: page4R,
+        usePrinterSettings: useDriverSettings,
         onLayout: (_) => _buildTestPdf(page4R),
       );
       return WindowsPrintOutcome(
