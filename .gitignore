@@ -32,3 +32,8 @@ flutter_app/.packages
 .env.*
 *.sqlite
 *.sqlite-journal
+
+# ── Sampah kerja lokal (ditambahkan 2026-09-01) ──────────────────────────────
+*.bak
+*.orig
+flutter_app/packages/_unused/
