@@ -56,6 +56,9 @@ struct DeviceProperty {
   uint64_t current_value = 0;
 };
 
+// Format objek PTP yang relevan.
+constexpr uint16_t kObjectFormatExifJpeg = 0x3801;
+
 struct ObjectInfo {
   uint32_t storage_id = 0;
   uint16_t object_format = 0;
@@ -87,6 +90,9 @@ struct CaptureResult {
   uint32_t width = 0;
   uint32_t height = 0;
   std::string camera_filename;
+  uint16_t object_format = 0;
+  int stale_discarded = 0;   // berkas basi yang dibuang SEBELUM menjepret
+  int extra_discarded = 0;   // berkas sisa yang dibuang SESUDAH menjepret
   uint64_t af_status = 0;
   bool af_timed_out = false;
   int af_wait_ms = 0;
@@ -120,6 +126,10 @@ class SonyCamera {
   bool GetObjectData(DWORD handle, uint32_t size, std::vector<BYTE>* out,
                      std::string* detail);
   bool ParsePropertyDataset(const std::vector<BYTE>& data, std::string* detail);
+  // Kosongkan buffer transfer kamera sampai Shooting File Info bernilai nol.
+  // Reference: Initiator harus mengambil handle yang sama berulang kali sampai
+  // properti itu nol, kalau tidak sisa berkas akan terbawa ke capture berikutnya.
+  int DrainShotBuffer(int max_files, std::string* detail);
 
   PtpWiaTransport transport_;
   bool connected_ = false;

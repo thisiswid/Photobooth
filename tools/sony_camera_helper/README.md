@@ -107,6 +107,7 @@ melaporkan kamera siap padahal sudah tidak.
 | `capture_timeout` | kamera tidak melaporkan berkas hasil |
 | `transfer_failed` | GetObjectInfo/GetObject gagal |
 | `transfer_corrupt` | penanda JPEG SOI/EOI tidak ditemukan |
+| `unexpected_format` | objek bukan Exif/JPEG — cek setelan File Format kamera |
 | `write_failed` | penulisan berkas ke disk gagal |
 | `busy` | perintah sebelumnya masih berjalan |
 | `timeout` | lapisan kamera tidak merespons dalam `--command-timeout` |
@@ -122,7 +123,20 @@ melaporkan kamera siap padahal sudah tidak.
 4. `S1 UP` — lepas setengah tekan (juga di semua jalur gagal).
 5. Baca **Shooting File Info (0xD215)** berulang sampai MSB (`0x8000`) menyala.
 6. `GetObjectInfo(0xFFFFC001)` lalu `GetObject(0xFFFFC001)`.
-7. Validasi SOI/EOI, tulis ke `<path>.part`, lalu `MoveFileEx` atomik.
+7. Validasi format objek Exif/JPEG, validasi SOI/EOI, tulis ke `<path>.part`,
+   lalu `MoveFileEx` atomik.
+8. Kosongkan sisa buffer sampai Shooting File Info nol.
+
+Fase 0 (sebelum S1) juga mengosongkan berkas basi. Reference menyatakan
+Initiator harus mengambil handle yang sama berulang kali sampai Shooting File
+Info bernilai nol; tanpa itu berkas sisa (mis. ARW pada mode RAW+JPEG, atau
+jepretan sesi sebelumnya) akan terambil sebagai "foto" pada capture berikutnya
+dan pelanggan menerima foto yang meleset satu jepretan. Jumlah yang dibuang
+selalu dilaporkan lewat `stale_discarded` dan `extra_discarded`.
+
+**Dimensi foto dibaca dari penanda SOF berkas JPEG-nya**, bukan dari
+`ObjectInfo` — ZV-E10 melaporkan `ImagePixWidth/Height = 0` untuk objek buffer
+`0xFFFFC001`, jadi berkas itu sendiri satu-satunya sumber yang jujur.
 
 ### Soal "polling" dan "delay"
 

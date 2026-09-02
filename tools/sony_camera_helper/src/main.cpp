@@ -212,12 +212,17 @@ std::string CmdCapture(const std::map<std::string, std::string>& req) {
       .Int("elapsed_ms", r.elapsed_ms)
       .UInt("af_status", r.af_status)
       .Str("af_label", AfStatusLabel(r.af_status))
-      .Bool("af_timed_out", r.af_timed_out);
+      .Bool("af_timed_out", r.af_timed_out)
+      .Int("stale_discarded", r.stale_discarded)
+      .Int("extra_discarded", r.extra_discarded);
   if (r.ok()) {
     w.Str("path", r.path)
         .UInt("bytes", r.bytes)
         .UInt("width", r.width)
         .UInt("height", r.height)
+        .UInt("megapixels_x10", (static_cast<unsigned long long>(r.width) *
+                                 r.height + 50000ULL) / 100000ULL)
+        .UInt("object_format", r.object_format)
         .Str("camera_filename", r.camera_filename);
   } else {
     w.Str("error", r.error_code).Str("detail", r.detail);

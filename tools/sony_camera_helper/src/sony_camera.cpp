@@ -121,6 +121,49 @@ size_t ArrayElementSize(uint16_t data_type) {
   }
 }
 
+// Baca dimensi langsung dari penanda SOF berkas JPEG.
+// Kamera melaporkan ImagePixWidth/Height = 0 untuk objek buffer 0xFFFFC001,
+// jadi satu-satunya sumber yang jujur adalah berkasnya sendiri.
+bool ParseJpegDimensions(const std::vector<BYTE>& data, uint32_t* width,
+                         uint32_t* height) {
+  if (data.size() < 4 || data[0] != 0xFF || data[1] != 0xD8) return false;
+  size_t i = 2;
+  while (i + 3 < data.size()) {
+    if (data[i] != 0xFF) {
+      ++i;  // isian antar segmen
+      continue;
+    }
+    const BYTE marker = data[i + 1];
+    if (marker == 0xFF) {
+      ++i;
+      continue;
+    }
+    // Penanda tanpa payload.
+    if (marker == 0x01 || (marker >= 0xD0 && marker <= 0xD9)) {
+      i += 2;
+      continue;
+    }
+    if (i + 3 >= data.size()) return false;
+    const size_t seg_len =
+        (static_cast<size_t>(data[i + 2]) << 8) | data[i + 3];
+    if (seg_len < 2) return false;
+
+    const bool is_sof = (marker >= 0xC0 && marker <= 0xCF) && marker != 0xC4 &&
+                        marker != 0xC8 && marker != 0xCC;
+    if (is_sof) {
+      // payload: precision(1), height(2 BE), width(2 BE), components(1)
+      const size_t p = i + 4;
+      if (p + 5 > data.size()) return false;
+      *height = (static_cast<uint32_t>(data[p + 1]) << 8) | data[p + 2];
+      *width = (static_cast<uint32_t>(data[p + 3]) << 8) | data[p + 4];
+      return *width > 0 && *height > 0;
+    }
+    if (marker == 0xDA) return false;  // mulai data terkompresi
+    i += 2 + seg_len;
+  }
+  return false;
+}
+
 std::string Utf16ToUtf8(const wchar_t* text, int chars) {
   if (chars <= 0) return std::string();
   int needed = WideCharToMultiByte(CP_UTF8, 0, text, chars, nullptr, 0, nullptr,
@@ -437,6 +480,29 @@ bool SonyCamera::GetObjectData(DWORD handle, uint32_t size,
   return true;
 }
 
+int SonyCamera::DrainShotBuffer(int max_files, std::string* detail) {
+  int drained = 0;
+  for (int i = 0; i < max_files; ++i) {
+    if (!RefreshProperties(detail)) break;
+    const uint64_t info = PropertyValue(kDpcShootingFileInfo, 0);
+    if ((info & 0x7FFF) == 0) break;
+
+    ObjectInfo object;
+    if (!GetObjectInfoFor(kShotObjectHandle, &object, detail)) break;
+    if (object.compressed_size == 0 ||
+        object.compressed_size > 256u * 1024u * 1024u) {
+      break;
+    }
+    std::vector<BYTE> discard;
+    if (!GetObjectData(kShotObjectHandle, object.compressed_size, &discard,
+                       detail)) {
+      break;
+    }
+    ++drained;
+  }
+  return drained;
+}
+
 CaptureResult SonyCamera::Capture(const std::string& out_path,
                                   const CaptureOptions& opt) {
   CaptureResult result;
@@ -454,6 +520,18 @@ CaptureResult SonyCamera::Capture(const std::string& out_path,
     std::this_thread::sleep_for(
         std::chrono::milliseconds(opt.poll_interval_ms));
   };
+
+  // --- Fase 0: buang sisa berkas dari sesi sebelumnya ----------------------
+  // Kalau buffer kamera masih berisi, berkas itulah yang akan terambil di fase
+  // 4 dan pelanggan menerima foto jepretan sebelumnya. Harus dikosongkan dulu.
+  if (!RefreshProperties(&detail)) {
+    result.error_code = "status_read_failed";
+    result.detail = detail;
+    return result;
+  }
+  if ((PropertyValue(kDpcShootingFileInfo, 0) & 0x7FFF) != 0) {
+    result.stale_discarded = DrainShotBuffer(8, &detail);
+  }
 
   // --- Fase 1: setengah tekan (S1) dan tunggu status AF ---------------------
   bool s1_pressed = false;
@@ -551,10 +629,22 @@ CaptureResult SonyCamera::Capture(const std::string& out_path,
     result.elapsed_ms = ElapsedMs(started);
     return result;
   }
+  result.object_format = info.object_format;
   if (info.compressed_size == 0 || info.compressed_size > 256u * 1024u * 1024u) {
     result.error_code = "transfer_failed";
     std::ostringstream os;
     os << "ukuran objek tidak masuk akal: " << info.compressed_size;
+    result.detail = os.str();
+    result.elapsed_ms = ElapsedMs(started);
+    return result;
+  }
+  if (info.object_format != kObjectFormatExifJpeg) {
+    // Jangan menyimpan berkas yang bukan JPEG lalu menyebutnya foto.
+    DrainShotBuffer(8, &detail);
+    result.error_code = "unexpected_format";
+    std::ostringstream os;
+    os << "format objek 0x" << std::hex << info.object_format
+       << " bukan Exif/JPEG (0x3801) - periksa setelan File Format kamera";
     result.detail = os.str();
     result.elapsed_ms = ElapsedMs(started);
     return result;
@@ -606,9 +696,24 @@ CaptureResult SonyCamera::Capture(const std::string& out_path,
   }
 
   result.bytes = bytes.size();
-  result.width = info.pixel_width;
-  result.height = info.pixel_height;
   result.camera_filename = info.filename;
+
+  // Dimensi diambil dari berkas yang benar-benar tertulis. Kamera melaporkan
+  // 0x0 untuk objek buffer, jadi nilai dari ObjectInfo hanya dipakai kalau
+  // pembacaan penanda SOF gagal.
+  uint32_t jpeg_w = 0, jpeg_h = 0;
+  if (ParseJpegDimensions(bytes, &jpeg_w, &jpeg_h)) {
+    result.width = jpeg_w;
+    result.height = jpeg_h;
+  } else {
+    result.width = info.pixel_width;
+    result.height = info.pixel_height;
+  }
+
+  // Sisa berkas (misalnya ARW pada mode RAW+JPEG) harus dikosongkan, kalau
+  // tidak akan terambil sebagai "foto" pada capture berikutnya.
+  result.extra_discarded = DrainShotBuffer(8, &detail);
+
   result.elapsed_ms = ElapsedMs(started);
   return result;
 }
