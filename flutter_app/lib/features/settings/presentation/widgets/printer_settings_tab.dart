@@ -651,7 +651,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('Horizontal Margin', style: TextStyle(color: Colors.white70, fontSize: 12.sp)),
-                        Text('Jarak Kiri & Kanan (Contoh: 0, 0.5, 1, 1.5)', style: TextStyle(color: Colors.white38, fontSize: 9.sp)),
+                        Text('Geser gambar kiri/kanan. MINUS = ke kiri', style: TextStyle(color: Colors.white38, fontSize: 9.sp)),
                       ],
                     ),
                     SizedBox(
@@ -660,7 +660,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                       child: TextField(
                         controller: _horizController,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))],
+                        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^-?\d*\.?\d*'))],
                         style: GoogleFonts.montserrat(color: AppColors.creamWhite, fontSize: 12.sp, fontWeight: FontWeight.bold),
                         decoration: InputDecoration(
                           suffixText: _marginUnit,
@@ -672,7 +672,9 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                         ),
                         onChanged: (val) async {
                           final parsed = double.tryParse(val.trim());
-                          if (parsed != null && parsed >= 0) {
+                          // Nilai NEGATIF diperbolehkan: di Windows angka ini
+                          // menggeser gambar, bukan menyisakan tepi kosong.
+                          if (parsed != null && parsed >= -20 && parsed <= 20) {
                             await PrinterService.setMarginHorizontal(parsed);
                           }
                         },
@@ -691,7 +693,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('Vertical Margin', style: TextStyle(color: Colors.white70, fontSize: 12.sp)),
-                        Text('Jarak Atas & Bawah (Contoh: 0, 0.5, 1, 1.5)', style: TextStyle(color: Colors.white38, fontSize: 9.sp)),
+                        Text('Geser gambar naik/turun. MINUS = naik (pakai bila tepi bawah terpotong)', style: TextStyle(color: Colors.white38, fontSize: 9.sp)),
                       ],
                     ),
                     SizedBox(
@@ -700,7 +702,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                       child: TextField(
                         controller: _vertController,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))],
+                        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^-?\d*\.?\d*'))],
                         style: GoogleFonts.montserrat(color: AppColors.creamWhite, fontSize: 12.sp, fontWeight: FontWeight.bold),
                         decoration: InputDecoration(
                           suffixText: _marginUnit,
@@ -712,7 +714,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                         ),
                         onChanged: (val) async {
                           final parsed = double.tryParse(val.trim());
-                          if (parsed != null && parsed >= 0) {
+                          if (parsed != null && parsed >= -20 && parsed <= 20) {
                             await PrinterService.setMarginVertical(parsed);
                           }
                         },
