@@ -1,8 +1,13 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:printing/printing.dart' show Printer;
+
 import '../../../../core/services/printer_service.dart';
+import '../../../../core/services/printing/windows_printer_backend.dart';
 import '../../../../core/services/ipp/ipp_client.dart';
 import '../../../../core/services/ipp/network_scan.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -27,6 +32,12 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
   bool _borderless = true;
   String _quality = 'Standard';
   String _marginUnit = 'mm';
+
+  // ── Windows: daftar printer spooler & status sesungguhnya ──
+  List<Printer> _winPrinters = const [];
+  String? _winSelectedName;
+  Map<String, dynamic> _winStatus = const {};
+  bool _winLoading = false;
   bool _autoPrint = true;
   bool _autoReconnect = true;
   int _retryCount = 3;
@@ -65,6 +76,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
   void initState() {
     super.initState();
     _loadAllSettings();
+    if (Platform.isWindows) _loadWindowsPrinters();
   }
 
   @override
@@ -522,21 +534,31 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
 
         SizedBox(height: 16.h),
 
-        _buildNetworkDiagnosticSection(),
+        // ── Panel diagnostik di bawah ini KHUSUS ANDROID ────────────────────
+        //
+        // Semuanya lahir dari keterbatasan Android: IPP dicoba karena tidak ada
+        // silent print, AUTO-PRINT HELPER menekan tombol dialog lewat
+        // Accessibility, USB DIAGNOSTIC memeriksa izin USB Host API, dan
+        // NETWORK DIAGNOSTIC memburu printer lewat IP.
+        //
+        // Di Windows tidak satu pun relevan: driver Epson menangani semuanya,
+        // dan printer USB sama sahnya dengan printer jaringan. Menampilkannya
+        // hanya akan membingungkan operator dengan tombol yang tidak berguna.
+        if (Platform.isAndroid) ...[
+          _buildNetworkDiagnosticSection(),
+          SizedBox(height: 16.h),
+          _buildIppDiagnosticSection(),
+          SizedBox(height: 16.h),
+          _buildAutoPrintHelperSection(),
+          SizedBox(height: 16.h),
+          _buildUsbDiagnosticSection(),
+          SizedBox(height: 16.h),
+        ],
 
-        SizedBox(height: 16.h),
-
-        _buildIppDiagnosticSection(),
-
-        SizedBox(height: 16.h),
-
-        _buildAutoPrintHelperSection(),
-
-        SizedBox(height: 16.h),
-
-        _buildUsbDiagnosticSection(),
-
-        SizedBox(height: 16.h),
+        if (Platform.isWindows) ...[
+          _buildWindowsPrinterSection(),
+          SizedBox(height: 16.h),
+        ],
 
         // ── SECTION 2: PRINT CONFIGURATION ─────────────────────────────────
         _buildSectionHeader('PRINT SETTINGS'),
@@ -2018,6 +2040,161 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
           ),
         ],
       ),
+    );
+  }
+
+  // ── WINDOWS: PILIH PRINTER & STATUS SESUNGGUHNYA ─────────────────────────
+
+  Future<void> _loadWindowsPrinters() async {
+    setState(() => _winLoading = true);
+    final printers = await WindowsPrinterBackend.listPrinters();
+    final saved = await WindowsPrinterBackend.getSelectedPrinterName();
+    final resolved = await WindowsPrinterBackend.resolvePrinter();
+    final status = await WindowsPrinterBackend.getStatus();
+    if (!mounted) return;
+    setState(() {
+      _winPrinters = printers;
+      _winSelectedName = saved ?? resolved?.name;
+      _winStatus = status;
+      _winLoading = false;
+    });
+  }
+
+  /// Warna status: hijau bila masih layak menerima job, merah bila butuh
+  /// tangan manusia sekarang juga.
+  Color get _winStatusColor {
+    if (_winStatus.isEmpty) return Colors.white38;
+    return _winStatus['canPrint'] == true
+        ? const Color(0xFF4CAF50)
+        : const Color(0xFFE53935);
+  }
+
+  Widget _buildWindowsPrinterSection() {
+    final code = _winStatus['status'] as String? ?? 'unknown';
+    final message = _winStatus['message'] as String? ?? 'Belum diperiksa.';
+    final detailAvailable = _winStatus['detailStatusAvailable'] == true;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader('PRINTER WINDOWS'),
+        SizedBox(height: 8.h),
+        Container(
+          padding: EdgeInsets.all(14.r),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.04),
+            borderRadius: BorderRadius.circular(10.r),
+            border: Border.all(color: Colors.white12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Status sesungguhnya ──
+              Row(
+                children: [
+                  Container(
+                    width: 10.r,
+                    height: 10.r,
+                    decoration: BoxDecoration(
+                      color: _winStatusColor,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  SizedBox(width: 8.w),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          code.toUpperCase().replaceAll('_', ' '),
+                          style: TextStyle(
+                            color: _winStatusColor,
+                            fontSize: 13.sp,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(message,
+                            style: TextStyle(
+                                color: Colors.white70, fontSize: 10.sp)),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: _winLoading ? null : _loadWindowsPrinters,
+                    icon: Icon(Icons.refresh,
+                        color: AppColors.gold, size: 18.r),
+                    tooltip: 'Periksa ulang',
+                  ),
+                ],
+              ),
+              if (!detailAvailable && _winStatus.isNotEmpty)
+                Padding(
+                  padding: EdgeInsets.only(top: 4.h),
+                  child: Text(
+                    'Status rinci tidak terbaca dari WMI — yang dilaporkan '
+                    'hanya keberadaan printer di spooler.',
+                    style:
+                        TextStyle(color: Colors.white38, fontSize: 9.sp),
+                  ),
+                ),
+              const Divider(color: Colors.white12),
+
+              // ── Pilih printer ──
+              Text('Printer yang dipakai',
+                  style: TextStyle(color: Colors.white70, fontSize: 12.sp)),
+              SizedBox(height: 6.h),
+              if (_winPrinters.isEmpty)
+                Text(
+                  _winLoading
+                      ? 'Memuat daftar printer...'
+                      : 'Tidak ada printer terdaftar di Windows. '
+                          'Pastikan driver Epson L8050 sudah terpasang.',
+                  style: TextStyle(color: Colors.white38, fontSize: 10.sp),
+                )
+              else
+                DropdownButton<String>(
+                  value: _winSelectedName,
+                  isExpanded: true,
+                  dropdownColor: AppColors.darkBrown,
+                  style: TextStyle(
+                      color: AppColors.creamWhite, fontSize: 12.sp),
+                  items: _winPrinters
+                      .map((p) => DropdownMenuItem(
+                            value: p.name,
+                            child: Text(
+                              p.isDefault ? '${p.name}  (default)' : p.name,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ))
+                      .toList(),
+                  onChanged: (name) async {
+                    if (name == null) return;
+                    await WindowsPrinterBackend.setSelectedPrinterName(name);
+                    await _loadWindowsPrinters();
+                  },
+                ),
+
+              SizedBox(height: 10.h),
+              Container(
+                padding: EdgeInsets.all(10.r),
+                decoration: BoxDecoration(
+                  color: AppColors.gold.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(8.r),
+                  border: Border.all(
+                      color: AppColors.gold.withValues(alpha: 0.4)),
+                ),
+                child: Text(
+                  'Ukuran kertas & borderless diatur di DRIVER, bukan di sini.\n'
+                  'Printer Properties > Advanced > Printing Defaults — bukan '
+                  '"Printing Preferences" dari klik kanan printer, karena yang '
+                  'itu tidak terbaca aplikasi.',
+                  style: TextStyle(color: Colors.white70, fontSize: 9.5.sp),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 

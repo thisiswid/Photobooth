@@ -17,8 +17,8 @@ Legenda status: `⬜ belum` · `🟨 jalan` · `✅ selesai` · `⛔ terblokir`
 | **C1** | Kerangka Windows | 2-3 hari | ✅ | 2026-09-01 | 2026-09-02 |
 | **C2** | Jalur cetak | 3-4 hari | ✅ | 2026-09-02 | 2026-09-02 |
 | **C3** | Kamera capture card 🎯 **BISA PRODUKSI** | 3-4 hari | ✅ | 2026-09-02 | 2026-09-02 |
-| **C4** | Shutter Sony SDK ⛔ **GERBANG GAGAL** | 1-2 minggu | ⛔ | 2026-09-02 | |
-| **C5** | Settings & diagnostik | 3-4 hari | ⬜ | | |
+| **C4** | Shutter Sony SDK ⛔ **DITUNDA** | 1-2 minggu | ⏸️ | 2026-09-02 | keputusan terbuka |
+| **C5** | Settings & diagnostik | 3-4 hari | 🟨 | 2026-09-02 | |
 | **C6** | Kalibrasi layar sentuh | 2 hari | ⬜ | | |
 | **C7** | Packaging & penguncian kiosk | 3-4 hari | ⬜ | | |
 | **C8** | Soak test 7 hari | 7 hari | ⬜ | | |
@@ -202,6 +202,9 @@ dashboard ≤ 60 detik.
 > Kewajibannya: memberi tahu pengguna bahwa kamera kehilangan garansi pabrik
 > saat dikendalikan aplikasi, tidak menyiratkan Sony pembuat aplikasi, dan
 > menanggung dukungan pelanggan sendiri.
+>
+> **KEPUTUSAN 2026-09-02: DITUNDA.** Kiosk tetap jalan di 1080p dari capture
+> card. C5 dan C6 dikerjakan lebih dulu karena tidak bergantung kamera.
 >
 > **Tiga jalan keluar, semuanya keputusan bisnis bukan teknis:**
 >
