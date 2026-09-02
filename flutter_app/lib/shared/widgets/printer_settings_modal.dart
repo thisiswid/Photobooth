@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -269,7 +271,20 @@ class _PrinterSettingsModalState extends State<PrinterSettingsModal> {
             SizedBox(height: 16.h),
 
             // Input IP
-            Text(
+            // Alamat IP hanya relevan di Android, tempat printer dijangkau
+            // lewat soket. Di Windows printer datang dari spooler — USB dan
+            // Wi-Fi sama saja — sehingga kolom ini menyesatkan operator.
+            // Pemilihan printer di Windows ada di Hidden Settings > Printer.
+            if (Platform.isWindows)
+              Text(
+                'Printer diambil dari daftar Windows. Ganti pilihan di '
+                'Hidden Settings > Printer.',
+                style: GoogleFonts.montserrat(
+                  color: Colors.white54,
+                  fontSize: 10.sp,
+                ),
+              ),
+            if (Platform.isAndroid) Text(
               'IP ADDRESS PRINTER',
               style: GoogleFonts.montserrat(
                 color: AppColors.gold,
@@ -278,8 +293,8 @@ class _PrinterSettingsModalState extends State<PrinterSettingsModal> {
                 letterSpacing: 1.1,
               ),
             ),
-            SizedBox(height: 6.h),
-            Row(
+            if (Platform.isAndroid) SizedBox(height: 6.h),
+            if (Platform.isAndroid) Row(
               children: [
                 Expanded(
                   child: TextField(
@@ -366,7 +381,9 @@ class _PrinterSettingsModalState extends State<PrinterSettingsModal> {
             ),
             SizedBox(height: 8.h),
             Text(
-              'Cek IP di printer: Menu → Network → Wi-Fi Setup → IP Address',
+              Platform.isWindows
+                  ? 'Windows mengurus koneksi printer lewat driver — USB maupun Wi-Fi sama saja.'
+                  : 'Cek IP di printer: Menu → Network → Wi-Fi Setup → IP Address',
               style: AppTextStyles.caption.copyWith(
                 color: Colors.white38,
                 fontSize: 10.sp,

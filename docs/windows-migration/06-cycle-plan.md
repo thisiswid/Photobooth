@@ -240,11 +240,11 @@ Implementasi:
 
 ## Cycle C5 — Settings & Diagnostik
 
-- [ ] **C5-1** Buang dari jalur Windows: DIAGNOSA OTOMATIS, NETWORK DIAGNOSTIC, IPP DIRECT, AUTO-PRINT HELPER, USB DIAGNOSTIC, tombol izin overlay, tombol izin USB
-- [ ] **C5-2** Tambah: pilih printer dari `listPrinters()`, status printer live, test page
-- [ ] **C5-3** Tambah: status koneksi kamera + status helper PTP
-- [ ] **C5-4** Satukan `printer_settings_modal.dart` dengan tab hidden settings (utang teknis lama)
-- [ ] **C5-5** Tidak ada tombol mati tersisa di panel
+- [x] **C5-1** Empat panel diagnostik Android disembunyikan lewat `Platform.isAndroid` — kodenya tidak dihapus supaya build Android tetap utuh
+- [x] **C5-2** Panel PRINTER WINDOWS: lampu status WMI, dropdown pilih printer, tombol periksa ulang, pengingat Printing Defaults
+- [x] **C5-3** Kartu Sony PTP dan kartu UVC disembunyikan di Windows — keduanya Android-only, tombolnya akan mati. Kamera Windows tampil di daftar kamera biasa
+- [~] **C5-4** Tidak digabung penuh. Kolom IP di modal disembunyikan di Windows dan diarahkan ke Hidden Settings > Printer. Penggabungan penuh ditunda: modal itu dipakai layar hasil yang dilihat pelanggan, risikonya tidak sepadan sekarang
+- [x] **C5-5** Tidak ada tombol mati tersisa di jalur Windows
 - [ ] **C5-6** **Build Android masih hijau**
 
 ---

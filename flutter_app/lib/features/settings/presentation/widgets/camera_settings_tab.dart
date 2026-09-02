@@ -298,7 +298,9 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
         SizedBox(height: 8.h),
         // 1. Kartu Khusus HDMI Capture Card (UVC)
         if (_sonyStatus?.isDetected == true || _sonyStatus?.isUvc == true)
-          _buildUvcCameraCard(),
+          // Kartu UVC memakai flutter_uvc_camera yang Android-only. Di Windows
+          // capture card muncul sebagai kamera biasa di daftar di bawah.
+          if (Platform.isAndroid) _buildUvcCameraCard(),
 
         if (_cameras.isEmpty && _sonyStatus?.isDetected != true)
           Container(
@@ -473,12 +475,21 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
           ),
         ),
 
-        SizedBox(height: 16.h),
-
         // ── SECTION 4: SONY ZV-E10 USB PC REMOTE (PTP TEST) ───────────────
-        _buildSectionHeader('SONY ZV-E10 USB PC REMOTE (PTP DIRECT)'),
-        SizedBox(height: 8.h),
-        _buildSonyPtpTestCard(),
+        //
+        // KHUSUS ANDROID. Seluruh kartu ini berbicara ke SonyPtpCameraManager
+        // lewat MethodChannel, yang hanya ada di sisi Kotlin. Di Windows setiap
+        // tombolnya mati — dan tombol mati di panel operator lebih buruk
+        // daripada tidak ada tombol sama sekali.
+        //
+        // Jalur PTP di Windows adalah Cycle C4, dan per 2026-09-02 ditunda
+        // karena ZV-E10 generasi pertama tidak didukung Sony Camera Remote SDK.
+        if (Platform.isAndroid) ...[
+          SizedBox(height: 16.h),
+          _buildSectionHeader('SONY ZV-E10 USB PC REMOTE (PTP DIRECT)'),
+          SizedBox(height: 8.h),
+          _buildSonyPtpTestCard(),
+        ],
       ],
     );
   }
