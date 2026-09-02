@@ -395,8 +395,12 @@ class WindowsPrinterBackend {
             // Nilai POSITIF menggeser gambar ke kanan / ke bawah.
             // Kalau tepi BAWAH cetakan terpotong, isi offsetY NEGATIF supaya
             // gambar naik dan bagian penting ikut terangkat.
+            // PENTING: Stack di package `pdf` mengambil ukurannya dari anak
+            // yang TIDAK di-Positioned. Tanpa basis berukuran penuh di bawah
+            // ini, Stack menciut dan geserannya tidak berefek sama sekali.
             return pw.Stack(
               children: [
+                pw.SizedBox(width: format.width, height: format.height),
                 pw.Positioned(left: dx, top: dy, child: canvas),
               ],
             );

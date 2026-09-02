@@ -932,6 +932,9 @@ class PrinterService {
         final offsetX = (await getMarginHorizontal()) * toMm;
         final offsetY = (await getMarginVertical()) * toMm;
 
+        debugPrint('🧭 [Print] Setelan margin terbaca: '
+            'H=$offsetX mm, V=$offsetY mm (unit tersimpan: $unit)');
+
         final out = await WindowsPrinterBackend.printImageBytes(
           imageBytes: imageBytes,
           jobName: jobName,
