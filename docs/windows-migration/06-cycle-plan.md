@@ -17,7 +17,7 @@ Legenda status: `⬜ belum` · `🟨 jalan` · `✅ selesai` · `⛔ terblokir`
 | **C1** | Kerangka Windows | 2-3 hari | ✅ | 2026-09-01 | 2026-09-02 |
 | **C2** | Jalur cetak | 3-4 hari | ✅ | 2026-09-02 | 2026-09-02 |
 | **C3** | Kamera capture card 🎯 **BISA PRODUKSI** | 3-4 hari | ✅ | 2026-09-02 | 2026-09-02 |
-| **C4** | Shutter Sony SDK ⛔ **GERBANG** | 1-2 minggu | ⬜ | | |
+| **C4** | Shutter Sony SDK ⛔ **GERBANG GAGAL** | 1-2 minggu | ⛔ | 2026-09-02 | |
 | **C5** | Settings & diagnostik | 3-4 hari | ⬜ | | |
 | **C6** | Kalibrasi layar sentuh | 2 hari | ⬜ | | |
 | **C7** | Packaging & penguncian kiosk | 3-4 hari | ⬜ | | |
@@ -186,7 +186,36 @@ dashboard ≤ 60 detik.
 - [ ] **C4-0b** Konfirmasi ZV-E10 ada di daftar model yang didukung SDK terbaru
 - [ ] **C4-0c** Jalankan sample `RemoteCli` — shutter & transfer berfungsi di luar aplikasi kita
 
-> ⛔ **Berhenti dan tunggu persetujuan setelah tiga langkah ini.**
+> ⛔ **GERBANG GAGAL — 2026-09-02.**
+>
+> **Sony ZV-E10 generasi pertama TIDAK ADA di daftar model yang didukung
+> Camera Remote SDK.** Daftar resmi versi 2.02.00 memuat `ZV-E1` dan
+> `ZV-E10M2`, tanpa `ZV-E10`.
+>
+> Daftar lengkap saat pemeriksaan: ILX-LR1, ILCE-1M2, ILCE-1, ILCE-9M3,
+> ILCE-9M2, ILCE-7RM6, ILCE-7RM5, ILCE-7RM4A, ILCE-7RM4, ILCE-7CR, ILCE-7SM3,
+> ILCE-7M5, ILCE-7M4, ILCE-7CM2, ILCE-7C, ILCE-6700, BURANO, ILME-FX6V/FX6T,
+> ILME-FX3A, ILME-FX3, ILME-FX2, ILME-FX30, PXW-Z300, PXW-Z380, PXW-Z200,
+> HXR-NX800, BRC-AM7, ILME-FR7, ZV-E1, ZV-E10M2, DSC-RX1RM3, DSC-RX0M2.
+>
+> **Lisensi bukan penghalang:** pemakaian komersial diizinkan tanpa royalti.
+> Kewajibannya: memberi tahu pengguna bahwa kamera kehilangan garansi pabrik
+> saat dikendalikan aplikasi, tidak menyiratkan Sony pembuat aplikasi, dan
+> menanggung dukungan pelanggan sendiri.
+>
+> **Tiga jalan keluar, semuanya keputusan bisnis bukan teknis:**
+>
+> 1. **Tetap 1080p** — kiosk sudah jalan penuh sejak C3. Biaya nol,
+>    C4 dibatalkan. Foto ~2 MP, dan untuk cetak 4R di 333 DPI itu sebenarnya
+>    sudah memadai (lihat catatan kualitas cetak di PRD).
+> 2. **Ganti kamera ke ZV-E10 II** — SDK resmi langsung berlaku, C4 berjalan
+>    sesuai rencana. Biaya sebesar satu badan kamera.
+> 3. **Port PTP hasil rekayasa balik ke Windows** — opcode `0xD2C1`/`0xD2C2`
+>    sudah TERBUKTI bekerja dengan kamera ini di Android. Di Windows perlu
+>    libusb/WinUSB (driver kamera diganti lewat Zadig, jadi kamera tidak lagi
+>    dikenali sebagai perangkat MTP biasa di mesin itu — untuk kiosk masih
+>    dapat diterima). Konsekuensi: tujuan G-3 "shutter di atas API resmi"
+>    GUGUR, dan kerapuhan terhadap update firmware tetap ada.
 
 Implementasi:
 
