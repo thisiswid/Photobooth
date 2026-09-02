@@ -8,6 +8,7 @@ import 'package:printing/printing.dart';
 import 'package:image/image.dart' as img;
 import 'error_logger.dart';
 import 'ipp/ipp_client.dart';
+import 'printing/windows_printer_backend.dart';
 import 'ipp/network_scan.dart';
 
 /// Result status of a print job
@@ -366,6 +367,13 @@ class PrinterService {
 
   /// Connectivity check via Wi-Fi IP socket
   static Future<bool> isPrinterReachable({String? ip}) async {
+    // Di Windows, "terjangkau" berarti terdaftar di spooler — bukan soal soket.
+    // Printer USB sama sahnya dengan printer jaringan, dan ping ke IP tidak
+    // relevan sama sekali. Dipakai juga oleh HeartbeatService.
+    if (Platform.isWindows) {
+      return WindowsPrinterBackend.isReachable();
+    }
+
     final targetIp = ip ?? await getIpAddress();
     for (final port in [9100, 631, 80]) {
       try {
@@ -877,6 +885,30 @@ class PrinterService {
     lastIppFailure = null;
 
     try {
+      // ── WINDOWS: langsung ke spooler, tanpa dialog ────────────────────────
+      //
+      // Tidak ada rantai fallback di sini karena tidak diperlukan: driver Epson
+      // resmi yang melakukan rasterisasi ESC/P-R, dan hasilnya sudah terbukti
+      // di spike C0 (kertas 4x6, tanpa bleed). Seluruh mesin IPP, Silent Ketat,
+      // dan penutup dialog di bawah ini khusus jalur Android.
+      if (Platform.isWindows) {
+        final copiesSetting = await getCopies();
+        final orientation = await getOrientation();
+        final out = await WindowsPrinterBackend.printImageBytes(
+          imageBytes: imageBytes,
+          jobName: jobName,
+          copies: copies > 1 ? copies : copiesSetting,
+          orientation: orientation,
+        );
+        lastPrintWasSilent = out.isSuccess;
+        return PrintJobResult(
+          isSuccess: out.isSuccess,
+          message: out.message,
+          printerName: out.printerName ?? 'Epson L8050',
+          isDirect: true,
+        );
+      }
+
       // ── Jalur 1 (utama): IPP langsung — SILENT, tanpa dialog preview ──
       final ipp = await _printViaIpp(
         imageBytes: imageBytes,
@@ -974,6 +1006,18 @@ class PrinterService {
     lastIppFailure = null;
 
     try {
+      // ── WINDOWS: halaman uji dibentuk langsung oleh backend ───────────────
+      if (Platform.isWindows) {
+        final out = await WindowsPrinterBackend.printTestPage();
+        lastPrintWasSilent = out.isSuccess;
+        return PrintJobResult(
+          isSuccess: out.isSuccess,
+          message: out.message,
+          printerName: out.printerName ?? 'Epson L8050',
+          isDirect: true,
+        );
+      }
+
       final paperSize = await getPaperSize();
       final borderless = await getBorderless();
       final quality = await getQuality();
