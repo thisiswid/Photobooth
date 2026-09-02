@@ -144,7 +144,7 @@ lengkap) dan menyimpan PTP 2 sebagai cadangan bila ada perintah yang bermasalah.
 
 | Test | Requirement | Result | Evidence |
 |---|---|---|---|
-| P1 | USB connect | **SIAP DIUJI** | transport WIA, lihat §3.1 |
+| P1 | USB connect | **SIAP DIUJI** | contoh v3 BERHASIL DIBANGUN 2026-09-02 |
 | P2 | Shutter | **TERDOKUMENTASI** | `SDIOControlDevice(DPC_S1/S2_BUTTON)` |
 | P3 | AF status | **SUPPORTED** ✅ | `DPC_AF_STATUS = 0xD213` di `PTPDef.h` |
 | P4 | Photo complete | **SUPPORTED** ✅ | `DPC_SHOOTING_FILE_INFOMATION = 0xD215` |
@@ -376,6 +376,26 @@ Pakai **v3** lebih dulu (fitur lebih lengkap); v2 sebagai cadangan.
 
 Ini menguji P1, P2, P5, P6, P7 sekaligus, tanpa menulis satu baris kode pun.
 
+#### Resep build yang BERHASIL (2026-09-02)
+
+Contoh v3 berhasil dibangun dengan:
+
+| | Nilai |
+|---|---|
+| Solution | `Examples/example-v3-windows/CameraControlPTP.sln` |
+| Platform Toolset | **v141** (MSVC 14.16) — di kedua konfigurasi, Debug dan Release |
+| Konfigurasi | **Debug \| Win32** |
+| Keluaran | `example-v3-windows\Debug\CameraControlPTP.exe` |
+
+Kenapa v141 dan bukan toolset terbaru: dari dua toolset yang terpasang, hanya
+**14.16 (v141) yang punya MFC lengkap**. Toolset terbaru 14.51 (v145) hanya
+punya ATL, tanpa header MFC. Project ini `<UseOfMfc>Dynamic</UseOfMfc>`, jadi
+MFC wajib ada.
+
+Kenapa Debug dan bukan Release: di dalam `.sln` bawaan Sony, `Release|Win32`
+dipetakan ke build `Debug|Win32`. Memilih Release tidak menghasilkan folder
+`Release\` seperti tertulis di Instruction Manual.
+
 #### Masalah build yang sudah ditemui
 
 **MSB8020 — Platform Toolset v143 tidak ditemukan.**
@@ -392,9 +412,23 @@ komponen itu tidak ikut terpasang secara default. Kalau muncul
 Modify → Individual components, centang **C++ MFC** dan **C++ ATL** untuk
 build tools terbaru (x86 & x64).
 
-**Cadangan bila retarget gagal:** pasang Build Tools untuk Visual Studio 2022
-(v143) berdampingan dengan VS 18. Unduhannya besar tapi menghilangkan seluruh
-variabel versi compiler.
+**MSB8020 — Platform Toolset v100 tidak ditemukan.**
+Menyesatkan: bukan berarti VS 2010 dibutuhkan. `v100` adalah default MSBuild
+ketika konfigurasi yang dibangun **tidak punya `PlatformToolset`**. Penyebabnya
+Visual Studio menulis ulang `.vcxproj` dan menghapus entri toolset dari salah
+satu konfigurasi.
+
+**Aturan kerja:** tutup Visual Studio sebelum mengedit `.vcxproj` dari luar.
+VS memegang file itu dan menulis versinya sendiri saat ditutup, menimpa editan
+eksternal. Dua kegagalan berturut-turut di sini semuanya berasal dari itu.
+
+**Catatan penomoran toolset.** Angka di path MSBuild (`MSBuild\Microsoft\VC\v180\`)
+BUKAN nama Platform Toolset. Toolset untuk MSVC 14.51 adalah `v145`. Salah
+membaca ini memakan satu putaran penuh.
+
+**Cadangan bila semua gagal:** pasang Build Tools untuk Visual Studio 2022
+(v143) berdampingan. Unduhannya besar tapi menghilangkan seluruh variabel versi
+compiler. Cadangan file asli tersimpan sebagai `.vcxproj.bak-v143`.
 
 ### Langkah 3 — catat hasilnya
 
