@@ -139,7 +139,7 @@ tersedia hanya karena namanya disebut di halaman ikhtisar.**
 | P4 | Photo complete event | **UNKNOWN** | tidak dijelaskan di halaman publik; ada di Command Reference |
 | P5 | JPEG transfer | **BLOCKED** | "file transfer" disebut sebagai fungsi produk, belum dikonfirmasi untuk ZV-E10 |
 | P6 | Original JPEG | **BLOCKED** | menunggu eksekusi |
-| P7 | Resolution | **BLOCKED** | baseline pembanding: 5328x4000 dari Imaging Edge Remote |
+| P7 | Resolution | **BLOCKED** | baseline pembanding **TERBUKTI**: 5328x4000 dari Imaging Edge Remote |
 | P8 | 10 captures | **BLOCKED** | menunggu P1-P7 |
 
 ---
@@ -151,8 +151,40 @@ Baseline dari **Imaging Edge Remote** (bukan hasil POC, hanya pembanding):
 | | Nilai |
 |---|---|
 | dimensions | **5328 x 4000** (~21,3 MP) |
-| sumber | Imaging Edge Remote via USB |
-| status | terbukti sebelum POC dimulai |
+| sumber | Imaging Edge Remote via USB, mode PC Remote |
+| status | **TERBUKTI 2026-09-02** — shutter menyala, JPEG tersimpan ke PC |
+
+### Apa yang sudah dibuktikan baseline ini
+
+Bukan sekadar "Imaging Edge bisa". Yang terbukti adalah seluruh rantai fisiknya:
+
+- Kamera menerima perintah shutter lewat USB dalam mode PC Remote
+- Firmware ZV-E10 saat ini mendukung jalur itu
+- Kabel dan port USB memadai untuk transfer file besar
+- JPEG resolusi penuh sampai ke disk Windows, bukan preview
+
+Artinya risiko POC menyusut drastis. Pertanyaannya bukan lagi "apakah kamera
+ini bisa dikendalikan dari Windows" — itu sudah dijawab. Yang tersisa: apakah
+kita boleh memerintahnya **langsung** tanpa Imaging Edge sebagai perantara.
+
+### ⚠️ Catatan tentang angka 5328 x 4000
+
+Rasio 5328:4000 adalah **4:3**. Sensor ZV-E10 berformat **3:2**, yang pada
+ukuran L menghasilkan **6000 x 4000**.
+
+Artinya ada pemotongan di sisi lebar — kemungkinan besar dari setelan kamera,
+bukan dari Imaging Edge. Yang perlu diperiksa di kamera:
+
+- `MENU > Shooting > Aspect Ratio` — apakah sedang 4:3 atau 3:2
+- `MENU > Shooting > JPEG Image Size` — apakah L, M, atau S
+- `MENU > Shooting > JPEG Quality`
+
+Ini **bukan** masalah yang harus diselesaikan sekarang, dan **bukan** alasan
+menunda POC. Tapi kalau nanti file digital resolusi penuh dijual ke pelanggan,
+selisih 5328 dan 6000 piksel itu berarti — dan perbaikannya cuma satu setelan
+di menu kamera, bukan pekerjaan koding.
+
+Catat rasio yang dipakai saat POC supaya hasilnya bisa dibandingkan setara.
 
 Hasil POC — diisi setelah eksekusi:
 
@@ -186,6 +218,24 @@ Yang sudah pasti, sebelum POC dijalankan:
 5. **AF status dan notifikasi foto selesai belum diketahui tersedia.** Kalau
    ternyata tidak ada, keunggulan utama atas jalur Android hilang — karena
    `delay(500)` yang menebak AF adalah kelemahan yang paling ingin diperbaiki.
+
+---
+
+## 5.1 Jalan pintas yang HARUS ditolak
+
+Karena Imaging Edge Remote sudah terbukti bekerja, akan muncul godaan untuk
+mengotomasi GUI-nya — menekan tombol shutter Imaging Edge lewat UI automation,
+lalu memantau folder keluarannya.
+
+**Jangan.** Itu persis kelas kesalahan yang sama dengan Accessibility Service di
+Android: menekan tombol aplikasi lain secara otomatis, rapuh terhadap perubahan
+tata letak, dan gagal diam-diam tanpa pesan error. Seluruh migrasi ini dilakukan
+justru untuk keluar dari pola itu.
+
+Imaging Edge tetap berperan sebagai **baseline pembanding**, bukan sebagai
+dependency produksi. Kalau Camera Remote Command akhirnya tidak bisa diakses,
+opsi yang jujur adalah tetap di 1080p dari capture card — bukan mengotomasi GUI
+orang lain.
 
 ---
 
