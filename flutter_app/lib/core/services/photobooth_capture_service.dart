@@ -130,19 +130,44 @@ class PhotoboothCaptureService {
   /// Sengaja di Pictures, bukan di %TEMP%: operator perlu bisa membuka dan
   /// memeriksa hasil jepretan (dimensi, ketajaman, apakah benar dari sensor),
   /// dan folder Temp bisa disapu Windows kapan saja.
+  static String? _cachedCaptureDir;
+
   static String sonyCaptureDir() {
-    final home = Platform.environment['USERPROFILE'] ??
-        Platform.environment['HOMEPATH'] ??
-        '';
-    final dir = home.isEmpty
-        ? r'C:\SnapTechBooth\captures'
-        : '$home\Pictures\SnapTechBooth';
-    try {
-      Directory(dir).createSync(recursive: true);
-    } catch (e) {
-      debugPrint('⚠️ [Capture] Gagal membuat folder hasil "$dir": $e');
+    final cached = _cachedCaptureDir;
+    if (cached != null) return cached;
+
+    final sep = Platform.pathSeparator;
+    final home = Platform.environment['USERPROFILE'] ?? '';
+
+    // Urutan pilihan: Pictures milik pengguna, lalu folder Temp sebagai
+    // cadangan. Folder yang tidak bisa dibuat TIDAK BOLEH mematikan jepretan -
+    // lebih baik foto tersimpan di tempat yang kurang nyaman daripada sesi
+    // pelanggan gagal total.
+    final candidates = <String>[
+      if (home.isNotEmpty) [home, 'Pictures', 'SnapTechBooth'].join(sep),
+      [Directory.systemTemp.path, 'snaptechbooth_captures'].join(sep),
+    ];
+
+    for (final dir in candidates) {
+      try {
+        final d = Directory(dir);
+        if (!d.existsSync()) d.createSync(recursive: true);
+        // Pastikan benar-benar bisa ditulis, bukan cuma ada.
+        final probe = File([dir, '.write_test'].join(sep));
+        probe.writeAsStringSync('ok', flush: true);
+        probe.deleteSync();
+        _cachedCaptureDir = dir;
+        return dir;
+      } catch (e) {
+        debugPrint('⚠️ [Capture] Folder hasil "$dir" tidak bisa dipakai: $e');
+      }
     }
-    return dir;
+
+    // Semua gagal: serahkan ke helper, yang punya default sendiri di Temp.
+    debugPrint('⚠️ [Capture] Tidak ada folder hasil yang bisa ditulis - '
+        'helper akan memakai folder bawaannya.');
+    _cachedCaptureDir = '';
+    return '';
   }
 
   void _degradeTo(CaptureMode fallback, String reason) {
@@ -368,7 +393,8 @@ class PhotoboothCaptureService {
       if (_mode != CaptureMode.windowsSony) return false;
       final helper = SonyCameraHelperClient.instance;
       try {
-        if (!await helper.start(outputDir: sonyCaptureDir())) {
+        final outDir = sonyCaptureDir();
+        if (!await helper.start(outputDir: outDir.isEmpty ? null : outDir)) {
           _lastDiagnostic = 'Helper kamera Sony gagal dijalankan: ${helper.lastError}';
           debugPrint('⚠️ [Capture] $_lastDiagnostic');
           return false;
@@ -381,7 +407,9 @@ class PhotoboothCaptureService {
           debugPrint('⚠️ [Capture] $_lastDiagnostic');
         } else {
           debugPrint('✅ [Capture] Jalur shutter Sony (helper) siap.');
-          debugPrint('📁 [Capture] Foto mentah disimpan di: ${sonyCaptureDir()}');
+          final dir = sonyCaptureDir();
+          debugPrint('📁 [Capture] Foto mentah disimpan di: '
+              '${dir.isEmpty ? "folder bawaan helper" : dir}');
         }
         return _ptpReady;
       } catch (e) {
