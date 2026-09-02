@@ -1,4 +1,4 @@
-/// Form validation utilities for Fakultas Kopi Photobooth.
+/// Form validation utilities for SnapTechBooth.
 ///
 /// No email validator — email is not part of this system (business rule #15).
 abstract final class Validators {

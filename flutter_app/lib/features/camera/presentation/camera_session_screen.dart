@@ -31,7 +31,7 @@ class _FrameOption {
 
 const _frameOptions = [
   _FrameOption(id: 'classic-1', label: 'Classic', style: _FrameStyle.classic),
-  _FrameOption(id: 'fakultas', label: 'Fakultas Kopi', style: _FrameStyle.filmstrip),
+  _FrameOption(id: 'classic', label: 'Classic Strip', style: _FrameStyle.filmstrip),
   _FrameOption(id: 'arch-1', label: 'Arch', style: _FrameStyle.arch),
   _FrameOption(id: 'dotted-1', label: 'Dotted', style: _FrameStyle.dotted),
   _FrameOption(id: 'classic-2', label: 'Warm', style: _FrameStyle.classic),
@@ -943,7 +943,7 @@ class _ResultArea extends StatelessWidget {
               ),
               SizedBox(height: 10.h),
               Text(
-                'Fakultas Kopi',
+                'SnapTechBooth',
                 style: GoogleFonts.playfairDisplay(
                   fontSize: 15.sp,
                   fontWeight: FontWeight.w800,

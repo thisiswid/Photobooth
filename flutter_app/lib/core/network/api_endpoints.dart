@@ -1,4 +1,4 @@
-/// All API endpoint paths for Fakultas Kopi Photobooth backend.
+/// All API endpoint paths for SnapTechBooth backend.
 /// Used with DioClient.baseUrl as prefix.
 abstract final class ApiEndpoints {
   // ── Device Provisioning & Telemetry ────────────────────────────────────────

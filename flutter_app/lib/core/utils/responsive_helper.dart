@@ -5,7 +5,7 @@ import '../constants/app_constants.dart';
 /// Screen size categories based on tablet width breakpoints.
 enum ScreenSize { small, medium, large }
 
-/// Responsive helper utilities for Fakultas Kopi Photobooth.
+/// Responsive helper utilities for SnapTechBooth.
 /// All sizing decisions should go through this class to ensure
 /// consistent layout across 7–12" Android tablets.
 abstract final class ResponsiveHelper {

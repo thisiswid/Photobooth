@@ -1,6 +1,6 @@
 import 'dart:io' show Platform;
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
@@ -39,13 +39,29 @@ void main() async {
 Future<void> _setupKioskDisplay() async {
   if (!kIsWeb && Platform.isWindows) {
     await windowManager.ensureInitialized();
-    const options = WindowOptions(
-      fullScreen: true,
-      titleBarStyle: TitleBarStyle.hidden,
-      skipTaskbar: false,
-    );
+
+    // Fullscreen tanpa title bar HANYA di build release (mesin kiosk).
+    //
+    // Di debug, jendela dibiarkan normal dan bisa dipindah/ditutup. Fullscreen
+    // saat debug membuat aplikasi tampak "tidak terbuka" — jendelanya menutupi
+    // seluruh layar tanpa title bar, sulit dibedakan dari aplikasi yang gagal
+    // start, dan menyulitkan melihat log di terminal sebelah.
+    final options = kReleaseMode
+        ? const WindowOptions(
+            fullScreen: true,
+            titleBarStyle: TitleBarStyle.hidden,
+          )
+        : const WindowOptions(
+            size: Size(1280, 800),
+            center: true,
+            title: 'SnapTechBooth (debug)',
+            titleBarStyle: TitleBarStyle.normal,
+          );
+
     await windowManager.waitUntilReadyToShow(options, () async {
-      await windowManager.setFullScreen(true);
+      if (kReleaseMode) {
+        await windowManager.setFullScreen(true);
+      }
       await windowManager.show();
       await windowManager.focus();
     });
