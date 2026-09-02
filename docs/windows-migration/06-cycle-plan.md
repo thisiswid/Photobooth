@@ -93,7 +93,7 @@ dan status printer terbaca secara programatik.
 - [ ] **C1-5** Seluruh rute `go_router` bisa dinavigasi tanpa kamera/printer
 - [ ] **C1-6** Provisioning: pairing key tersimpan (DPAPI) dan device terhubung ke tenant
 - [ ] **C1-7** Heartbeat sampai ke dashboard admin
-- [ ] **C1-8** **Build Android masih hijau**
+- [x] **C1-8** **Build Android masih hijau** — `flutter build apk --debug` sukses. Muncul peringatan KGP (bukan error): `camera_android_camerax` dan `flutter_uvc_camera` masih memakai Kotlin Gradle Plugin, dan versi Flutter mendatang akan menolaknya
 
 **Selesai bila:** aplikasi Windows jalan fullscreen dan sudah ter-pair ke backend.
 

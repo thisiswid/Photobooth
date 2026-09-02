@@ -21,6 +21,7 @@ Skala: **T** tinggi · **S** sedang · **R** rendah
 | R-15 | Bantuan AI dianggap bisa memotong seluruh jadwal | **S** | S | AI memotong bagian yang diukur dalam baris kode, bukan yang diukur dalam colok-kabel. Soak test 7 hari tidak bisa dipercepat | Terus-menerus |
 | R-16 | Kehilangan portabilitas menghambat model bisnis event keliling | **S** | ? | Tergantung model bisnis. Tablet Android tetap dipelihara sebagai unit portabel | Keputusan bisnis |
 | R-17 | Panas berlebih di enclosure tertutup | **S** | S | Ventilasi + mini PC berkipas. Pantau selama soak test | Soak |
+| R-18 | Build Android mati sendiri di masa depan: `flutter_uvc_camera` (fork) dan `camera_android_camerax` masih memakai Kotlin Gradle Plugin, dan Flutter versi mendatang akan menolaknya | **S** — jaring pengaman tablet hilang | **T** | Jangan upgrade Flutter selama migrasi berlangsung. Setelah Windows terbukti stabil di lapangan, risiko ini otomatis mengecil karena jalur Android tidak lagi kritis | C8 |
 
 ---
 
