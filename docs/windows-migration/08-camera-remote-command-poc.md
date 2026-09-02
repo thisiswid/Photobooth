@@ -144,7 +144,7 @@ lengkap) dan menyimpan PTP 2 sebagai cadangan bila ada perintah yang bermasalah.
 
 | Test | Requirement | Result | Evidence |
 |---|---|---|---|
-| P1 | USB connect | **SIAP DIUJI** | contoh v3 BERHASIL DIBANGUN 2026-09-02 |
+| P1 | USB connect | **KAMERA TERLIHAT WIA** ✅ | probe-wia.ps1, 2026-09-02 21:30 |
 | P2 | Shutter | **TERDOKUMENTASI** | `SDIOControlDevice(DPC_S1/S2_BUTTON)` |
 | P3 | AF status | **SUPPORTED** ✅ | `DPC_AF_STATUS = 0xD213` di `PTPDef.h` |
 | P4 | Photo complete | **SUPPORTED** ✅ | `DPC_SHOOTING_FILE_INFOMATION = 0xD215` |
@@ -162,7 +162,31 @@ escape WIA.
 **Artinya tidak perlu Zadig dan tidak perlu mengganti driver ke WinUSB.**
 Kekhawatiran di dokumen 07 tentang driver replacement gugur.
 
-> ⚠️ **TAPI ADA KONFLIK DENGAN KONDISI SEKARANG.**
+> ✅ **TERSELESAIKAN 2026-09-02 21:30.** Setelah driver libusbK dilepas, kamera
+> mengikat ke driver bawaan Windows dan langsung terlihat oleh WIA:
+>
+> ```
+> [A] WIA Device Manager : OK  ZV-E10  [Camera]
+> [B] service            : WUDFWpdMtp   (sebelumnya: libusbK)
+>     kelas              : WPD
+>     id                 : USB\VID_054C&PID_0D97\D036806E8274
+> ```
+>
+> **Resep yang berhasil:**
+> 1. Kamera: `MENU > Setup > USB > USB Connection = PC Remote`
+>    (ZV-E10 TIDAK punya opsi "Sel. When Connect" seperti tertulis di
+>    Instruction Manual — menu itu milik bodi yang lebih baru)
+> 2. Cabut kamera
+> 3. Device Manager > libusbK Usb Devices > Sony Remote Control Camera >
+>    Uninstall device, centang hapus driver
+> 4. `pnputil /enum-drivers` untuk memastikan paket driver benar-benar hilang
+> 5. Colok kembali — Windows mengikat `WUDFWpdMtp` bawaan
+>
+> **Konsekuensi:** Imaging Edge Remote kemungkinan berhenti bekerja karena
+> driver libusbK-nya dilepas. Untuk mengembalikannya, instal ulang Imaging Edge.
+> Baseline JPEG harus sudah disimpan sebelum langkah 3.
+>
+> ⚠️ **Catatan riwayat — konflik yang sudah terselesaikan:**
 >
 > Instruction Manual mensyaratkan: *"Ensure that the connected camera is under
 > **Portable Devices** in the Device Manager window."*
