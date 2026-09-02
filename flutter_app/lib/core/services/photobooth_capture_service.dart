@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 import 'camera_service.dart';
+import 'sony_camera_helper_client.dart';
 import 'sony_ptp_camera_service.dart';
 import 'uvc_camera_service.dart';
 
@@ -36,10 +37,19 @@ enum CaptureMode {
   /// Kualitas foto mengikuti resolusi capture card (umumnya 1080p, ~2 MP).
   /// Untuk 24 MP tetap dibutuhkan jalur PTP — itu Cycle C4.
   windowsCamera,
+
+  /// WINDOWS: preview dari capture card (MediaFoundation) + shutter dari
+  /// Sony ZV-E10 lewat `sony_camera_helper.exe` (Camera Control PTP).
+  ///
+  /// Ini padanan Windows dari [hybrid]: preview mulus 1080p dari HDMI,
+  /// foto 6000x4000 (24 MP) dari sensor kamera. Bedanya dengan Android,
+  /// shutter berjalan di proses terpisah sehingga lapisan kamera yang
+  /// menggantung tidak ikut membekukan kiosk.
+  windowsSony,
 }
 
 /// Sumber sebuah foto hasil capture.
-enum CaptureSource { ptp, uvc, tablet }
+enum CaptureSource { ptp, uvc, tablet, sonyRemote }
 
 class CaptureOutcome {
   const CaptureOutcome({
@@ -93,10 +103,35 @@ class PhotoboothCaptureService {
   bool _uvcReady = false;
   String _lastDiagnostic = '';
 
+  /// Mode yang dipilih saat deteksi, sebelum degradasi apa pun.
+  CaptureMode _intendedMode = CaptureMode.tabletOnly;
+  String _degradedReason = '';
+
   CaptureMode get mode => _mode;
   bool get ptpReady => _ptpReady;
   bool get uvcReady => _uvcReady;
   String get lastDiagnostic => _lastDiagnostic;
+
+  /// True bila jalur yang sedang dipakai LEBIH BURUK dari yang seharusnya.
+  /// Dilaporkan ke server lewat heartbeat supaya penurunan kualitas diam-diam
+  /// tidak pernah terjadi tanpa ada yang tahu.
+  bool get isDegraded => _mode != _intendedMode;
+  CaptureMode get intendedMode => _intendedMode;
+  String get degradedReason => _degradedReason;
+
+  /// Nilai ringkas untuk heartbeat, mis. `windowsSony` atau
+  /// `windowsCamera(from:windowsSony)` saat sedang terdegradasi.
+  String get heartbeatCaptureMode => isDegraded
+      ? '${_mode.name}(from:${_intendedMode.name})'
+      : _mode.name;
+
+  void _degradeTo(CaptureMode fallback, String reason) {
+    if (_mode == fallback) return;
+    _degradedReason = reason;
+    debugPrint('⬇️ [Capture] DEGRADASI ${_mode.name} → ${fallback.name}: $reason');
+    debugPrint('   Kualitas foto turun. Ini dilaporkan lewat heartbeat.');
+    _mode = fallback;
+  }
 
   /// True bila layar preview harus me-render `UVCCameraView`.
   bool get usesUvcPreview =>
@@ -111,11 +146,28 @@ class PhotoboothCaptureService {
       final cams = await CameraService.getAvailableCamerasList();
       _uvcReady = cams.isNotEmpty;
       _ptpReady = false;
-      _mode = cams.isEmpty ? CaptureMode.tabletOnly : CaptureMode.windowsCamera;
-      _lastDiagnostic = cams.isEmpty
-          ? 'WINDOWS — tidak ada kamera terdeteksi'
-          : 'WINDOWS — ${cams.length} kamera terdeteksi: '
-              '${cams.map((c) => c.name).join(", ")}';
+
+      // Cek keberadaan helper saja (sekadar File.existsSync) — menjalankan dan
+      // menyambungkannya butuh beberapa detik dan itu dikerjakan di latar oleh
+      // startShutterPath(), supaya preview tidak tertahan.
+      final helperInstalled = SonyCameraHelperClient.isInstalled;
+
+      if (cams.isEmpty) {
+        _mode = CaptureMode.tabletOnly;
+        _lastDiagnostic = 'WINDOWS — tidak ada kamera terdeteksi';
+      } else if (helperInstalled) {
+        _mode = CaptureMode.windowsSony;
+        _lastDiagnostic = 'WINDOWS — preview dari capture card '
+            '(${cams.length} kamera: ${cams.map((c) => c.name).join(", ")}), '
+            'shutter dari helper Sony';
+      } else {
+        _mode = CaptureMode.windowsCamera;
+        _lastDiagnostic = 'WINDOWS — ${cams.length} kamera terdeteksi: '
+            '${cams.map((c) => c.name).join(", ")}. '
+            'sony_camera_helper.exe tidak terpasang, foto memakai capture card (~2 MP)';
+      }
+      _intendedMode = _mode;
+      _degradedReason = '';
       debugPrint('🎯 [Capture] $_lastDiagnostic');
       return _mode;
     }
@@ -136,6 +188,8 @@ class PhotoboothCaptureService {
     } else {
       _mode = CaptureMode.tabletOnly;
     }
+    _intendedMode = _mode;
+    _degradedReason = '';
     _lastDiagnostic = describeMode(_mode);
     debugPrint('🎯 [Capture] Mode dipilih: $_lastDiagnostic');
     return _mode;
@@ -153,6 +207,8 @@ class PhotoboothCaptureService {
         return 'TABLET ONLY — tidak ada kamera eksternal terdeteksi';
       case CaptureMode.windowsCamera:
         return 'WINDOWS CAMERA — preview & foto dari capture card (~2 MP)';
+      case CaptureMode.windowsSony:
+        return 'WINDOWS SONY — preview HDMI + shutter Sony 24 MP';
     }
   }
 
@@ -204,6 +260,13 @@ class PhotoboothCaptureService {
   /// Karena sesi PTP dipakai ulang antar jepretan, jeda ini hanya perlu sekali
   /// di awal sesi foto.
   Future<bool> prepareShutterPathWithUvcPaused() async {
+    // Di Windows tidak ada jeda stream. Masalah bus USB yang memaksa jeda itu
+    // khas Android/libusb: di sana capture card dan kamera dibaca proses yang
+    // sama lewat libusb, dan stream 1080p membuat balasan OpenSession stall.
+    // Di Windows capture card dipegang MediaFoundation dan kamera dipegang
+    // driver WIA/WPD — dua tumpukan driver terpisah, tidak saling mengunci.
+    if (Platform.isWindows) return prepareShutterPath();
+
     if (_mode != CaptureMode.hybrid && _mode != CaptureMode.ptpOnly) return false;
 
     final uvcWasOpen = UvcCameraService.instance.isOpen;
@@ -270,6 +333,34 @@ class PhotoboothCaptureService {
   /// Aman dipanggil walau kabel C-to-C tidak terpasang.
   Future<bool> prepareShutterPath() async {
     _ptpReady = false;
+
+    // ── WINDOWS: jalankan helper lalu buka sesi kamera ────────────────────
+    if (Platform.isWindows) {
+      if (_mode != CaptureMode.windowsSony) return false;
+      final helper = SonyCameraHelperClient.instance;
+      try {
+        if (!await helper.start()) {
+          _lastDiagnostic = 'Helper kamera Sony gagal dijalankan: ${helper.lastError}';
+          debugPrint('⚠️ [Capture] $_lastDiagnostic');
+          return false;
+        }
+        _ptpReady = await helper.connectCamera();
+        if (!_ptpReady) {
+          _lastDiagnostic =
+              'Gagal membuka sesi kamera Sony: ${helper.lastError}. '
+              'Cek kabel USB dan MENU → Setup → USB → USB Connection = PC Remote.';
+          debugPrint('⚠️ [Capture] $_lastDiagnostic');
+        } else {
+          debugPrint('✅ [Capture] Jalur shutter Sony (helper) siap.');
+        }
+        return _ptpReady;
+      } catch (e) {
+        _lastDiagnostic = 'prepareShutterPath (Windows) error: $e';
+        debugPrint('⚠️ [Capture] $_lastDiagnostic');
+        return false;
+      }
+    }
+
     if (_mode != CaptureMode.hybrid && _mode != CaptureMode.ptpOnly) {
       return false;
     }
@@ -326,6 +417,71 @@ class PhotoboothCaptureService {
   ///   2. UVC  — grab frame HDMI 1080p (fallback bila PTP gagal/tidak ada)
   ///   3. null — pemanggil harus fallback ke kamera tablet
   Future<CaptureOutcome> capture() async {
+    // ── MODE WINDOWS-SONY: shutter lewat helper, 24 MP ────────────────────
+    //
+    // Aturan yang sama dengan jalur Android berlaku di sini: kegagalan TIDAK
+    // boleh diam-diam diganti frame HDMI lalu dilaporkan sukses. Yang boleh
+    // adalah degradasi mode secara TERBUKA setelah kamera benar-benar hilang,
+    // supaya sesi pelanggan tidak mati — dan itu dilaporkan lewat heartbeat.
+    if (_mode == CaptureMode.windowsSony) {
+      final helper = SonyCameraHelperClient.instance;
+
+      if (!_ptpReady || !helper.isCameraConnected) {
+        debugPrint('🔄 [Capture] Sesi kamera Sony tidak aktif — menyiapkan ulang...');
+        await ensureShutterPath();
+      }
+
+      if (_ptpReady) {
+        for (var attempt = 1; attempt <= 2; attempt++) {
+          final shot = await helper.capture();
+          if (shot != null) {
+            debugPrint('📸 [Capture] ✅ SUMBER = SHUTTER SONY (helper), '
+                '${shot.dimensionLabel}');
+            return CaptureOutcome(
+              success: true,
+              source: CaptureSource.sonyRemote,
+              file: shot.file,
+            );
+          }
+          if (attempt == 1) {
+            debugPrint('🔁 [Capture] Percobaan shutter Sony ke-2...');
+            // Sesi bisa basi setelah kamera tidur; bangun ulang lalu coba lagi.
+            if (!helper.isCameraConnected) {
+              _ptpReady = await helper.connectCamera();
+              if (!_ptpReady) break;
+            }
+          }
+        }
+      }
+
+      // Sampai di sini shutter Sony gagal. Bedakan dua situasi:
+      //   - kamera masih ada tapi jepretan gagal (mis. AF tidak mengunci)
+      //     → JANGAN degradasi, cukup laporkan gagal; tamu menekan lagi.
+      //   - kamera/helper benar-benar hilang → degradasi supaya sesi jalan terus.
+      final cameraGone = !helper.isProcessRunning ||
+          !helper.isSocketOpen ||
+          !helper.isCameraConnected;
+
+      if (cameraGone && _uvcReady) {
+        _degradeTo(
+          CaptureMode.windowsCamera,
+          'kamera Sony tidak terjangkau: ${helper.lastError}',
+        );
+        return CaptureOutcome(
+          success: false,
+          source: CaptureSource.sonyRemote,
+          message: 'Kamera utama terputus. Sesi dilanjutkan dengan kualitas '
+              'lebih rendah — silakan tekan jepret lagi.',
+        );
+      }
+
+      return CaptureOutcome(
+        success: false,
+        source: CaptureSource.sonyRemote,
+        message: _sonyFailureMessage(helper.lastError),
+      );
+    }
+
     // ── MODE HYBRID / PTP-ONLY: Sony PTP adalah SATU-SATUNYA sumber foto ──
     //
     // TIDAK ADA fallback diam-diam ke frame HDMI di sini. Sebelumnya, kegagalan
@@ -412,6 +568,25 @@ class PhotoboothCaptureService {
     );
   }
 
+  /// Terjemahkan kode error helper jadi kalimat yang berguna di layar kiosk.
+  static String _sonyFailureMessage(String rawError) {
+    if (rawError.startsWith('af_timeout') || rawError.startsWith('af_failed')) {
+      return 'Kamera tidak berhasil mengunci fokus. Coba mundur sedikit atau '
+          'tambah cahaya, lalu tekan jepret lagi.';
+    }
+    if (rawError.startsWith('capture_timeout')) {
+      return 'Kamera tidak merespons jepretan. Silakan coba lagi.';
+    }
+    if (rawError.startsWith('unexpected_format')) {
+      return 'Setelan format berkas kamera tidak sesuai (harus JPEG). '
+          'Hubungi operator.';
+    }
+    if (rawError.startsWith('write_failed')) {
+      return 'Gagal menyimpan foto ke penyimpanan. Hubungi operator.';
+    }
+    return 'Gagal mengambil foto dari kamera. Silakan coba lagi.';
+  }
+
   /// Satu kali percobaan shutter PTP, lengkap dengan validasi berlapis.
   ///
   /// Mengembalikan null bila gagal (agar pemanggil bisa mencoba lagi).
@@ -475,9 +650,22 @@ class PhotoboothCaptureService {
   /// `UvcPreview`.
   Future<void> releasePtp() async {
     try {
-      if (_ptpReady) await SonyPtpCameraService.disconnect();
+      if (Platform.isWindows) {
+        await SonyCameraHelperClient.instance.disconnectCamera();
+      } else if (_ptpReady) {
+        await SonyPtpCameraService.disconnect();
+      }
     } catch (_) {}
     _ptpReady = false;
     _shutterFuture = null;
+  }
+
+  /// Matikan helper kamera. Dipanggil sekali saat aplikasi ditutup, bukan saat
+  /// berpindah halaman — menjalankan ulang helper dan membuka sesi kamera
+  /// memakan beberapa detik.
+  Future<void> shutdownHelper() async {
+    if (!Platform.isWindows) return;
+    await SonyCameraHelperClient.instance.stop();
+    _ptpReady = false;
   }
 }

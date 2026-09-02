@@ -44,6 +44,7 @@ struct Config {
   std::string token;
   CaptureOptions capture;
   int command_timeout_ms = 60000;
+  unsigned long parent_pid = 0;
   bool verbose = false;
 };
 
@@ -502,6 +503,36 @@ int RunServer() {
   return 0;
 }
 
+// Kalau proses induk (aplikasi kiosk) mati — termasuk saat crash — helper
+// ikut keluar. Tanpa ini helper yatim tetap memegang kamera, dan aplikasi
+// berikutnya gagal dengan WIA_ERROR_BUSY sampai kamera dicabut-colok.
+DWORD WINAPI ParentWatchdogProc(LPVOID param) {
+  HANDLE parent = static_cast<HANDLE>(param);
+  WaitForSingleObject(parent, INFINITE);
+  CloseHandle(parent);
+  fprintf(stderr, "Proses induk berhenti - helper ikut keluar.\n");
+  fflush(stderr);
+  // Lepaskan kamera sebelum keluar supaya sesi WIA tidak ditinggal terkunci.
+  g_camera.Disconnect();
+  ExitProcess(0);
+}
+
+bool StartParentWatchdog(unsigned long pid) {
+  if (pid == 0) return true;
+  HANDLE parent = OpenProcess(SYNCHRONIZE, FALSE, pid);
+  if (parent == nullptr) {
+    fprintf(stderr, "Tidak bisa memantau proses induk %lu - helper jalan tanpa watchdog.\n", pid);
+    return false;
+  }
+  HANDLE thread = CreateThread(nullptr, 0, ParentWatchdogProc, parent, 0, nullptr);
+  if (thread == nullptr) {
+    CloseHandle(parent);
+    return false;
+  }
+  CloseHandle(thread);
+  return true;
+}
+
 void PrintUsage() {
   printf(
       "sony_camera_helper - SnapTechBooth\n"
@@ -523,6 +554,7 @@ void PrintUsage() {
       "  --poll-interval <ms>    jeda antar pembacaan status (default 40)\n"
       "  --s2-hold <ms>          durasi tahan tombol rana (default 200)\n"
       "  --command-timeout <ms>  batas satu perintah (default 60000)\n"
+      "  --parent-pid <pid>      keluar otomatis bila proses induk mati\n"
       "  --verbose               log ke stderr\n");
 }
 
@@ -570,6 +602,7 @@ int main(int argc, char** argv) {
     else if (a == "--poll-interval") g_config.capture.poll_interval_ms = atoi(next("--poll-interval").c_str());
     else if (a == "--s2-hold") g_config.capture.s2_hold_ms = atoi(next("--s2-hold").c_str());
     else if (a == "--command-timeout") g_config.command_timeout_ms = atoi(next("--command-timeout").c_str());
+    else if (a == "--parent-pid") g_config.parent_pid = strtoul(next("--parent-pid").c_str(), nullptr, 10);
     else if (a == "--verbose") g_config.verbose = true;
     else if (a == "--af-mode") {
       const std::string m = next("--af-mode");
@@ -583,6 +616,8 @@ int main(int argc, char** argv) {
       return 64;
     }
   }
+
+  StartParentWatchdog(g_config.parent_pid);
 
   if (!StartWorker()) {
     fprintf(stderr, "gagal memulai thread kamera\n");

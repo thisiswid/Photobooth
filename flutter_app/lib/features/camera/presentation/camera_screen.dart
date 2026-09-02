@@ -335,7 +335,9 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
       // Jangan turun diam-diam ke kamera tablet — itu menghasilkan foto yang
       // bukan dari Sony sama sekali, dan tamu tidak akan tahu.
       final mode = PhotoboothCaptureService.instance.mode;
-      if (mode == CaptureMode.hybrid || mode == CaptureMode.ptpOnly) {
+      if (mode == CaptureMode.hybrid ||
+          mode == CaptureMode.ptpOnly ||
+          mode == CaptureMode.windowsSony) {
         debugPrint('❌ [CameraScreen] Capture GAGAL (${outcome.message}). '
             'Mode $mode tidak mengizinkan fallback — silakan ulangi jepretan.');
         ErrorLogger.instance.logCameraError(

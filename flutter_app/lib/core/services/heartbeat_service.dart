@@ -4,6 +4,7 @@ import '../constants/app_constants.dart';
 import '../network/api_endpoints.dart';
 import '../network/dio_client.dart';
 import 'camera_service.dart';
+import 'photobooth_capture_service.dart';
 import 'printer_service.dart';
 import 'provisioning_service.dart';
 
@@ -66,6 +67,12 @@ class HeartbeatService {
         cameraStatus = 'error';
       }
 
+      // Jalur kamera yang SEDANG dipakai. Saat terdegradasi nilainya berbentuk
+      // `windowsCamera(from:windowsSony)`, sehingga penurunan kualitas foto
+      // terlihat dari dasbor tanpa perlu ada yang memeriksa kiosk langsung.
+      final capture = PhotoboothCaptureService.instance;
+      final captureMode = capture.heartbeatCaptureMode;
+
       await DioClient.instance.safeRequest(
         () => DioClient.instance.dio.post(
           ApiEndpoints.deviceHeartbeat,
@@ -74,11 +81,18 @@ class HeartbeatService {
             'printer_status': printerStatus,
             'camera_status': cameraStatus,
             'app_version': AppConstants.appVersion,
+            'capture_mode': captureMode,
+            'capture_degraded': capture.isDegraded,
+            if (capture.isDegraded) 'capture_degraded_reason': capture.degradedReason,
           },
         ),
       );
 
-      debugPrint('💓 Heartbeat sent: Key=$deviceKey, Printer=$printerStatus, Camera=$cameraStatus');
+      debugPrint('💓 Heartbeat sent: Key=$deviceKey, Printer=$printerStatus, '
+          'Camera=$cameraStatus, Capture=$captureMode');
+      if (capture.isDegraded) {
+        debugPrint('   ⬇️ TERDEGRADASI: ${capture.degradedReason}');
+      }
     } catch (e) {
       debugPrint('⚠️ Heartbeat delivery failed: $e');
     }
