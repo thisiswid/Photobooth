@@ -257,13 +257,23 @@ Implementasi:
 
 Dijalankan dari mesin Windows, kamera di `USB Connection = PC Remote`:
 
-- [ ] **C4-B1** `tools\sony_camera_helper\build.bat` selesai tanpa error
-- [ ] **C4-B2** `sony_camera_helper.exe --list` menampilkan ZV-E10 beserta device id
-- [ ] **C4-B3** `sony_camera_helper.exe --selftest --verbose` → `connect` ok, `capture` ok
+- [x] **C4-B1** `build.bat` lulus sekali jalan, MSVC 14.51 (v145). Tanpa MFC, tanpa retarget, tanpa sentuh Visual Studio
+- [x] **C4-B2** `--list` menampilkan `ZV-E10` beserta device id WIA
+- [x] **C4-B3** `--selftest` PASS **dua kali berturut-turut tanpa cabut-colok**. `6000x4000` (24,0 MP), `object_format 0x3801` Exif/JPEG, `stale_discarded 0`, `extra_discarded 0`. AF ~780 ms, transfer ~795 ms, **total ~2,26 s per jepretan**
 - [ ] **C4-B4** File hasil dibuka: utuh, dimensi sesuai setelan Aspect Ratio kamera
-- [ ] **C4-B5** Mode server: `--serve --verbose`, lalu kirim perintah manual, tiap balasan wajar
+- [ ] **C4-B5** Mode server via `scripts\test-server.ps1`: tiga capture berurutan lewat satu sambungan
 - [ ] **C4-B6** Uji gagal fokus: tutup lensa → `af_timeout`/`af_failed`, **bukan** foto buram yang dilaporkan sukses
 - [ ] **C4-B7** Cabut USB saat `--serve` jalan → `status` melaporkan `connected:false`, helper tidak crash
+
+Dua bug ditemukan uji hardware dan sudah diperbaiki — keduanya tidak akan
+terlihat tanpa kamera nyata:
+
+1. **Buffer transfer tidak dikosongkan.** Sisa berkas terbawa ke capture
+   berikutnya; pelanggan menerima foto yang meleset satu jepretan.
+2. **`CloseSession` saat disconnect.** Sesi PTP milik driver WIA/WPD, bukan
+   milik kita. Menutupnya membuat sambungan berikutnya gagal
+   `Session_Not_Open (0x2003)` sampai kamera dicabut-colok — persis pola
+   kegagalan yang mematikan untuk kiosk yang hidup seharian.
 
 ---
 
