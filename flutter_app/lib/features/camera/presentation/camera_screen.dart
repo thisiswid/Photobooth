@@ -243,6 +243,10 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     Duration timeout = const Duration(seconds: 6),
   }) async {
     if (_isPreviewLive) return;
+    // Mode Sony tanpa capture card: preview memang tidak akan pernah hidup.
+    // Menunggunya hanya menahan hitungan mundur tanpa hasil.
+    final capture = PhotoboothCaptureService.instance;
+    if (capture.mode == CaptureMode.windowsSony && !capture.uvcReady) return;
     final deadline = DateTime.now().add(timeout);
     while (mounted && !_isPreviewLive && DateTime.now().isBefore(deadline)) {
       await Future<void>.delayed(const Duration(milliseconds: 100));

@@ -152,14 +152,23 @@ class PhotoboothCaptureService {
       // startShutterPath(), supaya preview tidak tertahan.
       final helperInstalled = SonyCameraHelperClient.isInstalled;
 
-      if (cams.isEmpty) {
-        _mode = CaptureMode.tabletOnly;
-        _lastDiagnostic = 'WINDOWS — tidak ada kamera terdeteksi';
-      } else if (helperInstalled) {
+      if (helperInstalled) {
+        // Kamera Sony menentukan mode, bukan ada-tidaknya capture card.
+        // Tanpa capture card preview memang kosong, tapi FOTO tetap 24 MP dari
+        // sensor Sony — itu jauh lebih baik daripada jatuh ke tabletOnly dan
+        // tidak bisa menjepret sama sekali. Ini padanan Windows dari mode
+        // `ptpOnly` di Android.
         _mode = CaptureMode.windowsSony;
-        _lastDiagnostic = 'WINDOWS — preview dari capture card '
-            '(${cams.length} kamera: ${cams.map((c) => c.name).join(", ")}), '
-            'shutter dari helper Sony';
+        _lastDiagnostic = cams.isEmpty
+            ? 'WINDOWS — shutter dari helper Sony (24 MP). '
+                'Tidak ada capture card: preview kosong, foto tetap jalan'
+            : 'WINDOWS — preview dari capture card '
+                '(${cams.length} kamera: ${cams.map((c) => c.name).join(", ")}), '
+                'shutter dari helper Sony';
+      } else if (cams.isEmpty) {
+        _mode = CaptureMode.tabletOnly;
+        _lastDiagnostic = 'WINDOWS — tidak ada kamera terdeteksi dan '
+            'sony_camera_helper.exe tidak terpasang';
       } else {
         _mode = CaptureMode.windowsCamera;
         _lastDiagnostic = 'WINDOWS — ${cams.length} kamera terdeteksi: '
@@ -472,6 +481,17 @@ class PhotoboothCaptureService {
           source: CaptureSource.sonyRemote,
           message: 'Kamera utama terputus. Sesi dilanjutkan dengan kualitas '
               'lebih rendah — silakan tekan jepret lagi.',
+        );
+      }
+
+      if (cameraGone && !_uvcReady) {
+        // Tidak ada apa pun untuk didegradasikan: capture card tidak terpasang.
+        // Katakan apa adanya, jangan berpura-pura sesi masih bisa berfoto.
+        return CaptureOutcome(
+          success: false,
+          source: CaptureSource.sonyRemote,
+          message: 'Kamera tidak terhubung. Periksa kabel USB kamera, lalu '
+              'coba lagi.',
         );
       }
 
