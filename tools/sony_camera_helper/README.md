@@ -85,6 +85,27 @@ melaporkan kamera siap padahal sudah tidak.
 `path` opsional; tanpa itu helper memakai `--out-dir`. Bisa juga menimpa
 `af_mode`, `af_timeout_ms`, `capture_timeout_ms` per permintaan.
 
+### prefocus / release_focus
+
+```json
+{"cmd":"prefocus","af_timeout_ms":1800}
+{"cmd":"prefocus","ok":true,"af_wait_ms":812,"af_status":6,"af_label":"afc_focused","focus_held":true}
+```
+
+`prefocus` menekan S1 dan **menahannya** sampai AF mengunci. Dipanggil saat
+hitungan mundur kiosk masih berjalan, sehingga pada momen jepret yang tersisa
+hanya S2 dan rana berbunyi hampir seketika. Tanpa ini rana baru bunyi ~1 detik
+setelah hitungan habis, karena AF baru dimulai saat itu.
+
+AF **tidak** dilewati — yang dipindah hanya waktunya. `capture` tetap memeriksa
+status AF sebelum menekan S2, dan bila pra-fokus gagal mengunci, `capture`
+menunggu AF seperti biasa. Balasan `capture` memuat `used_prefocus` supaya
+terlihat jalur mana yang dipakai.
+
+Saat `af_timeout_ms` lewat tanpa mengunci, S1 **tetap ditahan** — kamera masih
+mencari, dan `capture` melanjutkan penantian dari titik itu. `release_focus`
+melepas S1 tanpa menjepret (mis. sesi dibatalkan).
+
 ### disconnect / ping / shutdown
 
 ```json
@@ -116,9 +137,12 @@ melaporkan kamera siap padahal sudah tidak.
 
 ## Urutan capture
 
-1. `SDIO_ControlDevice(0xD2C1 S1, DOWN)` — setengah tekan.
+1. `SDIO_ControlDevice(0xD2C1 S1, DOWN)` — setengah tekan. Dilewati bila
+   `prefocus` sudah menahan S1.
 2. Baca **Focus Indication (0xD213)** berulang sampai bernilai `0x02`
    (AF-S terkunci) atau `0x06` (AF-C terkunci), atau sampai `--af-timeout`.
+   Bila pra-fokus sudah mengunci, langkah ini selesai seketika — statusnya
+   tetap DIPERIKSA, bukan diasumsikan.
 3. `SDIO_ControlDevice(0xD2C2 S2, DOWN)`, tahan `--s2-hold` ms, lalu `UP`.
 4. `S1 UP` — lepas setengah tekan (juga di semua jalur gagal).
 5. Baca **Shooting File Info (0xD215)** berulang sampai MSB (`0x8000`) menyala.

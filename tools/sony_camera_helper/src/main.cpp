@@ -112,7 +112,8 @@ std::string MakeOutputPath() {
 void AddCameraStatus(JsonWriter* w) {
   const uint64_t af = g_camera.PropertyValue(stb::kDpcFocusIndication, 0);
   const uint64_t sf = g_camera.PropertyValue(stb::kDpcShootingFileInfo, 0);
-  w->UInt("af_status", af)
+  w->Bool("focus_held", g_camera.focusHeld())
+      .UInt("af_status", af)
       .Str("af_label", AfStatusLabel(af))
       .Bool("af_focused", stb::AfStatusIsFocused(af))
       .UInt("shooting_file_info", sf)
@@ -176,6 +177,38 @@ std::string CmdStatus() {
   return w.Done();
 }
 
+std::string CmdPrefocus(const std::map<std::string, std::string>& req) {
+  JsonWriter w;
+  w.Str("cmd", "prefocus");
+  if (!g_camera.connected()) {
+    return w.Bool("ok", false)
+        .Str("error", "not_connected")
+        .Str("detail", "panggil connect terlebih dahulu")
+        .Done();
+  }
+  stb::CaptureOptions opt = g_config.capture;
+  auto it = req.find("af_timeout_ms");
+  if (it != req.end()) opt.af_timeout_ms = atoi(it->second.c_str());
+
+  const stb::PrefocusResult r = g_camera.Prefocus(opt);
+  w.Bool("ok", r.ok())
+      .Int("af_wait_ms", r.af_wait_ms)
+      .UInt("af_status", r.af_status)
+      .Str("af_label", AfStatusLabel(r.af_status))
+      .Bool("focus_held", g_camera.focusHeld());
+  if (!r.ok()) w.Str("error", r.error_code).Str("detail", r.detail);
+  return w.Done();
+}
+
+std::string CmdReleaseFocus() {
+  g_camera.ReleaseFocus();
+  return JsonWriter()
+      .Str("cmd", "release_focus")
+      .Bool("ok", true)
+      .Bool("focus_held", g_camera.focusHeld())
+      .Done();
+}
+
 std::string CmdCapture(const std::map<std::string, std::string>& req) {
   JsonWriter w;
   w.Str("cmd", "capture");
@@ -214,6 +247,7 @@ std::string CmdCapture(const std::map<std::string, std::string>& req) {
       .UInt("af_status", r.af_status)
       .Str("af_label", AfStatusLabel(r.af_status))
       .Bool("af_timed_out", r.af_timed_out)
+      .Bool("used_prefocus", r.used_prefocus)
       .Int("stale_discarded", r.stale_discarded)
       .Int("extra_discarded", r.extra_discarded);
   if (r.ok()) {
@@ -292,6 +326,8 @@ std::string HandleRequestLine(const std::string& line) {
   if (cmd == "disconnect") return CmdDisconnect();
   if (cmd == "status") return CmdStatus();
   if (cmd == "capture") return CmdCapture(req);
+  if (cmd == "prefocus") return CmdPrefocus(req);
+  if (cmd == "release_focus") return CmdReleaseFocus();
   if (cmd == "shutdown") {
     g_camera.Disconnect();
     return JsonWriter().Str("cmd", "shutdown").Bool("ok", true).Done();

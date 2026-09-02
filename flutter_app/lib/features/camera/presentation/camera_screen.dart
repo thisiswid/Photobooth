@@ -276,6 +276,12 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
       }
       if (_countdownValue > 1) {
         setState(() => _countdownValue--);
+        // Kunci fokus satu hitungan sebelum jepret. AF butuh ~0,8 detik; kalau
+        // baru dimulai saat hitungan habis, rana terasa telat sedetik.
+        // Dijalankan tanpa ditunggu supaya hitungan mundur tetap presisi.
+        if (_countdownValue == 2) {
+          unawaited(PhotoboothCaptureService.instance.prefocus());
+        }
       } else {
         t.cancel();
         _capturePhoto();

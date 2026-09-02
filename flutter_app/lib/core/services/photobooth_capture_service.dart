@@ -588,6 +588,33 @@ class PhotoboothCaptureService {
     );
   }
 
+  /// Kunci fokus SEBELUM momen jepret, saat hitungan mundur masih berjalan.
+  ///
+  /// Tanpa ini, rana baru berbunyi ~1 detik setelah hitungan habis karena AF
+  /// dikerjakan saat itu juga — terasa seperti aplikasi lambat, padahal kamera
+  /// sedang mencari fokus. Memindahkan AF ke dalam hitungan mundur membuat
+  /// jepretan terasa seketika TANPA mengorbankan ketajaman.
+  ///
+  /// Aman dipanggil kapan saja: bukan di mode Sony, belum siap, atau gagal
+  /// mengunci — semuanya berakhir diam, dan capture tetap menunggu AF sendiri.
+  Future<void> prefocus() async {
+    if (!Platform.isWindows) return;
+    if (_mode != CaptureMode.windowsSony || !_ptpReady) return;
+    try {
+      await SonyCameraHelperClient.instance.prefocus();
+    } catch (e) {
+      debugPrint('⚠️ [Capture] prefocus error: $e');
+    }
+  }
+
+  /// Lepas fokus yang sedang ditahan (sesi dibatalkan / keluar halaman).
+  Future<void> releaseFocus() async {
+    if (!Platform.isWindows) return;
+    try {
+      await SonyCameraHelperClient.instance.releaseFocus();
+    } catch (_) {}
+  }
+
   /// Terjemahkan kode error helper jadi kalimat yang berguna di layar kiosk.
   static String _sonyFailureMessage(String rawError) {
     if (rawError.startsWith('af_timeout') || rawError.startsWith('af_failed')) {

@@ -309,6 +309,7 @@ void SonyCamera::Disconnect() {
     // Lepaskan setengah-tekan supaya kamera tidak ditinggal dalam keadaan S1.
     std::string ignored;
     ControlDevice(kDpcS1Button, kButtonUp, &ignored);
+    s1_held_ = false;
   }
   // SENGAJA TIDAK mengirim CloseSession (0x1003).
   //
@@ -515,6 +516,68 @@ bool SonyCamera::GetObjectData(DWORD handle, uint32_t size,
   return true;
 }
 
+PrefocusResult SonyCamera::Prefocus(const CaptureOptions& opt) {
+  PrefocusResult result;
+  if (!connected_) {
+    result.error_code = "not_connected";
+    result.detail = "kamera belum terhubung";
+    return result;
+  }
+  if (opt.af_mode == AfMode::kSkip) {
+    result.error_code = "af_disabled";
+    result.detail = "af_mode = skip, tidak ada fokus untuk dikunci";
+    return result;
+  }
+
+  std::string detail;
+  if (!s1_held_) {
+    if (!ControlDevice(kDpcS1Button, kButtonDown, &detail)) {
+      result.error_code = "s1_failed";
+      result.detail = detail;
+      return result;
+    }
+    s1_held_ = true;
+  }
+
+  const auto started = Clock::now();
+  uint64_t last_af = 0;
+  while (ElapsedMs(started) < opt.af_timeout_ms) {
+    if (!RefreshProperties(&detail)) {
+      ReleaseFocus();
+      result.error_code = "status_read_failed";
+      result.detail = detail;
+      result.af_wait_ms = ElapsedMs(started);
+      return result;
+    }
+    last_af = PropertyValue(kDpcFocusIndication, 0);
+    if (AfStatusIsFocused(last_af)) {
+      result.af_status = last_af;
+      result.af_wait_ms = ElapsedMs(started);
+      return result;
+    }
+    std::this_thread::sleep_for(
+        std::chrono::milliseconds(opt.poll_interval_ms));
+  }
+
+  // AF belum mengunci. S1 SENGAJA tetap ditahan: kamera masih mencoba, dan
+  // capture berikutnya akan menunggu sisa waktunya sendiri.
+  result.af_status = last_af;
+  result.af_wait_ms = ElapsedMs(started);
+  result.error_code = AfStatusIsFailed(last_af) ? "af_failed" : "af_timeout";
+  result.detail = std::string("status AF terakhir: ") + AfStatusLabel(last_af);
+  return result;
+}
+
+void SonyCamera::ReleaseFocus() {
+  if (!connected_ || !s1_held_) {
+    s1_held_ = false;
+    return;
+  }
+  std::string ignored;
+  ControlDevice(kDpcS1Button, kButtonUp, &ignored);
+  s1_held_ = false;
+}
+
 int SonyCamera::DrainShotBuffer(int max_files, std::string* detail) {
   int drained = 0;
   for (int i = 0; i < max_files; ++i) {
@@ -569,21 +632,36 @@ CaptureResult SonyCamera::Capture(const std::string& out_path,
   }
 
   // --- Fase 1: setengah tekan (S1) dan tunggu status AF ---------------------
-  bool s1_pressed = false;
+  //
+  // Kalau Prefocus() sudah dipanggil selama hitungan mundur, S1 masih ditahan
+  // dan AF kemungkinan sudah terkunci. Dalam hal itu fase ini langsung selesai
+  // dan rana berbunyi hampir seketika. AF tetap DIPERIKSA, bukan diasumsikan.
+  bool s1_pressed = s1_held_;
   if (opt.af_mode != AfMode::kSkip) {
-    if (!ControlDevice(kDpcS1Button, kButtonDown, &detail)) {
-      result.error_code = "s1_failed";
-      result.detail = detail;
-      return result;
+    if (!s1_held_) {
+      if (!ControlDevice(kDpcS1Button, kButtonDown, &detail)) {
+        result.error_code = "s1_failed";
+        result.detail = detail;
+        return result;
+      }
+      s1_held_ = true;
+      s1_pressed = true;
+    } else {
+      // Status terakhir sudah dibaca di fase 0 barusan.
+      const uint64_t af_now = PropertyValue(kDpcFocusIndication, 0);
+      if (AfStatusIsFocused(af_now)) {
+        result.used_prefocus = true;
+      }
     }
-    s1_pressed = true;
 
     const auto af_started = Clock::now();
-    bool focused = false;
-    uint64_t last_af = 0;
-    while (ElapsedMs(af_started) < opt.af_timeout_ms) {
+    bool focused = result.used_prefocus;
+    uint64_t last_af = result.used_prefocus
+        ? PropertyValue(kDpcFocusIndication, 0)
+        : 0;
+    while (!focused && ElapsedMs(af_started) < opt.af_timeout_ms) {
       if (!RefreshProperties(&detail)) {
-        ControlDevice(kDpcS1Button, kButtonUp, &detail);
+        ReleaseFocus();
         result.error_code = "status_read_failed";
         result.detail = detail;
         result.af_wait_ms = ElapsedMs(af_started);
@@ -602,7 +680,7 @@ CaptureResult SonyCamera::Capture(const std::string& out_path,
     if (!focused) {
       result.af_timed_out = true;
       if (opt.af_mode == AfMode::kRequire) {
-        ControlDevice(kDpcS1Button, kButtonUp, &detail);
+        ReleaseFocus();
         result.error_code =
             AfStatusIsFailed(last_af) ? "af_failed" : "af_timeout";
         result.detail = std::string("status AF terakhir: ") +
@@ -616,7 +694,7 @@ CaptureResult SonyCamera::Capture(const std::string& out_path,
 
   // --- Fase 2: tekan penuh (S2) --------------------------------------------
   if (!ControlDevice(kDpcS2Button, kButtonDown, &detail)) {
-    if (s1_pressed) ControlDevice(kDpcS1Button, kButtonUp, &detail);
+    if (s1_pressed) ReleaseFocus();
     result.error_code = "s2_failed";
     result.detail = detail;
     result.elapsed_ms = ElapsedMs(started);
@@ -628,7 +706,7 @@ CaptureResult SonyCamera::Capture(const std::string& out_path,
     std::this_thread::sleep_for(std::chrono::milliseconds(opt.s2_hold_ms));
   }
   ControlDevice(kDpcS2Button, kButtonUp, &detail);
-  if (s1_pressed) ControlDevice(kDpcS1Button, kButtonUp, &detail);
+  if (s1_pressed) ReleaseFocus();
 
   // --- Fase 3: tunggu berkas siap (Shooting File Info, MSB = 1) ------------
   const auto file_started = Clock::now();

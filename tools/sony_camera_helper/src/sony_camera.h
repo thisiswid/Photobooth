@@ -82,6 +82,15 @@ struct CaptureOptions {
   int s2_hold_ms = 200;  // durasi tekan tombol, BUKAN pengganti status AF
 };
 
+/// Hasil pra-fokus (S1 ditahan, menunggu AF mengunci).
+struct PrefocusResult {
+  std::string error_code;  // kosong = fokus terkunci
+  std::string detail;
+  uint64_t af_status = 0;
+  int af_wait_ms = 0;
+  bool ok() const { return error_code.empty(); }
+};
+
 struct CaptureResult {
   std::string error_code;  // kosong = sukses
   std::string detail;
@@ -95,6 +104,7 @@ struct CaptureResult {
   int extra_discarded = 0;   // berkas sisa yang dibuang SESUDAH menjepret
   uint64_t af_status = 0;
   bool af_timed_out = false;
+  bool used_prefocus = false;  // fokus sudah terkunci sebelum perintah ini
   int af_wait_ms = 0;
   int file_wait_ms = 0;
   int elapsed_ms = 0;
@@ -120,6 +130,19 @@ class SonyCamera {
 
   CaptureResult Capture(const std::string& out_path, const CaptureOptions& opt);
 
+  /// Tekan S1 dan tunggu AF mengunci, LALU TAHAN.
+  ///
+  /// Dipanggil saat hitungan mundur masih berjalan, supaya saat tombol jepret
+  /// tiba yang tersisa hanya S2 — rana berbunyi hampir seketika, bukan setelah
+  /// menunggu AF. Sama seperti fotografer menahan setengah tekan sebelum
+  /// momennya. AF tetap ditunggu sungguhan, tidak dilewati.
+  PrefocusResult Prefocus(const CaptureOptions& opt);
+
+  /// Lepas S1 tanpa menjepret (mis. sesi dibatalkan).
+  void ReleaseFocus();
+
+  bool focusHeld() const { return s1_held_; }
+
  private:
   bool ControlDevice(uint16_t control_code, uint32_t value, std::string* detail);
   bool GetObjectInfoFor(DWORD handle, ObjectInfo* out, std::string* detail);
@@ -133,6 +156,7 @@ class SonyCamera {
 
   PtpWiaTransport transport_;
   bool connected_ = false;
+  bool s1_held_ = false;
   std::map<uint16_t, DeviceProperty> props_;
 };
 

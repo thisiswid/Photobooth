@@ -374,6 +374,44 @@ class SonyCameraHelperClient {
     _cameraConnected = false;
   }
 
+  /// Kunci fokus lebih awal dan TAHAN, supaya saat tombol jepret tiba yang
+  /// tersisa hanya S2.
+  ///
+  /// Dipanggil saat hitungan mundur masih berjalan. AF tetap ditunggu
+  /// sungguhan — yang dipindah cuma waktunya, bukan dihilangkan.
+  /// Mengembalikan true bila fokus benar-benar terkunci.
+  Future<bool> prefocus({
+    Duration afTimeout = const Duration(milliseconds: 1800),
+  }) async {
+    // Batas tunggunya sengaja lebih pendek dari sisa hitungan mundur. Perintah
+    // helper dilayani satu per satu; kalau pra-fokus menunggu terlalu lama,
+    // justru dia yang menahan perintah capture. Saat batas ini lewat helper
+    // TETAP menahan S1, jadi capture melanjutkan penantian AF dari titik itu.
+    final r = await _send(
+      <String, dynamic>{
+        'cmd': 'prefocus',
+        'af_timeout_ms': afTimeout.inMilliseconds,
+      },
+      timeout: afTimeout + const Duration(seconds: 5),
+    );
+    final ok = r['ok'] == true;
+    if (ok) {
+      debugPrint('🎯 [SonyHelper] Fokus terkunci lebih awal '
+          '(${r['af_label']}, ${r['af_wait_ms']} ms)');
+    } else {
+      // Bukan kegagalan fatal: capture nanti akan menunggu AF sendiri.
+      debugPrint('⚠️ [SonyHelper] Pra-fokus belum mengunci: '
+          '${r['error']} (${r['af_label']})');
+    }
+    return ok;
+  }
+
+  /// Lepas fokus tanpa menjepret, mis. saat sesi dibatalkan.
+  Future<void> releaseFocus() async {
+    if (_socket == null) return;
+    await _send(<String, dynamic>{'cmd': 'release_focus'});
+  }
+
   /// Ambil satu foto. Mengembalikan null bila gagal — [lastError] berisi
   /// alasannya. TIDAK PERNAH mengembalikan hasil pengganti.
   Future<SonyHelperCapture?> capture({
