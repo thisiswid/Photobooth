@@ -15,7 +15,7 @@ Legenda status: `⬜ belum` · `🟨 jalan` · `✅ selesai` · `⛔ terblokir`
 | **P** | Persiapan & baseline | 2-3 hari | ⬜ | | |
 | **C0** | Spike cetak ⛔ **GERBANG** | 1 hari | ⬜ | | |
 | **C1** | Kerangka Windows | 2-3 hari | ✅ | 2026-09-01 | 2026-09-02 |
-| **C2** | Jalur cetak | 3-4 hari | ⬜ | | |
+| **C2** | Jalur cetak | 3-4 hari | 🟨 | 2026-09-02 | |
 | **C3** | Kamera capture card 🎯 **BISA PRODUKSI** | 3-4 hari | ⬜ | | |
 | **C4** | Shutter Sony SDK ⛔ **GERBANG** | 1-2 minggu | ⬜ | | |
 | **C5** | Settings & diagnostik | 3-4 hari | ⬜ | | |
@@ -119,17 +119,26 @@ dan status printer terbaca secara programatik.
 
 ## Cycle C2 — Jalur Cetak
 
-- [ ] **C2-1** Refactor `PrinterService` jadi abstract + factory (conditional import)
-- [ ] **C2-2** Pindahkan jalur PrintManager lama ke `printer_service_android.dart` tanpa mengubah perilakunya
-- [ ] **C2-3** Implementasi `printer_service_windows.dart`
-- [ ] **C2-4** Cetak dari Final Result Screen: 4R borderless, tanpa dialog
-- [ ] **C2-5** Tekan cetak 2x cepat → tetap **satu** lembar (lock `_isPrintingBusy`)
-- [ ] **C2-6** Selesaikan utang teknis: `copies` dan `orientation` benar-benar dibaca
-- [ ] **C2-7** Margin & quality terpakai, bukan hanya tersimpan
+- [~] **C2-1** ~~Abstract + factory~~ → **diturunkan jadi percabangan `Platform.isWindows` di dalam `printer_service.dart`**. Alasan: 1.315 baris itu 80% konfigurasi & storage yang dipakai kedua platform; memecahnya jadi dua file berarti menduplikasi semuanya. Yang dipisah cukup lapisan eksekusi: `printing/windows_printer_backend.dart`
+- [~] **C2-2** Tidak dipindah — jalur Android dibiarkan di tempatnya, TIDAK DISENTUH sama sekali. Risiko lebih rendah daripada memindahkan 500+ baris yang sudah terbukti jalan
+- [x] **C2-3** `printing/windows_printer_backend.dart` (390 baris)
+- [x] **C2-4** Cetak 4R borderless tanpa dialog — kunci: `usePrinterSettings: true` supaya DEVMODE driver dipakai
+- [x] **C2-5** Lock `_isPrintingBusy` tetap berlaku di jalur Windows
+- [x] **C2-6** `copies` dan `orientation` akhirnya dibaca jalur cetak
+- [~] **C2-7** TIDAK BERLAKU di Windows: margin diurus driver lewat borderless, quality diatur di Printing Defaults. Setelan margin/quality di aplikasi sengaja diabaikan supaya tidak bertabrakan dengan driver
 - [ ] **C2-8** Baca status spooler: `ready` / `out_of_paper` / `low_ink` / `offline` / `error`
 - [ ] **C2-9** Kirim status printer di payload `HeartbeatService`
-- [ ] **C2-10** Cabut kabel printer → gagal terkendali, aplikasi tidak crash
+- [x] **C2-10** Cabut kabel printer → gagal terkendali
 - [ ] **C2-11** **Build Android masih hijau**
+
+> ⚠️ **C2 BELUM SELESAI.** Tiga item tersisa, dan C2-8 adalah salah satu dari
+> empat tujuan bernama di PRD (G-2: status printer terbaca):
+>
+> - **C2-8** status spooler rinci — butuh `printing_ffi` / `windows_printer`.
+>   Sekarang heartbeat hanya mengirim `ready` / `offline`, belum bisa
+>   membedakan kertas habis dari printer mati
+> - **C2-9** kirim status rinci itu di heartbeat
+> - **C2-11** verifikasi ulang build Android — `printer_service.dart` disentuh
 
 **Selesai bila:** WR-02 sampai WR-06 terpenuhi dan status kertas habis muncul di
 dashboard ≤ 60 detik.
