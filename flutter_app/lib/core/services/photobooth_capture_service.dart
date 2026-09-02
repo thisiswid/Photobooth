@@ -125,6 +125,26 @@ class PhotoboothCaptureService {
       ? '${_mode.name}(from:${_intendedMode.name})'
       : _mode.name;
 
+  /// Folder tempat foto mentah dari kamera Sony disimpan.
+  ///
+  /// Sengaja di Pictures, bukan di %TEMP%: operator perlu bisa membuka dan
+  /// memeriksa hasil jepretan (dimensi, ketajaman, apakah benar dari sensor),
+  /// dan folder Temp bisa disapu Windows kapan saja.
+  static String sonyCaptureDir() {
+    final home = Platform.environment['USERPROFILE'] ??
+        Platform.environment['HOMEPATH'] ??
+        '';
+    final dir = home.isEmpty
+        ? r'C:\SnapTechBooth\captures'
+        : '$home\Pictures\SnapTechBooth';
+    try {
+      Directory(dir).createSync(recursive: true);
+    } catch (e) {
+      debugPrint('⚠️ [Capture] Gagal membuat folder hasil "$dir": $e');
+    }
+    return dir;
+  }
+
   void _degradeTo(CaptureMode fallback, String reason) {
     if (_mode == fallback) return;
     _degradedReason = reason;
@@ -348,7 +368,7 @@ class PhotoboothCaptureService {
       if (_mode != CaptureMode.windowsSony) return false;
       final helper = SonyCameraHelperClient.instance;
       try {
-        if (!await helper.start()) {
+        if (!await helper.start(outputDir: sonyCaptureDir())) {
           _lastDiagnostic = 'Helper kamera Sony gagal dijalankan: ${helper.lastError}';
           debugPrint('⚠️ [Capture] $_lastDiagnostic');
           return false;
@@ -361,6 +381,7 @@ class PhotoboothCaptureService {
           debugPrint('⚠️ [Capture] $_lastDiagnostic');
         } else {
           debugPrint('✅ [Capture] Jalur shutter Sony (helper) siap.');
+          debugPrint('📁 [Capture] Foto mentah disimpan di: ${sonyCaptureDir()}');
         }
         return _ptpReady;
       } catch (e) {

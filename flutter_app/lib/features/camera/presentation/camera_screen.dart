@@ -83,6 +83,13 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   int _countdownValue = _countdownSeconds;
   Timer? _countdownTimer;
 
+  /// Apakah foto yang sedang ditinjau masih perlu dicermin di piksel.
+  /// Pratinjau sudah dicermin lewat Transform (gratis); berkasnya menyusul.
+  bool _lastNeedsFlip = false;
+
+  /// Pekerjaan mencermin berkas yang berjalan di latar.
+  Future<void>? _flipJob;
+
   // ── Poses state ───────────────────────────────────────────────────────────
   int _currentPose = 0;
   XFile? _lastCaptured;
@@ -332,6 +339,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
         final processedFile = await _processCapturedPhoto(
           XFile(outcome.file!.path),
           _isMirrorEnabled,
+          source: outcome.source,
         );
         if (!mounted) return;
         setState(() {
@@ -391,7 +399,11 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     final rawFile =
         await _cameraController!.takePicture().timeout(const Duration(seconds: 10));
     if (!mounted) return;
-    final processedFile = await _processCapturedPhoto(rawFile, _isMirrorEnabled);
+    final processedFile = await _processCapturedPhoto(
+      rawFile,
+      _isMirrorEnabled,
+      source: CaptureSource.tablet,
+    );
     if (!mounted) return;
     setState(() {
       _lastCaptured = processedFile;
@@ -399,12 +411,27 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     });
   }
 
-  Future<XFile> _processCapturedPhoto(XFile rawFile, bool isMirrored) async {
-    // Kamera tablet depan sudah menghasilkan gambar ter-cermin dari sensor;
-    // kamera eksternal (PTP / HDMI) tidak.
-    final isFrontCam =
-        _cameraController?.description.lensDirection == CameraLensDirection.front;
+  /// [source] WAJIB menyebut dari mana foto ini benar-benar berasal.
+  ///
+  /// Dulu ini disimpulkan dari `_cameraController.description.lensDirection`,
+  /// dan itu salah pada jalur Sony di Windows: controller yang ada adalah
+  /// CAPTURE CARD, dan Windows melaporkannya sebagai `front`. Fotonya sendiri
+  /// datang dari Sony, bukan dari capture card. Akibatnya logika cermin
+  /// terbalik — mirror mati justru dicermin (sekaligus menanggung decode 24 MP
+  /// yang lambat), mirror nyala justru tidak.
+  Future<XFile> _processCapturedPhoto(
+    XFile rawFile,
+    bool isMirrored, {
+    required CaptureSource source,
+  }) async {
+    // Hanya sensor kamera depan yang sudah menghasilkan gambar ter-cermin.
+    // Kamera eksternal — Sony (PTP/helper) maupun frame HDMI — tidak.
+    final isFrontCam = source == CaptureSource.tablet &&
+        _cameraController?.description.lensDirection ==
+            CameraLensDirection.front;
     final needsFlip = isFrontCam ? !isMirrored : isMirrored;
+    debugPrint('🪞 [CameraScreen] sumber=${source.name} '
+        'frontCam=$isFrontCam mirror=$isMirrored → flip=$needsFlip');
 
     // JALUR CEPAT: tidak perlu di-flip → jangan decode apa pun.
     //
@@ -413,30 +440,60 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     // UI memakan beberapa detik dan langsung memicu ANR
     // ("SnapTechBooth isn't responding"). Karena itu kerja berat dipindah ke
     // isolate lain lewat compute(), dan dilewati sepenuhnya bila tidak perlu.
+    _lastNeedsFlip = needsFlip;
+    _flipJob = null;
     if (!needsFlip) return rawFile;
 
+    // JANGAN menahan tampilan hasil selama pencerminan.
+    //
+    // Mencermin JPEG 6000x4000 berarti decode + encode ulang di `package:image`
+    // yang murni Dart — beberapa detik. Dulu itu ditunggu SEBELUM hasil
+    // ditampilkan, sehingga rana sudah bunyi, kamera sudah hidup lagi, tapi
+    // layar masih memutar spinner. Sekarang:
+    //   - pratinjau langsung tampil, dicermin lewat Transform (gratis, GPU)
+    //   - berkasnya dicermin di latar, selagi tamu meninjau foto
+    //   - _onNext menunggu pekerjaan itu bila kebetulan belum selesai
+    _flipJob = _flipFileInBackground(rawFile.path);
+    return rawFile;
+  }
+
+  Future<void> _flipFileInBackground(String path) async {
+    final sw = Stopwatch()..start();
     try {
-      final bytes = await rawFile.readAsBytes();
+      final file = dart_io.File(path);
+      final bytes = await file.readAsBytes();
       final newBytes = await compute(_flipJpegBytes, bytes);
-      if (newBytes == null) return rawFile;
-      final processedFile = dart_io.File(rawFile.path);
-      await processedFile.writeAsBytes(newBytes, flush: true);
-      return XFile(processedFile.path);
+      if (newBytes == null) {
+        debugPrint('⚠️ [CameraScreen] Cermin gagal decode, berkas dibiarkan apa adanya');
+        return;
+      }
+      await file.writeAsBytes(newBytes, flush: true);
+      debugPrint('🪞 [CameraScreen] Berkas dicermin dalam ${sw.elapsedMilliseconds} ms');
     } catch (e) {
-      debugPrint('⚠️ [CameraScreen] _processCapturedPhoto gagal: $e');
-      return rawFile;
+      debugPrint('⚠️ [CameraScreen] Cermin berkas gagal: $e');
     }
   }
 
 
   void _onRetake() {
+    _flipJob = null;
+    _lastNeedsFlip = false;
     setState(() {
       _lastCaptured = null;
     });
     _startCountdown();
   }
 
-  void _onNext() {
+  Future<void> _onNext() async {
+    // Pastikan berkas sudah benar-benar dicermin sebelum diteruskan ke sesi.
+    // Biasanya sudah selesai selagi tamu meninjau foto, jadi ini tidak terasa.
+    final job = _flipJob;
+    if (job != null) {
+      await job;
+      _flipJob = null;
+      if (!mounted) return;
+    }
+
     final notifier = ref.read(sessionNotifierProvider.notifier);
     final sessionId = ref.read(sessionNotifierProvider).session?.sessionId.toString() ?? '1';
 
@@ -586,15 +643,20 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
       child: Container(
         color: AppColors.darkCoffee,
         child: _lastCaptured != null
-            ? Image.file(
-                dart_io.File(_lastCaptured!.path),
-                fit: BoxFit.cover,
-                width: double.infinity,
-                height: double.infinity,
-                // Batasi decode: foto 24 MP dari Sony tidak perlu di-decode
-                // penuh hanya untuk pratinjau.
-                cacheWidth: 1080,
-                filterQuality: FilterQuality.medium,
+            ? Transform.flip(
+                // Berkasnya mungkin masih dicermin di latar. Pratinjau tidak
+                // menunggu itu — pencerminan di layar gratis.
+                flipX: _lastNeedsFlip,
+                child: Image.file(
+                  dart_io.File(_lastCaptured!.path),
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  height: double.infinity,
+                  // Batasi decode: foto 24 MP dari Sony tidak perlu di-decode
+                  // penuh hanya untuk pratinjau.
+                  cacheWidth: 1080,
+                  filterQuality: FilterQuality.medium,
+                ),
               )
             : Center(
                 child: Icon(
