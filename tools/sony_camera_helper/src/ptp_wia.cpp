@@ -10,9 +10,38 @@
 namespace stb {
 namespace {
 
+// Terjemahan HRESULT WIA yang sering muncul, supaya pesan error langsung
+// bisa ditindaklanjuti tanpa mencari arti angka heksanya.
+const char* WiaErrorName(HRESULT hr) {
+  switch (static_cast<unsigned long>(hr)) {
+    case 0x80210001UL: return "WIA_ERROR_GENERAL_ERROR";
+    case 0x80210002UL: return "WIA_ERROR_PAPER_JAM";
+    case 0x80210003UL: return "WIA_ERROR_PAPER_EMPTY";
+    case 0x80210006UL:
+      return "WIA_ERROR_BUSY (kamera dipegang aplikasi/sesi PTP lain - tutup "
+             "aplikasi kamera lain, lalu matikan + cabut + colok ulang kamera)";
+    case 0x80210007UL:
+      return "WIA_ERROR_WARMING_UP (kamera belum siap, coba lagi sebentar)";
+    case 0x80210009UL:
+      return "WIA_ERROR_ITEM_DELETED (device hilang - kabel tercabut?)";
+    case 0x8021000AUL: return "WIA_ERROR_DEVICE_COMMUNICATION";
+    case 0x8021000BUL: return "WIA_ERROR_INVALID_COMMAND";
+    case 0x8021000CUL: return "WIA_ERROR_INCORRECT_HARDWARE_SETTING";
+    case 0x8021000DUL:
+      return "WIA_ERROR_DEVICE_LOCKED (kamera terkunci proses lain)";
+    case 0x8021000EUL: return "WIA_ERROR_EXCEPTION_IN_DRIVER";
+    case 0x8021000FUL: return "WIA_ERROR_INVALID_DRIVER_RESPONSE";
+    case 0x80070005UL:
+      return "E_ACCESSDENIED (izin ditolak - cek hak akses perangkat)";
+    default: return nullptr;
+  }
+}
+
 std::string HrToText(const char* what, HRESULT hr) {
   std::ostringstream os;
   os << what << " gagal (hr=0x" << std::hex << static_cast<unsigned>(hr) << ")";
+  const char* name = WiaErrorName(hr);
+  if (name != nullptr) os << ": " << name;
   return os.str();
 }
 
@@ -258,6 +287,8 @@ bool PtpWiaTransport::Escape(WORD op_code, const DWORD* params,
     std::ostringstream os;
     os << "IWiaItemExtras::Escape(op=0x" << std::hex << op_code
        << ") gagal (hr=0x" << static_cast<unsigned>(hr) << ")";
+    const char* name = WiaErrorName(hr);
+    if (name != nullptr) os << ": " << name;
     *err = os.str();
   }
 
