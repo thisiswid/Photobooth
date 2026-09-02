@@ -14,7 +14,7 @@ Legenda status: `⬜ belum` · `🟨 jalan` · `✅ selesai` · `⛔ terblokir`
 |---|---|---|---|---|---|
 | **P** | Persiapan & baseline | 2-3 hari | ⬜ | | |
 | **C0** | Spike cetak ⛔ **GERBANG** | 1 hari | ⬜ | | |
-| **C1** | Kerangka Windows | 2-3 hari | 🟨 | 2026-09-01 | |
+| **C1** | Kerangka Windows | 2-3 hari | ✅ | 2026-09-01 | 2026-09-02 |
 | **C2** | Jalur cetak | 3-4 hari | ⬜ | | |
 | **C3** | Kamera capture card 🎯 **BISA PRODUKSI** | 3-4 hari | ⬜ | | |
 | **C4** | Shutter Sony SDK ⛔ **GERBANG** | 1-2 minggu | ⬜ | | |
@@ -90,14 +90,27 @@ dan status printer terbaca secara programatik.
 - [x] **C1-2** Tambah `window_manager`, ganti `SystemChrome.setEnabledSystemUIMode` di `main.dart` (fungsi itu tidak berefek di Windows)
 - [x] **C1-3** Jalur Android tetap memakai `SystemChrome` seperti sebelumnya
 - [x] **C1-4** Aplikasi jalan fullscreen, tanpa taskbar, tanpa border
-- [ ] **C1-5** Seluruh rute `go_router` bisa dinavigasi tanpa kamera/printer
-- [ ] **C1-6** Provisioning: pairing key tersimpan (DPAPI) dan device terhubung ke tenant
-- [ ] **C1-7** Heartbeat sampai ke dashboard admin
+- [x] **C1-5** Seluruh rute `go_router` bisa dinavigasi tanpa kamera/printer
+- [x] **C1-6** Provisioning: pairing key tersimpan (DPAPI) dan device terhubung ke tenant
+- [x] **C1-7** Heartbeat sampai ke dashboard admin
 - [x] **C1-8** **Build Android masih hijau** — `flutter build apk --debug` sukses. Muncul peringatan KGP (bukan error): `camera_android_camerax` dan `flutter_uvc_camera` masih memakai Kotlin Gradle Plugin, dan versi Flutter mendatang akan menolaknya
 
 **Selesai bila:** aplikasi Windows jalan fullscreen dan sudah ter-pair ke backend.
 
-> 📌 Temuan C1: paket `camera` TIDAK meng-endorse Windows. `camera_windows`
+### 🎯 Temuan C1
+
+1. Paket `camera` TIDAK meng-endorse Windows — `camera_windows` wajib eksplisit.
+2. MSVC VS18 menolak `<experimental/coroutine>` di `permission_handler_windows`
+   — ditambal `add_definitions(-D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)`.
+3. Mengubah `BINARY_NAME` WAJIB diikuti pembuangan cache CMake di `build/`,
+   kalau tidak muncul `No target "<nama lama>"`.
+4. Fullscreen sebaiknya hanya di build release; saat debug jendela normal.
+5. `app_version` SUDAH dikirim di payload heartbeat — separuh pondasi update
+   jarak jauh (WR-15) ternyata sudah ada.
+6. `apiBaseUrlDev` dan `apiBaseUrlProd` dua-duanya menunjuk domain produksi;
+   lokal hanya lewat `--dart-define=API_BASE_URL=...`.
+
+> 📌 Detail: paket `camera` TIDAK meng-endorse Windows. `camera_windows`
 > harus ditambahkan eksplisit ke pubspec, kalau tidak `availableCameras()`
 > mengembalikan kosong. Terlihat dari `generated_plugins.cmake` yang semula
 > hanya memuat 4 plugin.
