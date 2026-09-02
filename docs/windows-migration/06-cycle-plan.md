@@ -18,7 +18,7 @@ Legenda status: `⬜ belum` · `🟨 jalan` · `✅ selesai` · `⛔ terblokir`
 | **C2** | Jalur cetak | 3-4 hari | ✅ | 2026-09-02 | 2026-09-02 |
 | **C3** | Kamera capture card 🎯 **BISA PRODUKSI** | 3-4 hari | ✅ | 2026-09-02 | 2026-09-02 |
 | **C4** | Shutter Sony SDK ⛔ **DITUNDA** | 1-2 minggu | ⏸️ | 2026-09-02 | keputusan terbuka |
-| **C5** | Settings & diagnostik | 3-4 hari | 🟨 | 2026-09-02 | |
+| **C5** | Settings & diagnostik | 3-4 hari | ✅ | 2026-09-02 | 2026-09-02 |
 | **C6** | Kalibrasi layar sentuh | 2 hari | ⬜ | | |
 | **C7** | Packaging & penguncian kiosk | 3-4 hari | ⬜ | | |
 | **C8** | Soak test 7 hari | 7 hari | ⬜ | | |
@@ -245,7 +245,7 @@ Implementasi:
 - [x] **C5-3** Kartu Sony PTP dan kartu UVC disembunyikan di Windows — keduanya Android-only, tombolnya akan mati. Kamera Windows tampil di daftar kamera biasa
 - [~] **C5-4** Tidak digabung penuh. Kolom IP di modal disembunyikan di Windows dan diarahkan ke Hidden Settings > Printer. Penggabungan penuh ditunda: modal itu dipakai layar hasil yang dilihat pelanggan, risikonya tidak sepadan sekarang
 - [x] **C5-5** Tidak ada tombol mati tersisa di jalur Windows
-- [ ] **C5-6** **Build Android masih hijau**
+- [x] **C5-6** **Build Android masih hijau** — sempat GAGAL dan itu berguna: `camera_settings_tab.dart` meng-import `dart:io` dengan prefix (`as dart_io`), sehingga `Platform` telanjang tidak dikenali. Error compile-time yang tidak pernah muncul di Windows karena file itu belum dikompilasi ulang di sana. Bukti konkret kenapa build Android diperiksa tiap akhir cycle
 
 ---
 
