@@ -182,9 +182,7 @@ dashboard ≤ 60 detik.
 
 **Gerbang di awal — selesaikan sebelum menulis satu baris kode:**
 
-- [ ] **C4-0a** Baca ketentuan lisensi Sony Camera Remote SDK untuk pemakaian **komersial**, laporkan temuan
-- [ ] **C4-0b** Konfirmasi ZV-E10 ada di daftar model yang didukung SDK terbaru
-- [ ] **C4-0c** Jalankan sample `RemoteCli` — shutter & transfer berfungsi di luar aplikasi kita
+- [–] **C4-0a/0b/0c — GUGUR, digantikan.** Ketiganya ditulis dengan asumsi jalur yang dipakai adalah Camera Remote **SDK**. Asumsi itu salah: SDK tidak mendukung ZV-E10 Gen 1, sedangkan Camera Remote **Command** mendukungnya penuh. Lisensinya sudah dibaca (komersial diizinkan tanpa royalti, contoh program tidak boleh dipakai di dalam produk), dukungan model sudah dikonfirmasi, dan pembuktian di luar aplikasi kita dilakukan lewat POC P1–P8 plus program contoh v3 — bukan lewat `RemoteCli`
 
 > ⛔ **GERBANG GAGAL — 2026-09-02.**
 >
