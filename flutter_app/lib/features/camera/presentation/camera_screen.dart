@@ -446,7 +446,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     }
     if (!_isCameraReady || _cameraController == null) return null;
     return Transform.flip(
-      flipX: _isMirrorEnabled,
+      flipX: _previewMirrorFlip,
       child: FittedBox(
         fit: BoxFit.cover,
         child: SizedBox(
@@ -456,6 +456,30 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
         ),
       ),
     );
+  }
+
+  /// Preview kiosk SELALU tampil seperti cermin.
+  ///
+  /// Ini terpisah dari tombol Mirror, dan disengaja. Tombol Mirror menentukan
+  /// BERKAS HASIL; preview mengatur kenyamanan berpose. Tanpa ini, di mode
+  /// No Mirror tamu melihat dirinya seperti melihat orang lain — tangan kanan
+  /// muncul di kiri layar — dan sulit mengatur pose.
+  ///
+  /// Nilainya TIDAK boleh disimpulkan dari `lensDirection`. Di Windows capture
+  /// card dilaporkan sebagai `front` padahal ia kamera eksternal; kesalahan itu
+  /// pernah membalik seluruh logika cermin. Jadi yang dipakai adalah mode
+  /// capture, yang tahu perangkat sebenarnya.
+  bool get _previewMirrorFlip {
+    final mode = PhotoboothCaptureService.instance.mode;
+    if (mode == CaptureMode.tabletOnly) {
+      // Sensor kamera depan sudah menghasilkan gambar ter-cermin dari sananya,
+      // jadi justru tidak perlu dibalik lagi.
+      return _cameraController?.description.lensDirection !=
+          CameraLensDirection.front;
+    }
+    // Kamera eksternal (Sony, HDMI, capture card) tidak ter-cermin dari
+    // sumbernya, jadi dicermin di layar.
+    return true;
   }
 
   /// Satu-satunya tempat nilai mirror berubah.
@@ -621,8 +645,9 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   }) async {
     // SATU SUMBER KEBENARAN: status cermin yang dipakai preview.
     //
-    // Preview me-render `Transform.flip(flipX: _isMirrorEnabled)`, jadi berkas
-    // hasil harus mengikuti nilai yang sama persis. Satu pengecualian yang
+    // Tombol Mirror menentukan BERKAS HASIL. Preview punya aturannya sendiri
+    // (selalu seperti cermin, lihat `_previewMirrorFlip`) karena itu soal
+    // kenyamanan berpose, bukan soal isi foto. Satu pengecualian yang
     // memang benar secara fisik: sensor kamera DEPAN tablet sudah menghasilkan
     // gambar ter-cermin, sehingga nilainya dibalik. Kamera eksternal — Sony
     // maupun frame HDMI — tidak, jadi mengikuti langsung.
@@ -925,7 +950,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
             children: [
               if (_showUvcView || _isUvcReady)
                 UvcPreview(
-                  mirror: _isMirrorEnabled,
+                  mirror: _previewMirrorFlip,
                   onOpenResult: _onUvcOpenResult,
                   previewWidth: _uvcPreviewWidth.toInt(),
                   previewHeight: _uvcPreviewHeight.toInt(),
@@ -933,7 +958,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
               else if (_isCameraReady && _cameraController != null)
                 Center(
                   child: Transform.flip(
-                    flipX: _isMirrorEnabled,
+                    flipX: _previewMirrorFlip,
                     child: FittedBox(
                       fit: BoxFit.cover,
                       child: SizedBox(
