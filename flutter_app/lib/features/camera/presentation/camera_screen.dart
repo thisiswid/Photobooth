@@ -468,6 +468,31 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
         return;
       }
       await file.writeAsBytes(newBytes, flush: true);
+
+      // Buang cache gambar untuk path ini.
+      //
+      // Flutter meng-cache hasil decode berdasarkan path + cacheWidth. Berkasnya
+      // baru saja DITIMPA dengan versi ter-cermin, tapi cache masih memegang
+      // piksel yang lama. Tanpa pembuangan ini, setiap widget yang membaca path
+      // yang sama sesudahnya — strip foto pose sebelumnya, layar tinjauan —
+      // menampilkan versi belum ter-cermin, sementara berkas di disk sudah
+      // ter-cermin. Persis gejala "tombol mirror tidak berfungsi": berkasnya
+      // benar, yang terlihat salah.
+      await FileImage(file).evict();
+
+      // Berkas di disk SEKARANG sudah ter-cermin, jadi Transform di pratinjau
+      // harus dimatikan. Kalau tidak, begitu widget membangun ulang, gambar
+      // yang sudah ter-cermin akan dicermin SEKALI LAGI dan kembali seperti
+      // semula — persis gejala "tombol mirror tidak berfungsi", dan muncul
+      // secara acak karena bergantung pada kapan widget kebetulan rebuild.
+      //
+      // Hasil akhirnya konsisten di kedua fase:
+      //   sebelum: berkas asli  + Transform aktif  → tampak ter-cermin
+      //   sesudah: berkas cermin + Transform mati  → tampak ter-cermin
+      if (mounted && _lastCaptured?.path == path) {
+        setState(() => _lastNeedsFlip = false);
+      }
+
       debugPrint('🪞 [CameraScreen] Berkas dicermin dalam ${sw.elapsedMilliseconds} ms');
     } catch (e) {
       debugPrint('⚠️ [CameraScreen] Cermin berkas gagal: $e');
