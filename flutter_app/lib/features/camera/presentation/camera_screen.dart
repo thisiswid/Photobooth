@@ -561,6 +561,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
             );
         size = _readJpegSizeFromHeader(head.takeBytes());
       } catch (_) {}
+      debugPrint('🪞 [Mirror Result] mirror=false → NO FLIP → '
+          'gunakan foto asli');
       final dim = size == null ? 'asli' : '${size.width}x${size.height}';
       debugPrint('🖼️ [ImageProcessor] $dim → $dim | mirror=false | '
           'decode=0ms flip=0ms encode=0ms '
@@ -580,19 +582,26 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
         return rawFile;
       }
 
-      // Hasil ditulis ke folder sementara supaya folder Pictures tetap berisi
-      // hanya foto asli dari sensor.
-      final workDir = dart_io.Directory(
-        '${dart_io.Directory.systemTemp.path}'
-        '${dart_io.Platform.pathSeparator}snaptechbooth_work',
-      );
-      if (!workDir.existsSync()) workDir.createSync(recursive: true);
+      // Hasil ter-flip ditulis DI SAMPING berkas aslinya, bukan di folder
+      // sementara yang tersembunyi.
+      //
+      // Sebelumnya hasil disimpan di %TEMP%, sehingga folder Pictures hanya
+      // berisi foto asli yang memang tidak ter-cermin. Saat diperiksa, hasilnya
+      // tampak "tidak ter-flip" padahal berkas yang dipakai sesi sudah benar.
+      // Sekarang keduanya berdampingan dan bisa dibandingkan langsung.
       final name = rawFile.path.split(dart_io.Platform.pathSeparator).last;
+      final dot = name.lastIndexOf('.');
+      final mirroredName = dot > 0
+          ? '${name.substring(0, dot)}_mirror${name.substring(dot)}'
+          : '${name}_mirror.jpg';
       final outFile = dart_io.File(
-        '${workDir.path}${dart_io.Platform.pathSeparator}$name',
+        '${file.parent.path}${dart_io.Platform.pathSeparator}$mirroredName',
       );
       await outFile.writeAsBytes(prepared.bytes, flush: true);
       await FileImage(outFile).evict();
+
+      debugPrint('🪞 [Mirror Result] mirror=true → FLIP HORIZONTAL → '
+          'hasil disimpan: ${outFile.path}');
 
       final src = srcSize == null
           ? '${prepared.width}x${prepared.height}'
