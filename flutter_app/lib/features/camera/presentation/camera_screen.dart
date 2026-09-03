@@ -26,12 +26,77 @@ import '../../../shared/widgets/photo_strip_widget.dart';
 import '../../../shared/widgets/responsive_layout_builder.dart';
 import '../../../shared/widgets/uvc_preview.dart';
 
+/// Sisi terpanjang salinan kerja.
+///
+/// Kanvas template cetak 1333x2000 dengan slot foto ~472 px, dan unggahan
+/// memang sudah dibatasi 2000 px. Jadi 2000 px sudah jauh di atas kebutuhan
+/// cetak 4R 300 DPI — menyimpan 6000x4000 di jalur ini tidak menambah satu
+/// piksel pun pada hasil cetak.
+const int _kWorkingMaxSide = 2000;
+
+class _PreparePhotoArgs {
+  const _PreparePhotoArgs(this.bytes, this.flip);
+  final Uint8List bytes;
+  final bool flip;
+}
+
+class _PreparedPhoto {
+  const _PreparedPhoto({
+    required this.bytes,
+    required this.srcWidth,
+    required this.srcHeight,
+    required this.outWidth,
+    required this.outHeight,
+    required this.decodeMs,
+    required this.encodeMs,
+  });
+  final Uint8List bytes;
+  final int srcWidth;
+  final int srcHeight;
+  final int outWidth;
+  final int outHeight;
+  final int decodeMs;
+  final int encodeMs;
+}
+
 /// Dijalankan di isolate terpisah oleh `compute()` — JANGAN panggil langsung
-/// dari isolate UI: decode/encode JPEG 24 MP butuh beberapa detik.
-Uint8List? _flipJpegBytes(Uint8List bytes) {
-  final decoded = img.decodeImage(bytes);
-  if (decoded == null) return null;
-  return img.encodeJpg(img.flipHorizontal(decoded), quality: 95);
+/// dari isolate UI.
+///
+/// SATU kali decode untuk mengerjakan dua hal sekaligus: mencermin (bila perlu)
+/// dan memperkecil ke ukuran kerja. Sebelumnya gambar 24 MP yang sama di-decode
+/// DUA kali — sekali untuk mencermin lalu di-encode ulang di 24 MP, sekali lagi
+/// saat diperkecil untuk unggah. Encode 24 MP itulah biaya terbesarnya, dan
+/// hasilnya tidak pernah dipakai: cetakan mengambil dari salinan 2000 px.
+_PreparedPhoto? _prepareCapturedPhoto(_PreparePhotoArgs args) {
+  final swDecode = Stopwatch()..start();
+  var image = img.decodeImage(args.bytes);
+  swDecode.stop();
+  if (image == null) return null;
+
+  final srcW = image.width;
+  final srcH = image.height;
+
+  if (args.flip) image = img.flipHorizontal(image);
+
+  if (image.width > _kWorkingMaxSide || image.height > _kWorkingMaxSide) {
+    image = image.width >= image.height
+        ? img.copyResize(image, width: _kWorkingMaxSide)
+        : img.copyResize(image, height: _kWorkingMaxSide);
+  }
+
+  final swEncode = Stopwatch()..start();
+  final out = img.encodeJpg(image, quality: 92);
+  swEncode.stop();
+
+  return _PreparedPhoto(
+    bytes: out,
+    srcWidth: srcW,
+    srcHeight: srcH,
+    outWidth: image.width,
+    outHeight: image.height,
+    decodeMs: swDecode.elapsedMilliseconds,
+    encodeMs: swEncode.elapsedMilliseconds,
+  );
 }
 
 // ── Flow Step enum ────────────────────────────────────────────────────────────
@@ -446,10 +511,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     // hasil harus mengikuti nilai yang sama persis. Satu pengecualian yang
     // memang benar secara fisik: sensor kamera DEPAN tablet sudah menghasilkan
     // gambar ter-cermin, sehingga nilainya dibalik agar hasil akhirnya sama
-    // dengan yang dilihat tamu.
-    //
-    // Kamera eksternal — Sony (helper/PTP) maupun frame HDMI — TIDAK
-    // ter-cermin dari sumbernya, jadi mengikuti langsung.
+    // dengan yang dilihat tamu. Kamera eksternal — Sony (helper/PTP) maupun
+    // frame HDMI — TIDAK ter-cermin dari sumbernya, jadi mengikuti langsung.
     final isFrontCam = source == CaptureSource.tablet &&
         _cameraController?.description.lensDirection ==
             CameraLensDirection.front;
@@ -458,35 +521,47 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     debugPrint('🪞 [CameraScreen] mirror=$isMirrored → flip=$needsFlip '
         '(sumber=${source.name}, frontCam=$isFrontCam)');
 
-    if (!needsFlip) return rawFile;
-
-    // Flip DIKERJAKAN SAMPAI SELESAI di sini, sebelum hasil ditampilkan dan
-    // sebelum berkas diteruskan ke sesi. Dengan begitu berkas di disk dan
-    // gambar di layar tidak pernah berbeda, dan tidak ada keadaan setengah
-    // jadi yang bisa terlihat sebagai "mirror tidak berfungsi".
-    //
-    // Kerja beratnya tetap di isolate lain lewat compute(), supaya UI tidak
-    // membeku dan tidak memicu ANR saat menangani JPEG 6000x4000.
+    // Satu kali decode untuk mencermin SEKALIGUS memperkecil ke ukuran kerja.
+    // Berkas 24 MP asli dari sensor dibiarkan utuh di folder Pictures sebagai
+    // arsip; yang mengalir ke sesi, cetak, dan unggah adalah salinan ini.
     final sw = Stopwatch()..start();
     try {
-      final file = dart_io.File(rawFile.path);
-      final bytes = await file.readAsBytes();
-      final newBytes = await compute(_flipJpegBytes, bytes);
-      if (newBytes == null) {
-        debugPrint('⚠️ [CameraScreen] Cermin gagal decode, berkas dibiarkan apa adanya');
+      final raw = await dart_io.File(rawFile.path).readAsBytes();
+      final prepared = await compute(
+        _prepareCapturedPhoto,
+        _PreparePhotoArgs(raw, needsFlip),
+      );
+      if (prepared == null) {
+        debugPrint('⚠️ [CameraScreen] Gagal decode foto — memakai berkas asli');
         return rawFile;
       }
-      await file.writeAsBytes(newBytes, flush: true);
 
-      // Buang cache decode untuk path ini. Flutter meng-cache berdasarkan
-      // path + cacheWidth; berkasnya baru saja DITIMPA, jadi tanpa ini widget
-      // yang membaca path yang sama masih menampilkan piksel lama.
-      await FileImage(file).evict();
+      // Salinan kerja disimpan di folder sementara, supaya folder Pictures
+      // tetap berisi hanya foto asli dari sensor.
+      final workDir = dart_io.Directory(
+        '${dart_io.Directory.systemTemp.path}${dart_io.Platform.pathSeparator}snaptechbooth_work',
+      );
+      if (!workDir.existsSync()) workDir.createSync(recursive: true);
+      final name = rawFile.path.split(dart_io.Platform.pathSeparator).last;
+      final workFile = dart_io.File(
+        '${workDir.path}${dart_io.Platform.pathSeparator}$name',
+      );
+      await workFile.writeAsBytes(prepared.bytes, flush: true);
+      await FileImage(workFile).evict();
 
-      debugPrint('🪞 [CameraScreen] Berkas dicermin dalam ${sw.elapsedMilliseconds} ms');
-      return XFile(file.path);
+      if (needsFlip) {
+        debugPrint('🪞 [CameraScreen] Berkas dicermin dalam '
+            '${sw.elapsedMilliseconds} ms');
+      }
+      debugPrint('🖼️ [CameraScreen] ${prepared.srcWidth}x${prepared.srcHeight} → '
+          '${prepared.outWidth}x${prepared.outHeight}, '
+          '${(prepared.bytes.length / 1048576).toStringAsFixed(2)} MB '
+          '(decode ${prepared.decodeMs} ms, encode ${prepared.encodeMs} ms, '
+          'total ${sw.elapsedMilliseconds} ms)');
+
+      return XFile(workFile.path);
     } catch (e) {
-      debugPrint('⚠️ [CameraScreen] Cermin berkas gagal: $e');
+      debugPrint('⚠️ [CameraScreen] Penyiapan foto gagal: $e');
       return rawFile;
     }
   }
