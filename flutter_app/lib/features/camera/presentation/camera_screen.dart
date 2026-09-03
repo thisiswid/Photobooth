@@ -644,8 +644,15 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
       _JpegSize? size;
       try {
         // Baca kepala berkas saja untuk keperluan log — bukan seluruh gambar.
-        final head = await file.openRead(0, 65536).first;
-        size = _readJpegSizeFromHeader(Uint8List.fromList(head));
+        //
+        // 256 KB, bukan 64 KB: JPEG dari Sony menyimpan thumbnail EXIF dan
+        // MakerNote yang besar sebelum penanda SOF, sehingga 64 KB pertama
+        // belum memuat dimensinya. Dan seluruh potongan stream digabung —
+        // `.first` hanya memberi potongan pertama, yang ukurannya tidak dijamin.
+        final head = await file
+            .openRead(0, 262144)
+            .fold<BytesBuilder>(BytesBuilder(), (b, d) => b..add(d));
+        size = _readJpegSizeFromHeader(head.takeBytes());
       } catch (_) {}
       final dim = size == null ? 'asli' : '${size.width}x${size.height}';
       debugPrint('🖼️ [ImageProcessor] $dim → $dim | mirror=false | '
