@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:io' as dart_io;
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
@@ -26,13 +27,19 @@ import '../../../shared/widgets/photo_strip_widget.dart';
 import '../../../shared/widgets/responsive_layout_builder.dart';
 import '../../../shared/widgets/uvc_preview.dart';
 
-/// Sisi terpanjang salinan kerja.
+/// Target jumlah piksel untuk master hasil foto: ~10 MP.
 ///
-/// Kanvas template cetak 1333x2000 dengan slot foto ~472 px, dan unggahan
-/// memang sudah dibatasi 2000 px. Jadi 2000 px sudah jauh di atas kebutuhan
-/// cetak 4R 300 DPI — menyimpan 6000x4000 di jalur ini tidak menambah satu
-/// piksel pun pada hasil cetak.
-const int _kWorkingMaxSide = 2000;
+/// Dihitung sebagai jumlah piksel, bukan panjang sisi, supaya berlaku untuk
+/// rasio apa pun. Untuk 3:2 dari sensor Sony: 6000x4000 (24 MP) turun ke
+/// 3873x2582 (10,0 MP) — persis skala sqrt(10/24) = 0,6455.
+///
+/// 10 MP dipilih karena mempertahankan ketajaman jauh di atas kebutuhan cetak
+/// photobooth, sementara encode-nya hanya ~40% biaya encode 24 MP.
+const int _kMasterTargetPixels = 10000000;
+
+/// Kualitas JPEG master. Di rentang 90-95: jernih, tanpa artefak yang terlihat
+/// pada cetakan 4R.
+const int _kMasterJpegQuality = 93;
 
 class _PreparePhotoArgs {
   const _PreparePhotoArgs(this.bytes, this.flip);
@@ -48,6 +55,8 @@ class _PreparedPhoto {
     required this.outWidth,
     required this.outHeight,
     required this.decodeMs,
+    required this.resizeMs,
+    required this.flipMs,
     required this.encodeMs,
   });
   final Uint8List bytes;
@@ -56,17 +65,21 @@ class _PreparedPhoto {
   final int outWidth;
   final int outHeight;
   final int decodeMs;
+  final int resizeMs;
+  final int flipMs;
   final int encodeMs;
 }
 
 /// Dijalankan di isolate terpisah oleh `compute()` — JANGAN panggil langsung
 /// dari isolate UI.
 ///
-/// SATU kali decode untuk mengerjakan dua hal sekaligus: mencermin (bila perlu)
-/// dan memperkecil ke ukuran kerja. Sebelumnya gambar 24 MP yang sama di-decode
-/// DUA kali — sekali untuk mencermin lalu di-encode ulang di 24 MP, sekali lagi
-/// saat diperkecil untuk unggah. Encode 24 MP itulah biaya terbesarnya, dan
-/// hasilnya tidak pernah dipakai: cetakan mengambil dari salinan 2000 px.
+/// Pipeline-nya tepat satu lintasan:
+///   1x decode  ->  resize ke ~10 MP  ->  flip bila perlu  ->  1x encode
+///
+/// Urutannya disengaja. Mencermin SETELAH resize berarti operasi flip hanya
+/// menyentuh 10 juta piksel, bukan 24 juta. Dan tidak ada encode pada resolusi
+/// penuh sama sekali — itu bagian termahal dari pipeline lama (24 MP -> flip ->
+/// encode -> decode lagi -> resize) dan hasilnya toh langsung dibuang.
 _PreparedPhoto? _prepareCapturedPhoto(_PreparePhotoArgs args) {
   final swDecode = Stopwatch()..start();
   var image = img.decodeImage(args.bytes);
@@ -76,16 +89,31 @@ _PreparedPhoto? _prepareCapturedPhoto(_PreparePhotoArgs args) {
   final srcW = image.width;
   final srcH = image.height;
 
-  if (args.flip) image = img.flipHorizontal(image);
-
-  if (image.width > _kWorkingMaxSide || image.height > _kWorkingMaxSide) {
-    image = image.width >= image.height
-        ? img.copyResize(image, width: _kWorkingMaxSide)
-        : img.copyResize(image, height: _kWorkingMaxSide);
+  // Resize ke ~10 MP dengan mempertahankan rasio.
+  final swResize = Stopwatch()..start();
+  final srcPixels = srcW * srcH;
+  if (srcPixels > _kMasterTargetPixels) {
+    final scale = math.sqrt(_kMasterTargetPixels / srcPixels);
+    final targetW = (srcW * scale).round();
+    // Interpolasi WAJIB disebut: bawaan copyResize adalah nearest-neighbor,
+    // yang pada pengecilan 0,65x menghasilkan tepi bergerigi dan detail rambut
+    // yang pecah. `average` adalah filter kotak — pilihan yang tepat untuk
+    // mengecilkan, dan lebih cepat daripada cubic.
+    image = img.copyResize(
+      image,
+      width: targetW,
+      interpolation: img.Interpolation.average,
+    );
   }
+  swResize.stop();
+
+  // Flip dikerjakan pada gambar yang SUDAH kecil.
+  final swFlip = Stopwatch()..start();
+  if (args.flip) image = img.flipHorizontal(image);
+  swFlip.stop();
 
   final swEncode = Stopwatch()..start();
-  final out = img.encodeJpg(image, quality: 92);
+  final out = img.encodeJpg(image, quality: _kMasterJpegQuality);
   swEncode.stop();
 
   return _PreparedPhoto(
@@ -95,6 +123,8 @@ _PreparedPhoto? _prepareCapturedPhoto(_PreparePhotoArgs args) {
     outWidth: image.width,
     outHeight: image.height,
     decodeMs: swDecode.elapsedMilliseconds,
+    resizeMs: swResize.elapsedMilliseconds,
+    flipMs: swFlip.elapsedMilliseconds,
     encodeMs: swEncode.elapsedMilliseconds,
   );
 }
@@ -521,9 +551,10 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     debugPrint('🪞 [CameraScreen] mirror=$isMirrored → flip=$needsFlip '
         '(sumber=${source.name}, frontCam=$isFrontCam)');
 
-    // Satu kali decode untuk mencermin SEKALIGUS memperkecil ke ukuran kerja.
+    // Satu lintasan: 1x decode -> resize ~10 MP -> flip bila perlu -> 1x encode.
+    // Tidak ada decode kedua dan tidak ada encode pada resolusi penuh.
     // Berkas 24 MP asli dari sensor dibiarkan utuh di folder Pictures sebagai
-    // arsip; yang mengalir ke sesi, cetak, dan unggah adalah salinan ini.
+    // arsip; yang mengalir ke sesi, cetak, dan unggah adalah master 10 MP ini.
     final sw = Stopwatch()..start();
     try {
       final raw = await dart_io.File(rawFile.path).readAsBytes();
@@ -536,8 +567,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
         return rawFile;
       }
 
-      // Salinan kerja disimpan di folder sementara, supaya folder Pictures
-      // tetap berisi hanya foto asli dari sensor.
+      // Master hasil foto disimpan di folder sementara, supaya folder Pictures
+      // tetap berisi hanya foto asli 24 MP dari sensor.
       final workDir = dart_io.Directory(
         '${dart_io.Directory.systemTemp.path}${dart_io.Platform.pathSeparator}snaptechbooth_work',
       );
@@ -553,11 +584,14 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
         debugPrint('🪞 [CameraScreen] Berkas dicermin dalam '
             '${sw.elapsedMilliseconds} ms');
       }
+      final mp = (prepared.outWidth * prepared.outHeight) / 1000000.0;
       debugPrint('🖼️ [CameraScreen] ${prepared.srcWidth}x${prepared.srcHeight} → '
-          '${prepared.outWidth}x${prepared.outHeight}, '
+          '${prepared.outWidth}x${prepared.outHeight} '
+          '(${mp.toStringAsFixed(1)} MP), '
           '${(prepared.bytes.length / 1048576).toStringAsFixed(2)} MB '
-          '(decode ${prepared.decodeMs} ms, encode ${prepared.encodeMs} ms, '
-          'total ${sw.elapsedMilliseconds} ms)');
+          '— decode ${prepared.decodeMs} ms, resize ${prepared.resizeMs} ms, '
+          'flip ${prepared.flipMs} ms, encode ${prepared.encodeMs} ms, '
+          'total ${sw.elapsedMilliseconds} ms');
 
       return XFile(workFile.path);
     } catch (e) {
