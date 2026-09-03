@@ -446,7 +446,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     }
     if (!_isCameraReady || _cameraController == null) return null;
     return Transform.flip(
-      flipX: _previewMirrorFlip,
+      flipX: _isMirrorEnabled,
       child: FittedBox(
         fit: BoxFit.cover,
         child: SizedBox(
@@ -458,30 +458,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     );
   }
 
-  /// Preview kiosk SELALU tampil seperti cermin.
-  ///
-  /// Ini terpisah dari tombol Mirror, dan disengaja. Tombol Mirror menentukan
-  /// BERKAS HASIL; preview mengatur kenyamanan berpose. Tanpa ini, di mode
-  /// No Mirror tamu melihat dirinya seperti melihat orang lain — tangan kanan
-  /// muncul di kiri layar — dan sulit mengatur pose.
-  ///
-  /// Nilainya TIDAK boleh disimpulkan dari `lensDirection`. Di Windows capture
-  /// card dilaporkan sebagai `front` padahal ia kamera eksternal; kesalahan itu
-  /// pernah membalik seluruh logika cermin. Jadi yang dipakai adalah mode
-  /// capture, yang tahu perangkat sebenarnya.
-  bool get _previewMirrorFlip {
-    final mode = PhotoboothCaptureService.instance.mode;
-    if (mode == CaptureMode.tabletOnly) {
-      // Sensor kamera depan sudah menghasilkan gambar ter-cermin dari sananya,
-      // jadi justru tidak perlu dibalik lagi.
-      return _cameraController?.description.lensDirection !=
-          CameraLensDirection.front;
-    }
-    // Kamera eksternal (Sony, HDMI, capture card) tidak ter-cermin dari
-    // sumbernya, jadi dicermin di layar.
-    return true;
-  }
-
   /// Satu-satunya tempat nilai mirror berubah.
   ///
   /// Menulis ke sesi sekaligus, supaya pilihan tamu bertahan saat layar ini
@@ -490,7 +466,9 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     final next = !_isMirrorEnabled;
     setState(() => _isMirrorEnabled = next);
     ref.read(sessionNotifierProvider.notifier).setMirror(next);
-    debugPrint('🪞 [CameraScreen] Tombol mirror ditekan → $next');
+    debugPrint('🪞 [Mirror] state=$next '
+        'preview=${next ? "mirrored" : "normal"} '
+        'result=${next ? "mirrored" : "normal"}');
   }
 
   Future<void> _capturePhoto() async {
@@ -583,78 +561,24 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     });
   }
 
-  /// [source] WAJIB menyebut dari mana foto ini benar-benar berasal.
-  ///
-  /// Dulu ini disimpulkan dari `_cameraController.description.lensDirection`,
-  /// dan itu salah pada jalur Sony di Windows: controller yang ada adalah
-  /// CAPTURE CARD, dan Windows melaporkannya sebagai `front`. Fotonya sendiri
-  /// datang dari Sony, bukan dari capture card. Akibatnya logika cermin
-  /// terbalik — mirror mati justru dicermin (sekaligus menanggung decode 24 MP
-  /// yang lambat), mirror nyala justru tidak.
-  /// Decode memakai codec bawaan Flutter (Skia/libjpeg-turbo), lalu flip dan
-  /// encode sekali di isolate terpisah.
-  ///
-  /// Tanpa resize dan tanpa target resolusi: kamera sudah diset ke Image Size M
-  /// (4240x2832), jadi ukuran itulah yang dipertahankan apa adanya.
-  ///
-  /// Mengembalikan null bila jalur ini tidak bisa dipakai, sehingga pemanggil
-  /// jatuh ke jalur Dart murni — optimasi tidak boleh membuat foto gagal.
-  Future<_PreparedPhoto?> _flipViaNativeCodec(Uint8List raw) async {
-    ui.ImmutableBuffer? buffer;
-    ui.ImageDescriptor? descriptor;
-    ui.Codec? codec;
-    ui.Image? decoded;
-    try {
-      final swDecode = Stopwatch()..start();
-      buffer = await ui.ImmutableBuffer.fromUint8List(raw);
-      descriptor = await ui.ImageDescriptor.encoded(buffer);
-      codec = await descriptor.instantiateCodec();
-      final frame = await codec.getNextFrame();
-      decoded = frame.image;
-      swDecode.stop();
-
-      final rgba = await decoded.toByteData(format: ui.ImageByteFormat.rawRgba);
-      if (rgba == null) return null;
-
-      return await compute(
-        _flipAndEncodeRgba,
-        _EncodeRgbaArgs(
-          rgba: rgba.buffer.asUint8List(),
-          width: decoded.width,
-          height: decoded.height,
-          decodeMs: swDecode.elapsedMilliseconds,
-        ),
-      );
-    } catch (e) {
-      debugPrint('⚠️ [ImageProcessor] Codec bawaan gagal ($e) — '
-          'memakai jalur Dart murni');
-      return null;
-    } finally {
-      decoded?.dispose();
-      codec?.dispose();
-      descriptor?.dispose();
-      buffer?.dispose();
-    }
-  }
-
-  /// [source] WAJIB menyebut dari mana foto ini benar-benar berasal.
+  /// [source] hanya untuk log — TIDAK ikut menentukan mirror.
   Future<XFile> _processCapturedPhoto(
     XFile rawFile,
     bool isMirrored, {
     required CaptureSource source,
   }) async {
-    // SATU SUMBER KEBENARAN: status cermin yang dipakai preview.
+    // SATU sumber keputusan: state tombol Mirror. Preview dan berkas hasil
+    // memakai nilai yang sama persis, sehingga keduanya tidak mungkin berbeda.
     //
-    // Tombol Mirror menentukan BERKAS HASIL. Preview punya aturannya sendiri
-    // (selalu seperti cermin, lihat `_previewMirrorFlip`) karena itu soal
-    // kenyamanan berpose, bukan soal isi foto. Satu pengecualian yang
-    // memang benar secara fisik: sensor kamera DEPAN tablet sudah menghasilkan
-    // gambar ter-cermin, sehingga nilainya dibalik. Kamera eksternal — Sony
-    // maupun frame HDMI — tidak, jadi mengikuti langsung.
-    final isFrontCam = source == CaptureSource.tablet &&
-        _cameraController?.description.lensDirection ==
-            CameraLensDirection.front;
-    final needsFlip = isFrontCam ? !isMirrored : isMirrored;
+    // `lensDirection` SENGAJA tidak dipakai di mana pun. Di Windows capture
+    // card dilaporkan sebagai `front` padahal ia kamera eksternal Sony, dan
+    // memakainya sebagai penentu pernah membalik seluruh logika cermin.
+    final needsFlip = isMirrored;
+
+    debugPrint('🪞 [Mirror] state=$isMirrored '
+        'preview=${isMirrored ? "mirrored" : "normal"} '
+        'result=${needsFlip ? "mirrored" : "normal"} '
+        '(sumber=${source.name})');
 
     final swTotal = Stopwatch()..start();
     final file = dart_io.File(rawFile.path);
@@ -950,7 +874,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
             children: [
               if (_showUvcView || _isUvcReady)
                 UvcPreview(
-                  mirror: _previewMirrorFlip,
+                  mirror: _isMirrorEnabled,
                   onOpenResult: _onUvcOpenResult,
                   previewWidth: _uvcPreviewWidth.toInt(),
                   previewHeight: _uvcPreviewHeight.toInt(),
@@ -958,7 +882,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
               else if (_isCameraReady && _cameraController != null)
                 Center(
                   child: Transform.flip(
-                    flipX: _previewMirrorFlip,
+                    flipX: _isMirrorEnabled,
                     child: FittedBox(
                       fit: BoxFit.cover,
                       child: SizedBox(
