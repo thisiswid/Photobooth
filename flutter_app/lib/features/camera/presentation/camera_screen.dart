@@ -561,6 +561,52 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     });
   }
 
+  /// Decode memakai codec bawaan Flutter (Skia/libjpeg-turbo), lalu flip dan
+  /// encode sekali di isolate terpisah.
+  ///
+  /// Tanpa resize dan tanpa target resolusi: kamera sudah diset ke Image Size M
+  /// (4240x2832), jadi ukuran itulah yang dipertahankan apa adanya.
+  ///
+  /// Mengembalikan null bila jalur ini tidak bisa dipakai, sehingga pemanggil
+  /// jatuh ke jalur Dart murni — optimasi tidak boleh membuat foto gagal.
+  Future<_PreparedPhoto?> _flipViaNativeCodec(Uint8List raw) async {
+    ui.ImmutableBuffer? buffer;
+    ui.ImageDescriptor? descriptor;
+    ui.Codec? codec;
+    ui.Image? decoded;
+    try {
+      final swDecode = Stopwatch()..start();
+      buffer = await ui.ImmutableBuffer.fromUint8List(raw);
+      descriptor = await ui.ImageDescriptor.encoded(buffer);
+      codec = await descriptor.instantiateCodec();
+      final frame = await codec.getNextFrame();
+      decoded = frame.image;
+      swDecode.stop();
+
+      final rgba = await decoded.toByteData(format: ui.ImageByteFormat.rawRgba);
+      if (rgba == null) return null;
+
+      return await compute(
+        _flipAndEncodeRgba,
+        _EncodeRgbaArgs(
+          rgba: rgba.buffer.asUint8List(),
+          width: decoded.width,
+          height: decoded.height,
+          decodeMs: swDecode.elapsedMilliseconds,
+        ),
+      );
+    } catch (e) {
+      debugPrint('⚠️ [ImageProcessor] Codec bawaan gagal ($e) — '
+          'memakai jalur Dart murni');
+      return null;
+    } finally {
+      decoded?.dispose();
+      codec?.dispose();
+      descriptor?.dispose();
+      buffer?.dispose();
+    }
+  }
+
   /// [source] hanya untuk log — TIDAK ikut menentukan mirror.
   Future<XFile> _processCapturedPhoto(
     XFile rawFile,
@@ -600,7 +646,10 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
         // `.first` hanya memberi potongan pertama, yang ukurannya tidak dijamin.
         final head = await file
             .openRead(0, 262144)
-            .fold<BytesBuilder>(BytesBuilder(), (b, d) => b..add(d));
+            .fold<dart_io.BytesBuilder>(
+              dart_io.BytesBuilder(),
+              (b, d) => b..add(d),
+            );
         size = _readJpegSizeFromHeader(head.takeBytes());
       } catch (_) {}
       final dim = size == null ? 'asli' : '${size.width}x${size.height}';
