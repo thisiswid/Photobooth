@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui' as ui;
 import 'dart:io' as dart_io;
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
@@ -78,19 +77,6 @@ _JpegSize? _readJpegSizeFromHeader(Uint8List head) {
   return null;
 }
 
-class _EncodeRgbaArgs {
-  const _EncodeRgbaArgs({
-    required this.rgba,
-    required this.width,
-    required this.height,
-    required this.decodeMs,
-  });
-  final Uint8List rgba;
-  final int width;
-  final int height;
-  final int decodeMs;
-}
-
 class _PreparedPhoto {
   const _PreparedPhoto({
     required this.bytes,
@@ -108,40 +94,9 @@ class _PreparedPhoto {
   final int encodeMs;
 }
 
-/// Tahap kedua jalur mirror ON: piksel mentah -> flip -> JPEG.
+/// Jalur mirror ON: 1x decode -> flip -> 1x encode. Tanpa resize.
 ///
-/// Decode sudah dikerjakan codec bawaan, jadi di sini TIDAK ada decode dan
-/// TIDAK ada resize. Dijalankan di isolate terpisah supaya encode tidak
-/// membekukan UI.
-_PreparedPhoto? _flipAndEncodeRgba(_EncodeRgbaArgs a) {
-  var image = img.Image.fromBytes(
-    width: a.width,
-    height: a.height,
-    bytes: a.rgba.buffer,
-    numChannels: 4,
-    order: img.ChannelOrder.rgba,
-  );
-
-  final swFlip = Stopwatch()..start();
-  image = img.flipHorizontal(image);
-  swFlip.stop();
-
-  final swEncode = Stopwatch()..start();
-  final out = img.encodeJpg(image, quality: _kMasterJpegQuality);
-  swEncode.stop();
-
-  return _PreparedPhoto(
-    bytes: out,
-    width: image.width,
-    height: image.height,
-    decodeMs: a.decodeMs,
-    flipMs: swFlip.elapsedMilliseconds,
-    encodeMs: swEncode.elapsedMilliseconds,
-  );
-}
-
-/// Jalur cadangan Dart murni: decode -> flip -> encode. Tanpa resize.
-/// Hanya dipakai bila codec bawaan gagal.
+/// Dijalankan di isolate terpisah supaya tidak membekukan UI.
 _PreparedPhoto? _flipAndEncodeDart(Uint8List bytes) {
   final swDecode = Stopwatch()..start();
   var image = img.decodeImage(bytes);
@@ -561,52 +516,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     });
   }
 
-  /// Decode memakai codec bawaan Flutter (Skia/libjpeg-turbo), lalu flip dan
-  /// encode sekali di isolate terpisah.
-  ///
-  /// Tanpa resize dan tanpa target resolusi: kamera sudah diset ke Image Size M
-  /// (4240x2832), jadi ukuran itulah yang dipertahankan apa adanya.
-  ///
-  /// Mengembalikan null bila jalur ini tidak bisa dipakai, sehingga pemanggil
-  /// jatuh ke jalur Dart murni — optimasi tidak boleh membuat foto gagal.
-  Future<_PreparedPhoto?> _flipViaNativeCodec(Uint8List raw) async {
-    ui.ImmutableBuffer? buffer;
-    ui.ImageDescriptor? descriptor;
-    ui.Codec? codec;
-    ui.Image? decoded;
-    try {
-      final swDecode = Stopwatch()..start();
-      buffer = await ui.ImmutableBuffer.fromUint8List(raw);
-      descriptor = await ui.ImageDescriptor.encoded(buffer);
-      codec = await descriptor.instantiateCodec();
-      final frame = await codec.getNextFrame();
-      decoded = frame.image;
-      swDecode.stop();
-
-      final rgba = await decoded.toByteData(format: ui.ImageByteFormat.rawRgba);
-      if (rgba == null) return null;
-
-      return await compute(
-        _flipAndEncodeRgba,
-        _EncodeRgbaArgs(
-          rgba: rgba.buffer.asUint8List(),
-          width: decoded.width,
-          height: decoded.height,
-          decodeMs: swDecode.elapsedMilliseconds,
-        ),
-      );
-    } catch (e) {
-      debugPrint('⚠️ [ImageProcessor] Codec bawaan gagal ($e) — '
-          'memakai jalur Dart murni');
-      return null;
-    } finally {
-      decoded?.dispose();
-      codec?.dispose();
-      descriptor?.dispose();
-      buffer?.dispose();
-    }
-  }
-
   /// [source] hanya untuk log — TIDAK ikut menentukan mirror.
   Future<XFile> _processCapturedPhoto(
     XFile rawFile,
@@ -664,9 +573,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
       final raw = await file.readAsBytes();
       final srcSize = _readJpegSizeFromHeader(raw);
 
-      var prepared = await _flipViaNativeCodec(raw);
-      final usedFallback = prepared == null;
-      prepared ??= await compute(_flipAndEncodeDart, raw);
+      final prepared = await compute(_flipAndEncodeDart, raw);
       if (prepared == null) {
         debugPrint('⚠️ [ImageProcessor] Gagal memproses — memakai berkas asli '
             '(hasil TIDAK ter-cermin)');
@@ -693,8 +600,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
       debugPrint('🖼️ [ImageProcessor] $src → '
           '${prepared.width}x${prepared.height} | mirror=true | '
           'decode=${prepared.decodeMs}ms flip=${prepared.flipMs}ms '
-          'encode=${prepared.encodeMs}ms total=${swTotal.elapsedMilliseconds}ms'
-          '${usedFallback ? " [dart murni]" : " [codec bawaan]"}');
+          'encode=${prepared.encodeMs}ms '
+          'total=${swTotal.elapsedMilliseconds}ms');
 
       return XFile(outFile.path);
     } catch (e) {
