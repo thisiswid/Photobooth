@@ -92,6 +92,18 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   @override
   void initState() {
     super.initState();
+
+    // Pulihkan pilihan mirror dari sesi.
+    //
+    // `_isMirrorEnabled` sebelumnya hanya state lokal layar: ditulis ke
+    // session provider tapi tidak pernah dibaca kembali. Begitu State layar
+    // ini dibuat ulang - pindah pose, kembali dari halaman lain - nilainya
+    // kembali ke false meskipun tamu sudah menekan Mirror. Preview dan berkas
+    // hasil sama-sama mengikuti nilai yang sudah ter-reset itu, sehingga
+    // terlihat seperti "tombol mirror tidak berfungsi".
+    _isMirrorEnabled = ref.read(sessionNotifierProvider).isMirrorEnabled;
+    debugPrint('🪞 [CameraScreen] Mirror dipulihkan dari sesi: $_isMirrorEnabled');
+
     _initExternalCamera();
     // CATATAN: dulu di sini ada Timer.periodic(1 detik) yang memanggil
     // setState kosong. Itu me-rebuild SELURUH pohon widget — termasuk
@@ -312,6 +324,17 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
         ),
       ),
     );
+  }
+
+  /// Satu-satunya tempat nilai mirror berubah.
+  ///
+  /// Menulis ke sesi sekaligus, supaya pilihan tamu bertahan saat layar ini
+  /// dibuat ulang untuk pose berikutnya.
+  void _toggleMirror() {
+    final next = !_isMirrorEnabled;
+    setState(() => _isMirrorEnabled = next);
+    ref.read(sessionNotifierProvider.notifier).setMirror(next);
+    debugPrint('🪞 [CameraScreen] Tombol mirror ditekan → $next');
   }
 
   Future<void> _capturePhoto() async {
@@ -825,7 +848,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
           Expanded(
             child: _MirrorToggleButton(
               isMirrorEnabled: _isMirrorEnabled,
-              onTap: () => setState(() => _isMirrorEnabled = !_isMirrorEnabled),
+              onTap: _toggleMirror,
               isMobile: isMobile,
             ),
           ),
