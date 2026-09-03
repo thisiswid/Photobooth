@@ -83,13 +83,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   int _countdownValue = _countdownSeconds;
   Timer? _countdownTimer;
 
-  /// Apakah foto yang sedang ditinjau masih perlu dicermin di piksel.
-  /// Pratinjau sudah dicermin lewat Transform (gratis); berkasnya menyusul.
-  bool _lastNeedsFlip = false;
-
-  /// Pekerjaan mencermin berkas yang berjalan di latar.
-  Future<void>? _flipJob;
-
   // ── Poses state ───────────────────────────────────────────────────────────
   int _currentPose = 0;
   XFile? _lastCaptured;
@@ -424,101 +417,65 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     bool isMirrored, {
     required CaptureSource source,
   }) async {
-    // Hanya sensor kamera depan yang sudah menghasilkan gambar ter-cermin.
-    // Kamera eksternal — Sony (PTP/helper) maupun frame HDMI — tidak.
+    // SATU SUMBER KEBENARAN: status cermin yang dipakai preview.
+    //
+    // Preview me-render `Transform.flip(flipX: _isMirrorEnabled)`, jadi berkas
+    // hasil harus mengikuti nilai yang sama persis. Satu pengecualian yang
+    // memang benar secara fisik: sensor kamera DEPAN tablet sudah menghasilkan
+    // gambar ter-cermin, sehingga nilainya dibalik agar hasil akhirnya sama
+    // dengan yang dilihat tamu.
+    //
+    // Kamera eksternal — Sony (helper/PTP) maupun frame HDMI — TIDAK
+    // ter-cermin dari sumbernya, jadi mengikuti langsung.
     final isFrontCam = source == CaptureSource.tablet &&
         _cameraController?.description.lensDirection ==
             CameraLensDirection.front;
     final needsFlip = isFrontCam ? !isMirrored : isMirrored;
-    debugPrint('🪞 [CameraScreen] sumber=${source.name} '
-        'frontCam=$isFrontCam mirror=$isMirrored → flip=$needsFlip');
 
-    // JALUR CEPAT: tidak perlu di-flip → jangan decode apa pun.
-    //
-    // PENTING: sejak shutter PTP aktif, file dari Sony ZV-E10 berukuran
-    // 6000x4000 (24 MP). Decode + encode ulang gambar sebesar itu di isolate
-    // UI memakan beberapa detik dan langsung memicu ANR
-    // ("SnapTechBooth isn't responding"). Karena itu kerja berat dipindah ke
-    // isolate lain lewat compute(), dan dilewati sepenuhnya bila tidak perlu.
-    _lastNeedsFlip = needsFlip;
-    _flipJob = null;
+    debugPrint('🪞 [CameraScreen] mirror=$isMirrored → flip=$needsFlip '
+        '(sumber=${source.name}, frontCam=$isFrontCam)');
+
     if (!needsFlip) return rawFile;
 
-    // JANGAN menahan tampilan hasil selama pencerminan.
+    // Flip DIKERJAKAN SAMPAI SELESAI di sini, sebelum hasil ditampilkan dan
+    // sebelum berkas diteruskan ke sesi. Dengan begitu berkas di disk dan
+    // gambar di layar tidak pernah berbeda, dan tidak ada keadaan setengah
+    // jadi yang bisa terlihat sebagai "mirror tidak berfungsi".
     //
-    // Mencermin JPEG 6000x4000 berarti decode + encode ulang di `package:image`
-    // yang murni Dart — beberapa detik. Dulu itu ditunggu SEBELUM hasil
-    // ditampilkan, sehingga rana sudah bunyi, kamera sudah hidup lagi, tapi
-    // layar masih memutar spinner. Sekarang:
-    //   - pratinjau langsung tampil, dicermin lewat Transform (gratis, GPU)
-    //   - berkasnya dicermin di latar, selagi tamu meninjau foto
-    //   - _onNext menunggu pekerjaan itu bila kebetulan belum selesai
-    _flipJob = _flipFileInBackground(rawFile.path);
-    return rawFile;
-  }
-
-  Future<void> _flipFileInBackground(String path) async {
+    // Kerja beratnya tetap di isolate lain lewat compute(), supaya UI tidak
+    // membeku dan tidak memicu ANR saat menangani JPEG 6000x4000.
     final sw = Stopwatch()..start();
     try {
-      final file = dart_io.File(path);
+      final file = dart_io.File(rawFile.path);
       final bytes = await file.readAsBytes();
       final newBytes = await compute(_flipJpegBytes, bytes);
       if (newBytes == null) {
         debugPrint('⚠️ [CameraScreen] Cermin gagal decode, berkas dibiarkan apa adanya');
-        return;
+        return rawFile;
       }
       await file.writeAsBytes(newBytes, flush: true);
 
-      // Buang cache gambar untuk path ini.
-      //
-      // Flutter meng-cache hasil decode berdasarkan path + cacheWidth. Berkasnya
-      // baru saja DITIMPA dengan versi ter-cermin, tapi cache masih memegang
-      // piksel yang lama. Tanpa pembuangan ini, setiap widget yang membaca path
-      // yang sama sesudahnya — strip foto pose sebelumnya, layar tinjauan —
-      // menampilkan versi belum ter-cermin, sementara berkas di disk sudah
-      // ter-cermin. Persis gejala "tombol mirror tidak berfungsi": berkasnya
-      // benar, yang terlihat salah.
+      // Buang cache decode untuk path ini. Flutter meng-cache berdasarkan
+      // path + cacheWidth; berkasnya baru saja DITIMPA, jadi tanpa ini widget
+      // yang membaca path yang sama masih menampilkan piksel lama.
       await FileImage(file).evict();
 
-      // Berkas di disk SEKARANG sudah ter-cermin, jadi Transform di pratinjau
-      // harus dimatikan. Kalau tidak, begitu widget membangun ulang, gambar
-      // yang sudah ter-cermin akan dicermin SEKALI LAGI dan kembali seperti
-      // semula — persis gejala "tombol mirror tidak berfungsi", dan muncul
-      // secara acak karena bergantung pada kapan widget kebetulan rebuild.
-      //
-      // Hasil akhirnya konsisten di kedua fase:
-      //   sebelum: berkas asli  + Transform aktif  → tampak ter-cermin
-      //   sesudah: berkas cermin + Transform mati  → tampak ter-cermin
-      if (mounted && _lastCaptured?.path == path) {
-        setState(() => _lastNeedsFlip = false);
-      }
-
       debugPrint('🪞 [CameraScreen] Berkas dicermin dalam ${sw.elapsedMilliseconds} ms');
+      return XFile(file.path);
     } catch (e) {
       debugPrint('⚠️ [CameraScreen] Cermin berkas gagal: $e');
+      return rawFile;
     }
   }
 
-
   void _onRetake() {
-    _flipJob = null;
-    _lastNeedsFlip = false;
     setState(() {
       _lastCaptured = null;
     });
     _startCountdown();
   }
 
-  Future<void> _onNext() async {
-    // Pastikan berkas sudah benar-benar dicermin sebelum diteruskan ke sesi.
-    // Biasanya sudah selesai selagi tamu meninjau foto, jadi ini tidak terasa.
-    final job = _flipJob;
-    if (job != null) {
-      await job;
-      _flipJob = null;
-      if (!mounted) return;
-    }
-
+  void _onNext() {
     final notifier = ref.read(sessionNotifierProvider.notifier);
     final sessionId = ref.read(sessionNotifierProvider).session?.sessionId.toString() ?? '1';
 
@@ -668,20 +625,17 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
       child: Container(
         color: AppColors.darkCoffee,
         child: _lastCaptured != null
-            ? Transform.flip(
-                // Berkasnya mungkin masih dicermin di latar. Pratinjau tidak
-                // menunggu itu — pencerminan di layar gratis.
-                flipX: _lastNeedsFlip,
-                child: Image.file(
-                  dart_io.File(_lastCaptured!.path),
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  height: double.infinity,
-                  // Batasi decode: foto 24 MP dari Sony tidak perlu di-decode
-                  // penuh hanya untuk pratinjau.
-                  cacheWidth: 1080,
-                  filterQuality: FilterQuality.medium,
-                ),
+            ? Image.file(
+                // Berkas ini SUDAH ter-cermin bila memang perlu, jadi jangan
+                // dicermin lagi di layar — itu akan membatalkannya.
+                dart_io.File(_lastCaptured!.path),
+                fit: BoxFit.cover,
+                width: double.infinity,
+                height: double.infinity,
+                // Batasi decode: foto 24 MP dari Sony tidak perlu di-decode
+                // penuh hanya untuk pratinjau.
+                cacheWidth: 1080,
+                filterQuality: FilterQuality.medium,
               )
             : Center(
                 child: Icon(
