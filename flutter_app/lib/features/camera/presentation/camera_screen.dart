@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'dart:io' as dart_io;
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
@@ -27,15 +28,12 @@ import '../../../shared/widgets/photo_strip_widget.dart';
 import '../../../shared/widgets/responsive_layout_builder.dart';
 import '../../../shared/widgets/uvc_preview.dart';
 
-/// Target jumlah piksel untuk master hasil foto: ~10 MP.
+/// Target jumlah piksel untuk master hasil foto: ~14 MP.
 ///
 /// Dihitung sebagai jumlah piksel, bukan panjang sisi, supaya berlaku untuk
 /// rasio apa pun. Untuk 3:2 dari sensor Sony: 6000x4000 (24 MP) turun ke
-/// 3873x2582 (10,0 MP) — persis skala sqrt(10/24) = 0,6455.
-///
-/// 10 MP dipilih karena mempertahankan ketajaman jauh di atas kebutuhan cetak
-/// photobooth, sementara encode-nya hanya ~40% biaya encode 24 MP.
-const int _kMasterTargetPixels = 10000000;
+/// 4583x3055 (14,0 MP) — persis skala sqrt(14/24) = 0,7638.
+const int _kMasterTargetPixels = 14000000;
 
 /// Kualitas JPEG master. Di rentang 90-95: jernih, tanpa artefak yang terlihat
 /// pada cetakan 4R.
@@ -68,6 +66,59 @@ class _PreparedPhoto {
   final int resizeMs;
   final int flipMs;
   final int encodeMs;
+}
+
+class _EncodeRgbaArgs {
+  const _EncodeRgbaArgs({
+    required this.rgba,
+    required this.width,
+    required this.height,
+    required this.flip,
+    required this.srcWidth,
+    required this.srcHeight,
+    required this.decodeMs,
+  });
+  final Uint8List rgba;
+  final int width;
+  final int height;
+  final bool flip;
+  final int srcWidth;
+  final int srcHeight;
+  final int decodeMs;
+}
+
+/// Tahap kedua jalur codec bawaan: piksel mentah -> flip -> JPEG.
+///
+/// Decode dan pengecilan sudah dikerjakan Skia, jadi di sini tidak ada resize
+/// sama sekali. Dijalankan di isolate terpisah supaya encode tidak membekukan UI.
+_PreparedPhoto? _encodeRgbaToJpeg(_EncodeRgbaArgs a) {
+  var image = img.Image.fromBytes(
+    width: a.width,
+    height: a.height,
+    bytes: a.rgba.buffer,
+    numChannels: 4,
+    order: img.ChannelOrder.rgba,
+  );
+
+  final swFlip = Stopwatch()..start();
+  if (a.flip) image = img.flipHorizontal(image);
+  swFlip.stop();
+
+  final swEncode = Stopwatch()..start();
+  final out = img.encodeJpg(image, quality: _kMasterJpegQuality);
+  swEncode.stop();
+
+  return _PreparedPhoto(
+    bytes: out,
+    srcWidth: a.srcWidth,
+    srcHeight: a.srcHeight,
+    outWidth: image.width,
+    outHeight: image.height,
+    decodeMs: a.decodeMs,
+    resizeMs: 0,
+    flipMs: swFlip.elapsedMilliseconds,
+    encodeMs: swEncode.elapsedMilliseconds,
+  );
 }
 
 /// Dijalankan di isolate terpisah oleh `compute()` — JANGAN panggil langsung
@@ -530,6 +581,85 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   /// datang dari Sony, bukan dari capture card. Akibatnya logika cermin
   /// terbalik — mirror mati justru dicermin (sekaligus menanggung decode 24 MP
   /// yang lambat), mirror nyala justru tidak.
+  /// Decode ter-downsample memakai codec bawaan Flutter (Skia/libjpeg-turbo).
+  ///
+  /// Ini inti optimasinya. `package:image` adalah Dart murni dan TIDAK bisa
+  /// menurunkan skala saat decode — memakainya berarti bitmap 6000x4000 selalu
+  /// terbentuk lebih dulu, dan itulah 2701 ms yang terukur.
+  ///
+  /// `instantiateCodec(targetWidth/Height)` meneruskan skala ke libjpeg-turbo,
+  /// yang bisa men-decode langsung pada pecahan N/8 dari ukuran asli. Bitmap
+  /// 24 MP tidak pernah dibuat.
+  ///
+  /// Mengembalikan null bila jalur ini tidak bisa dipakai, sehingga pemanggil
+  /// jatuh ke jalur Dart murni yang sudah terbukti — optimasi tidak boleh
+  /// membuat foto gagal.
+  Future<_PreparedPhoto?> _prepareViaNativeCodec(
+    Uint8List raw,
+    bool needsFlip,
+  ) async {
+    ui.ImmutableBuffer? buffer;
+    ui.ImageDescriptor? descriptor;
+    ui.Codec? codec;
+    ui.Image? decoded;
+    try {
+      final swDecode = Stopwatch()..start();
+      buffer = await ui.ImmutableBuffer.fromUint8List(raw);
+      descriptor = await ui.ImageDescriptor.encoded(buffer);
+
+      final srcW = descriptor.width;
+      final srcH = descriptor.height;
+      if (srcW <= 0 || srcH <= 0) return null;
+
+      var targetW = srcW;
+      var targetH = srcH;
+      final srcPixels = srcW * srcH;
+      if (srcPixels > _kMasterTargetPixels) {
+        final scale = math.sqrt(_kMasterTargetPixels / srcPixels);
+        targetW = (srcW * scale).round();
+        targetH = (srcH * scale).round();
+      }
+
+      codec = await descriptor.instantiateCodec(
+        targetWidth: targetW,
+        targetHeight: targetH,
+      );
+      final frame = await codec.getNextFrame();
+      decoded = frame.image;
+      swDecode.stop();
+
+      final rgba = await decoded.toByteData(
+        format: ui.ImageByteFormat.rawRgba,
+      );
+      if (rgba == null) return null;
+
+      final w = decoded.width;
+      final h = decoded.height;
+
+      return await compute(
+        _encodeRgbaToJpeg,
+        _EncodeRgbaArgs(
+          rgba: rgba.buffer.asUint8List(),
+          width: w,
+          height: h,
+          flip: needsFlip,
+          srcWidth: srcW,
+          srcHeight: srcH,
+          decodeMs: swDecode.elapsedMilliseconds,
+        ),
+      );
+    } catch (e) {
+      debugPrint('⚠️ [CameraScreen] Codec bawaan gagal ($e) — '
+          'memakai jalur Dart murni');
+      return null;
+    } finally {
+      decoded?.dispose();
+      codec?.dispose();
+      descriptor?.dispose();
+      buffer?.dispose();
+    }
+  }
+
   Future<XFile> _processCapturedPhoto(
     XFile rawFile,
     bool isMirrored, {
@@ -551,14 +681,19 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     debugPrint('🪞 [CameraScreen] mirror=$isMirrored → flip=$needsFlip '
         '(sumber=${source.name}, frontCam=$isFrontCam)');
 
-    // Satu lintasan: 1x decode -> resize ~10 MP -> flip bila perlu -> 1x encode.
-    // Tidak ada decode kedua dan tidak ada encode pada resolusi penuh.
+    // Satu lintasan: 1x decode ter-downsample ke ~14 MP -> flip -> 1x encode.
+    // Bitmap 24 MP tidak pernah dibuat, dan tidak ada decode kedua.
     // Berkas 24 MP asli dari sensor dibiarkan utuh di folder Pictures sebagai
     // arsip; yang mengalir ke sesi, cetak, dan unggah adalah master 10 MP ini.
     final sw = Stopwatch()..start();
     try {
       final raw = await dart_io.File(rawFile.path).readAsBytes();
-      final prepared = await compute(
+
+      // Jalur utama: decode ter-downsample lewat codec bawaan.
+      // Jalur cadangan: Dart murni (decode penuh lalu resize) bila yang utama
+      // tidak tersedia di platform ini.
+      var prepared = await _prepareViaNativeCodec(raw, needsFlip);
+      prepared ??= await compute(
         _prepareCapturedPhoto,
         _PreparePhotoArgs(raw, needsFlip),
       );
@@ -585,13 +720,14 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
             '${sw.elapsedMilliseconds} ms');
       }
       final mp = (prepared.outWidth * prepared.outHeight) / 1000000.0;
+      final jalur = prepared.resizeMs == 0 ? 'codec bawaan' : 'dart murni';
       debugPrint('🖼️ [CameraScreen] ${prepared.srcWidth}x${prepared.srcHeight} → '
           '${prepared.outWidth}x${prepared.outHeight} '
           '(${mp.toStringAsFixed(1)} MP), '
           '${(prepared.bytes.length / 1048576).toStringAsFixed(2)} MB '
-          '— decode ${prepared.decodeMs} ms, resize ${prepared.resizeMs} ms, '
-          'flip ${prepared.flipMs} ms, encode ${prepared.encodeMs} ms, '
-          'total ${sw.elapsedMilliseconds} ms');
+          '[$jalur] — decode ${prepared.decodeMs} ms, '
+          'resize ${prepared.resizeMs} ms, flip ${prepared.flipMs} ms, '
+          'encode ${prepared.encodeMs} ms, total ${sw.elapsedMilliseconds} ms');
 
       return XFile(workFile.path);
     } catch (e) {
