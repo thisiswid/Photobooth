@@ -401,7 +401,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     }
     if (!_isCameraReady || _cameraController == null) return null;
     return Transform.flip(
-      flipX: _isMirrorEnabled,
+      flipX: _cameraPreviewFlipX,
       child: FittedBox(
         fit: BoxFit.cover,
         child: SizedBox(
@@ -412,6 +412,24 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
       ),
     );
   }
+
+  /// Nilai flip untuk `CameraPreview`.
+  ///
+  /// KEBALIKAN dari `_isMirrorEnabled`, dan itu disengaja.
+  ///
+  /// `camera_windows` sudah mencermin sendiri perangkat yang dilaporkan
+  /// Windows sebagai `front` — dan capture card MS2109 dilaporkan begitu,
+  /// meski sebenarnya kamera eksternal. Jadi frame yang sampai ke widget
+  /// SUDAH ter-cermin. Menerapkan flip lagi saat Mirror ON justru
+  /// membatalkannya dan preview berubah jadi seperti kamera belakang.
+  ///
+  /// Dengan kompensasi ini:
+  ///   Mirror ON  -> flipX=false -> frame tetap ter-cermin  -> selfie  ✓
+  ///   Mirror OFF -> flipX=true  -> cerminan dibatalkan     -> normal  ✓
+  ///
+  /// Hanya berlaku untuk `CameraPreview`. `UvcPreview` (jalur Android) tidak
+  /// disentuh karena tumpukan preview-nya berbeda dan sudah benar di sana.
+  bool get _cameraPreviewFlipX => !_isMirrorEnabled;
 
   /// Satu-satunya tempat nilai mirror berubah.
   ///
@@ -847,7 +865,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
               else if (_isCameraReady && _cameraController != null)
                 Center(
                   child: Transform.flip(
-                    flipX: _isMirrorEnabled,
+                    flipX: _cameraPreviewFlipX,
                     child: FittedBox(
                       fit: BoxFit.cover,
                       child: SizedBox(
