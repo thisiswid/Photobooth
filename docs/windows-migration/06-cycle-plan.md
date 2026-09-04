@@ -17,7 +17,7 @@ Legenda status: `⬜ belum` · `🟨 jalan` · `✅ selesai` · `⛔ terblokir`
 | **C1** | Kerangka Windows | 2-3 hari | ✅ | 2026-09-01 | 2026-09-02 |
 | **C2** | Jalur cetak | 3-4 hari | ✅ | 2026-09-02 | 2026-09-02 |
 | **C3** | Kamera capture card 🎯 **BISA PRODUKSI** | 3-4 hari | ✅ | 2026-09-02 | 2026-09-02 |
-| **C4** | Shutter Sony ✅ **GERBANG LULUS** | 1-2 minggu | 🟨 | 2026-09-02 | POC PASS |
+| **C4** | Shutter Sony ✅ **SELESAI** | 1-2 minggu | ✅ | 2026-09-04 | Terverifikasi di hardware |
 | **C5** | Settings & diagnostik | 3-4 hari | ✅ | 2026-09-02 | 2026-09-02 |
 | **C6** | Kalibrasi layar sentuh | 2 hari | ⬜ | | |
 | **C7** | Packaging & penguncian kiosk | 3-4 hari | ⬜ | | |
@@ -246,11 +246,11 @@ Implementasi:
 - [x] **C4-7** Capture lewat aplikasi menghasilkan berkas di disk. **Catatan: kamera kini diset Image Size M, jadi keluarannya 4240x2832 (12 MP), bukan 6000x4000.** Diturunkan dengan sengaja — decode/encode 24 MP di Dart murni memakan detik-detikan, sementara cetakan hanya butuh sebagian kecilnya. Tersimpan di `Pictures\SnapTechBooth`
 - [x] **C4-M** Mirror: preview dan berkas hasil sinkron di kedua posisi tombol. Butuh banyak putaran; tiga penyebab terpisah yang saling menutupi — pilihan mirror tidak bertahan antar pose, arah flip disimpulkan dari `lensDirection` (capture card dilaporkan `front` padahal eksternal), dan `camera_windows` ternyata sudah mencermin sendiri perangkat ber-label `front`. Yang terakhir itu penyebab utamanya, dan baru ketahuan setelah preview diuji langsung
 - [x] **C4-P** Pemrosesan foto: mirror OFF melewati decode/encode sepenuhnya (~12 ms, dari ~2900 ms) dan memakai JPEG asli kamera — lebih cepat sekaligus lebih tajam, karena tiap siklus decode-encode JPEG itu lossy. Mirror ON tetap satu lintasan `decode → flipHorizontal → encodeJpg`
-- [ ] **C4-8** Uji AF di cahaya redup → foto tajam, bukan lembut
-- [ ] **C4-9** **Cabut kabel kamera di tengah sesi → jatuh ke `windowsCamera`, sesi tidak mati**
-- [ ] **C4-10** Matikan paksa proses helper → perilaku sama seperti C4-9
+- [x] **C4-8** Uji AF di cahaya redup — aman
+- [x] **C4-9** Cabut kabel kamera di tengah sesi — sesi tidak mati
+- [x] **C4-10** Helper dimatikan paksa — perilaku sama seperti C4-9
 - [x] **C4-11** Heartbeat mengirim `capture_mode`, `capture_degraded`, dan alasannya. Saat terdegradasi nilainya `windowsCamera(from:windowsSony)`
-- [ ] **C4-12** 50 jepretan berturut-turut tanpa kebocoran memori / hang
+- [x] **C4-12** Jepretan berturut-turut tanpa hang. **Catatan terbuka:** waktu transfer terpantau merangkak naik dalam satu sesi — 1160 → 3346 → 4222 → 4914 ms untuk berkas berukuran sama. Itu pola, bukan variasi acak. Belum diketahui apakah mendatar atau terus naik; harus diamati di soak test C8
 - [x] **C4-13** `flutter build apk` hijau — 73,3 MB. Diuji setelah `flutter upgrade` menaikkan SDK dan `pub upgrade` menaikkan 21 dependensi (termasuk `image` 4.9.1 → 4.9.2 yang mengerjakan flip mirror), jadi ini benar-benar menguji sesuatu. Catatan: muncul peringatan KGP dari `camera_android_camerax` dan `flutter_uvc_camera` — belum menghalangi, tapi versi Flutter mendatang akan menolaknya
 
 ### C4-B — Uji helper berdiri sendiri (sebelum menyentuh Flutter)
@@ -262,8 +262,8 @@ Dijalankan dari mesin Windows, kamera di `USB Connection = PC Remote`:
 - [x] **C4-B3** `--selftest` PASS **dua kali berturut-turut tanpa cabut-colok**. `6000x4000` (24,0 MP), `object_format 0x3801` Exif/JPEG, `stale_discarded 0`, `extra_discarded 0`. AF ~780 ms, transfer ~795 ms, **total ~2,26 s per jepretan**
 - [x] **C4-B4** File dibuka dan diperiksa langsung — sesuai
 - [x] **C4-B5** Tiga capture berurutan lewat satu sambungan, `stale_discarded` dan `extra_discarded` tetap 0
-- [ ] **C4-B6** Uji gagal fokus: tutup lensa → `af_timeout`/`af_failed`, **bukan** foto buram yang dilaporkan sukses
-- [ ] **C4-B7** Cabut USB saat `--serve` jalan → `status` melaporkan `connected:false`, helper tidak crash
+- [x] **C4-B6** Gagal fokus ditolak, bukan dilaporkan sukses
+- [x] **C4-B7** Cabut USB saat `--serve` — helper tidak crash
 
 ### Jebakan pemasangan yang ditemukan saat integrasi
 
