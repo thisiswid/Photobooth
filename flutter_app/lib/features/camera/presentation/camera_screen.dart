@@ -178,6 +178,10 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   final ValueNotifier<int> _countdown = ValueNotifier<int>(_countdownSeconds);
   Timer? _countdownTimer;
 
+  /// Penanda waktu untuk mengukur jeda antara tombol Lanjut ditekan dan
+  /// hitungan mundur benar-benar TERLIHAT bergerak.
+  Stopwatch? _perfWatch;
+
   // ── Poses state ───────────────────────────────────────────────────────────
   int _currentPose = 0;
   XFile? _lastCaptured;
@@ -362,19 +366,28 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   }
 
   Future<void> _startCountdown() async {
+    debugPrint('⏱️ [Perf] _startCountdown masuk '
+        '(+${_perfWatch?.elapsedMilliseconds ?? 0} ms)');
     ref.read(sessionNotifierProvider.notifier).setMirror(_isMirrorEnabled);
 
     // Tampilkan layar tunggu, bukan hitungan mundur, selama kamera belum siap.
     if (!_isPreviewLive) {
+      debugPrint('⏱️ [Perf] Preview belum hidup — menunggu '
+          '(+${_perfWatch?.elapsedMilliseconds ?? 0} ms)');
       setState(() => _step = _CaptureStep.initialPreview);
       await _waitForPreview();
       if (!mounted) return;
+      debugPrint('⏱️ [Perf] Selesai menunggu preview '
+          '(+${_perfWatch?.elapsedMilliseconds ?? 0} ms)');
     }
 
     setState(() {
       _step = _CaptureStep.countdown;
       _countdown.value = _countdownSeconds;
     });
+
+    debugPrint('⏱️ [Perf] Timer hitungan mundur dimulai dari 7 '
+        '(+${_perfWatch?.elapsedMilliseconds ?? 0} ms)');
 
     _countdownTimer?.cancel();
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
@@ -385,6 +398,15 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
       if (_countdown.value > 1) {
         // TANPA setState: hanya pendengar notifier yang dibangun ulang.
         _countdown.value = _countdown.value - 1;
+        final at = _perfWatch?.elapsedMilliseconds ?? 0;
+        // Selisih antara detak dan saat frame benar-benar tergambar
+        // menunjukkan seberapa lama UI thread tersumbat.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final drawn = _perfWatch?.elapsedMilliseconds ?? 0;
+          debugPrint('⏱️ [Perf] angka ${_countdown.value} '
+              '— detak +$at ms, tergambar +$drawn ms '
+              '(tertunda ${drawn - at} ms)');
+        });
         // Kunci fokus satu hitungan sebelum jepret. AF butuh ~0,8 detik; kalau
         // baru dimulai saat hitungan habis, rana terasa telat sedetik.
         // Dijalankan tanpa ditunggu supaya hitungan mundur tetap presisi.
@@ -666,6 +688,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   }
 
   void _onNext() {
+    _perfWatch = Stopwatch()..start();
+    debugPrint('⏱️ [Perf] Lanjut ditekan');
     final notifier = ref.read(sessionNotifierProvider.notifier);
     final sessionId = ref.read(sessionNotifierProvider).session?.sessionId.toString() ?? '1';
 

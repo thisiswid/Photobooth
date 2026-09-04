@@ -66,6 +66,7 @@ class PrinterService {
   static const _orientationKey = 'printer_orientation';
   static const _borderlessKey = 'printer_borderless';
   static const _autoPrintKey = 'printer_auto_print';
+  static const _printingEnabledKey = 'printer_printing_enabled';
   static const _autoReconnectKey = 'printer_auto_reconnect';
   static const _retryCountKey = 'printer_retry_count';
   static const _marginHorizKey = 'printer_margin_horizontal';
@@ -149,6 +150,23 @@ class PrinterService {
 
   static Future<bool> getAutoPrint() async => (await _storage.read(key: _autoPrintKey)) != 'false';
   static Future<void> setAutoPrint(bool b) async => await _storage.write(key: _autoPrintKey, value: b.toString());
+
+  /// Saklar utama cetak.
+  ///
+  /// Saat dimatikan, seluruh permintaan cetak dilewati dan dilaporkan sukses
+  /// tanpa mengirim apa pun ke printer. Gunanya untuk menguji alur sesi
+  /// berulang kali tanpa menghabiskan kertas dan tinta.
+  ///
+  /// Default MENYALA — kiosk yang baru dipasang harus mencetak, bukan diam.
+  static Future<bool> getPrintingEnabled() async =>
+      (await _storage.read(key: _printingEnabledKey)) != 'false';
+
+  static Future<void> setPrintingEnabled(bool b) async {
+    await _storage.write(key: _printingEnabledKey, value: b.toString());
+    debugPrint(b
+        ? '🖨️ Mode cetak DINYALAKAN'
+        : '🚫 Mode cetak DIMATIKAN — permintaan cetak akan dilewati');
+  }
 
   static Future<bool> getAutoReconnect() async => (await _storage.read(key: _autoReconnectKey)) != 'false';
   static Future<void> setAutoReconnect(bool b) async => await _storage.write(key: _autoReconnectKey, value: b.toString());
@@ -898,6 +916,17 @@ class PrinterService {
     String jobName = 'Photobooth_Print',
     int copies = 1,
   }) async {
+    // Saklar utama cetak (Hidden Settings > Printer). Diperiksa PALING AWAL,
+    // sebelum lock dan sebelum menyentuh printer sama sekali.
+    if (!await getPrintingEnabled()) {
+      debugPrint('🚫 [Printer] Mode cetak dimatikan — cetakan dilewati '
+          '(jobName=$jobName, ${imageBytes.length} byte)');
+      return const PrintJobResult(
+        isSuccess: true,
+        message: 'Mode cetak dimatikan (pengujian) — tidak ada yang dicetak.',
+      );
+    }
+
     if (_isPrintingBusy) {
       debugPrint('⚠️ Warning: Print job ditolak karena sedang ada pencetakan berlangsung.');
       return const PrintJobResult(

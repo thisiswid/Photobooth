@@ -39,6 +39,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
   Map<String, dynamic> _winStatus = const {};
   bool _winLoading = false;
   bool _autoPrint = true;
+  bool _printingEnabled = true;
   bool _autoReconnect = true;
   int _retryCount = 3;
 
@@ -110,6 +111,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
     final strictSilent = await PrinterService.getStrictSilent();
     final helperStatus = await PrinterService.getAutoPrintHelperStatus();
     final coverDialog = await PrinterService.getCoverDialog();
+    final printingEnabled = await PrinterService.getPrintingEnabled();
     final canOverlay = await PrinterService.canDrawOverlays();
 
     final status = await PrinterService.getPrinterStatus();
@@ -124,6 +126,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
         _horizController.text = marginHoriz.toString();
         _vertController.text = marginVert.toString();
         _autoPrint = autoPrint;
+        _printingEnabled = printingEnabled;
         _autoReconnect = autoReconnect;
         _retryCount = retries;
         _ippEnabled = ippEnabled;
@@ -322,6 +325,54 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
     return ListView(
       padding: EdgeInsets.all(16.r),
       children: [
+        // ── SAKLAR UTAMA CETAK ─────────────────────────────────────────────
+        //
+        // Ditaruh paling atas karena ini yang paling sering dicari saat
+        // menguji: mematikannya membuat seluruh alur sesi bisa diulang
+        // berkali-kali tanpa menghabiskan kertas dan tinta.
+        Container(
+          padding: EdgeInsets.all(14.r),
+          decoration: BoxDecoration(
+            color: _printingEnabled
+                ? Colors.black.withValues(alpha: 0.3)
+                : const Color(0xFF9E2A2B).withValues(alpha: 0.25),
+            borderRadius: BorderRadius.circular(12.r),
+            border: Border.all(
+              color: _printingEnabled
+                  ? AppColors.gold.withValues(alpha: 0.3)
+                  : const Color(0xFFE57373),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildSwitchRow(
+                label: 'Mode Cetak Aktif',
+                value: _printingEnabled,
+                onChanged: (val) async {
+                  setState(() => _printingEnabled = val);
+                  await PrinterService.setPrintingEnabled(val);
+                },
+              ),
+              SizedBox(height: 6.h),
+              Text(
+                _printingEnabled
+                    ? 'Foto akan dicetak seperti biasa.'
+                    : 'MODE PENGUJIAN — tidak ada yang dicetak. Alur sesi tetap '
+                        'berjalan sampai selesai dan dilaporkan berhasil, tetapi '
+                        'tidak ada perintah yang dikirim ke printer. JANGAN '
+                        'ditinggal mati saat kiosk dipakai pelanggan.',
+                style: TextStyle(
+                  color: _printingEnabled ? Colors.white70 : const Color(0xFFFFCDD2),
+                  fontSize: 11.sp,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        SizedBox(height: 16.h),
+
         // ── SECTION 1: PRINTER CONNECTION ──────────────────────────────────
         _buildSectionHeader('PRINTER CONNECTION'),
         SizedBox(height: 8.h),
