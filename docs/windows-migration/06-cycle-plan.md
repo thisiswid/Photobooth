@@ -316,15 +316,15 @@ terlihat tanpa kamera nyata:
 
 ## Cycle C7 — Packaging & Penguncian Kiosk
 
-- [ ] **C7-1** Skrip **Inno Setup** (bukan MSIX)
+- [x] **C7-1** `installer/snaptechbooth.iss`
 - [ ] **C7-2** Installer memasang: aplikasi → Program Files, VC++ Redistributable, driver Epson + default 4R borderless
 - [ ] **C7-3** Installer mengatur autologin + autostart
 - [ ] **C7-4** Matikan notifikasi Windows, atur active hours mencakup seluruh jam operasional
-- [ ] **C7-5** Blokir `Alt+F4`, tombol Windows, `Ctrl+Shift+Esc`
+- [~] **C7-5** `Alt+F4` diblokir di aplikasi (`setPreventClose` + `KioskWindowGuard`, hanya release). Tombol Windows dan `Ctrl+Shift+Esc` **tidak bisa** ditangani aplikasi — keduanya milik sistem operasi dan butuh Shell Launcher / Group Policy (Windows 11 Pro). Sudah masuk checklist pemasangan
 - [ ] **C7-6** Tambah field `app_version` di heartbeat + alur unduh installer
 - [ ] **C7-7** Uji di mesin Windows bersih: dari nol sampai siap jual **≤ 30 menit**
 - [ ] **C7-8** Waktu boot ≤ 90 detik dari listrik menyala
-- [ ] **C7-9** Tulis `docs/deployment-windows.md` — checklist instalasi unit baru
+- [x] **C7-9** `docs/deployment-windows.md` — checklist per unit, urutannya menaruh yang paling sering gagal (izin privasi kamera, setelan USB kamera) di depan
 
 ---
 

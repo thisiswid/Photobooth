@@ -65,6 +65,25 @@ Future<void> _setupKioskDisplay() async {
       await windowManager.show();
       await windowManager.focus();
     });
+
+    // Tamu tidak boleh bisa menutup aplikasi.
+    //
+    // `Alt+F4` dan tombol tutup mengirim permintaan tutup ke jendela.
+    // `setPreventClose(true)` membuat permintaan itu tidak langsung dijalankan,
+    // lalu `KioskWindowGuard` menolaknya. Tanpa ini, satu penekanan tombol
+    // menjatuhkan kiosk ke desktop Windows di tengah acara.
+    //
+    // HANYA di release. Saat debug jendela harus tetap bisa ditutup — mengunci
+    // diri sendiri selama pengembangan itu menyiksa dan mudah terlupa.
+    //
+    // Ini menutup Alt+F4 saja. Tombol Windows dan Ctrl+Shift+Esc ditangani
+    // sistem operasi, bukan aplikasi — keduanya butuh Shell Launcher atau
+    // Group Policy (Windows 11 Pro), dan ada di checklist
+    // docs/deployment-windows.md.
+    if (kReleaseMode) {
+      await windowManager.setPreventClose(true);
+      windowManager.addListener(KioskWindowGuard());
+    }
     return;
   }
 
@@ -108,5 +127,19 @@ class SnapTechBoothApp extends ConsumerWidget {
         );
       },
     );
+  }
+}
+
+
+/// Menolak permintaan menutup jendela pada mesin kiosk.
+///
+/// Dipasang hanya di build release (lihat [_setupKioskDisplay]). Operator
+/// menghentikan aplikasi lewat Hidden Settings atau Task Manager, bukan lewat
+/// Alt+F4 — supaya tamu tidak bisa menjatuhkan kiosk ke desktop.
+class KioskWindowGuard extends WindowListener {
+  @override
+  void onWindowClose() {
+    debugPrint('🔒 [Kiosk] Permintaan menutup jendela ditolak.');
+    // Tidak memanggil destroy(): itu justru menutup aplikasinya.
   }
 }
