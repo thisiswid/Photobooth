@@ -251,7 +251,7 @@ Implementasi:
 - [ ] **C4-10** Matikan paksa proses helper → perilaku sama seperti C4-9
 - [x] **C4-11** Heartbeat mengirim `capture_mode`, `capture_degraded`, dan alasannya. Saat terdegradasi nilainya `windowsCamera(from:windowsSony)`
 - [ ] **C4-12** 50 jepretan berturut-turut tanpa kebocoran memori / hang
-- [ ] **C4-13** **Build Android masih hijau**
+- [x] **C4-13** `flutter build apk` hijau — 73,3 MB. Diuji setelah `flutter upgrade` menaikkan SDK dan `pub upgrade` menaikkan 21 dependensi (termasuk `image` 4.9.1 → 4.9.2 yang mengerjakan flip mirror), jadi ini benar-benar menguji sesuatu. Catatan: muncul peringatan KGP dari `camera_android_camerax` dan `flutter_uvc_camera` — belum menghalangi, tapi versi Flutter mendatang akan menolaknya
 
 ### C4-B — Uji helper berdiri sendiri (sebelum menyentuh Flutter)
 
