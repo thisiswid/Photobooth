@@ -137,6 +137,23 @@ enum _CaptureStep {
 const _uuid = Uuid();
 const _countdownSeconds = 7;
 
+/// Tampilkan preview kamera KECIL di dalam strip bingkai kiri.
+///
+/// Dimatikan karena mahal. `_buildLivePreview()` mengembalikan `CameraPreview`
+/// kedua, sehingga DUA tekstur kamera 1080p dirender serentak sepanjang
+/// `initialPreview` dan `countdown` — di atas viewfinder utama yang sudah
+/// menampilkan gambar yang sama persis.
+///
+/// Terukur di perangkat: frame hitungan mundur tertunda 435-1460 ms, sehingga
+/// angka 6 hanya sempat terlihat ~125 ms sebelum diganti 5. Tamu membacanya
+/// sebagai "tahu-tahu sudah 3".
+///
+/// Penjagaan "jangan mount yang kedua" di `_buildLivePreview()` hanya berlaku
+/// untuk jalur UVC Android; di Windows tidak pernah aktif.
+///
+/// Ubah ke `true` untuk mengembalikannya.
+const bool _kStripLivePreview = false;
+
 /// Clean, minimal, vintage, and natural Photobooth Camera Screen.
 class CameraScreen extends ConsumerStatefulWidget {
   const CameraScreen({super.key});
@@ -366,6 +383,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   }
 
   Future<void> _startCountdown() async {
+    _perfWatch ??= Stopwatch()..start();
     debugPrint('⏱️ [Perf] _startCountdown masuk '
         '(+${_perfWatch?.elapsedMilliseconds ?? 0} ms)');
     ref.read(sessionNotifierProvider.notifier).setMirror(_isMirrorEnabled);
@@ -399,11 +417,12 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
         // TANPA setState: hanya pendengar notifier yang dibangun ulang.
         _countdown.value = _countdown.value - 1;
         final at = _perfWatch?.elapsedMilliseconds ?? 0;
+        final shown = _countdown.value;
         // Selisih antara detak dan saat frame benar-benar tergambar
         // menunjukkan seberapa lama UI thread tersumbat.
         WidgetsBinding.instance.addPostFrameCallback((_) {
           final drawn = _perfWatch?.elapsedMilliseconds ?? 0;
-          debugPrint('⏱️ [Perf] angka ${_countdown.value} '
+          debugPrint('⏱️ [Perf] angka $shown '
               '— detak +$at ms, tergambar +$drawn ms '
               '(tertunda ${drawn - at} ms)');
         });
@@ -688,7 +707,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   }
 
   void _onNext() {
-    _perfWatch = Stopwatch()..start();
+    _perfWatch = Stopwatch()..start();  // ganti penanda untuk pose berikutnya
     debugPrint('⏱️ [Perf] Lanjut ditekan');
     final notifier = ref.read(sessionNotifierProvider.notifier);
     final sessionId = ref.read(sessionNotifierProvider).session?.sessionId.toString() ?? '1';
@@ -753,10 +772,11 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
                       ? [..._capturedPhotos, _lastCaptured]
                       : _capturedPhotos,
                   currentPoseIndex: _currentPose,
-                  liveCameraPreview:
-                      (_step == _CaptureStep.initialPreview || _step == _CaptureStep.countdown)
-                          ? _buildLivePreview()
-                          : null,
+                  liveCameraPreview: _kStripLivePreview &&
+                          (_step == _CaptureStep.initialPreview ||
+                              _step == _CaptureStep.countdown)
+                      ? _buildLivePreview()
+                      : null,
                 ),
               ),
 
