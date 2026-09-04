@@ -127,6 +127,43 @@ class _SystemSettingsTab extends ConsumerWidget {
           ),
         ),
 
+        // ── Lepas perangkat dari tenant ─────────────────────────────────────
+        //
+        // Aplikasi ini bukan milik satu kafe. Satu unit kiosk diikat ke sebuah
+        // tenant lewat Device Key yang didaftarkan Super Admin, dan key itulah
+        // yang menentukan frame, filter, harga, serta masa aktif langganan.
+        //
+        // Melepas perangkat menghapus key beserta konfigurasi tenant yang
+        // tersimpan, lalu mengembalikan aplikasi ke layar aktivasi untuk
+        // memasukkan key baru. Dipakai saat unit dipindah ke kafe lain, atau
+        // saat salah memasukkan key.
+        SizedBox(height: 24.h),
+        Text(
+          'PERANGKAT & TENANT',
+          style: GoogleFonts.montserrat(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 12.sp),
+        ),
+        SizedBox(height: 10.h),
+        Text(
+          'Melepas perangkat akan menghapus Device Key dan konfigurasi tenant '
+          'yang tersimpan, lalu meminta key baru. Sesi yang sedang berjalan '
+          'akan berhenti.',
+          style: TextStyle(color: Colors.white70, fontSize: 12.sp),
+        ),
+        SizedBox(height: 10.h),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () => _confirmUnpair(context, ref),
+            icon: const Icon(Icons.logout_rounded),
+            label: const Text('Lepas Perangkat / Ganti Key'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.gold,
+              side: BorderSide(color: AppColors.gold.withValues(alpha: 0.6)),
+              padding: EdgeInsets.symmetric(vertical: 14.h),
+            ),
+          ),
+        ),
+
         // ── Keluar aplikasi (Windows) ───────────────────────────────────────
         //
         // Di mesin kiosk, Alt+F4 dan tombol X sengaja diblokir supaya tamu
@@ -162,6 +199,51 @@ class _SystemSettingsTab extends ConsumerWidget {
         ],
       ],
     );
+  }
+
+  /// Lepas perangkat dari tenant, lalu kembali ke layar aktivasi.
+  ///
+  /// Konfirmasinya sengaja menyebut nama kafe yang sedang terpasang: operator
+  /// yang menekan ini di unit yang salah akan langsung melihat keganjilannya
+  /// sebelum sempat menghapus key yang benar.
+  Future<void> _confirmUnpair(BuildContext context, WidgetRef ref) async {
+    final cfg = ref.read(tenantNotifierProvider).valueOrNull;
+    final cafeName = cfg?.cafe.name ?? 'perangkat ini';
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.darkCoffee,
+        title: const Text('Lepas perangkat?', style: TextStyle(color: Colors.white)),
+        content: Text(
+          'Perangkat ini akan dilepas dari "$cafeName". Device Key dan '
+          'konfigurasi tenant yang tersimpan akan dihapus, dan aplikasi '
+          'meminta key baru untuk bisa dipakai lagi.',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Lepas', style: TextStyle(color: Color(0xFFE57373))),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    // Lepaskan kamera lebih dulu. Layar aktivasi tidak memerlukannya, dan
+    // helper yang ditinggal memegang kamera menyulitkan sesi berikutnya.
+    try {
+      await PhotoboothCaptureService.instance.releasePtp();
+    } catch (_) {}
+
+    await ref.read(tenantNotifierProvider.notifier).unpairDevice();
+    if (!context.mounted) return;
+    context.go(AppRoutes.provisioning);
   }
 
   /// Konfirmasi sebelum menutup — tombolnya berada di layar yang juga dibuka
