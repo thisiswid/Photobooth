@@ -1,11 +1,16 @@
+import 'dart:io' as dart_io;
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:window_manager/window_manager.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/router/app_router.dart';
+import '../../../core/services/photobooth_capture_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../features/provisioning/providers/tenant_provider.dart';
 import 'widgets/camera_settings_tab.dart';
@@ -121,7 +126,79 @@ class _SystemSettingsTab extends ConsumerWidget {
             ],
           ),
         ),
+
+        // ── Keluar aplikasi (Windows) ───────────────────────────────────────
+        //
+        // Di mesin kiosk, Alt+F4 dan tombol X sengaja diblokir supaya tamu
+        // tidak bisa menjatuhkan aplikasi ke desktop. Tanpa tombol ini,
+        // operator pun ikut terkunci dan satu-satunya jalan keluar adalah Task
+        // Manager — tidak masuk akal untuk orang yang sudah lolos PIN.
+        if (!kIsWeb && dart_io.Platform.isWindows) ...[
+          SizedBox(height: 24.h),
+          Text(
+            'KELUAR APLIKASI',
+            style: GoogleFonts.montserrat(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 12.sp),
+          ),
+          SizedBox(height: 10.h),
+          Text(
+            'Alt+F4 dan tombol tutup dinonaktifkan di mesin kiosk. '
+            'Gunakan tombol ini untuk menutup aplikasi.',
+            style: TextStyle(color: Colors.white70, fontSize: 12.sp),
+          ),
+          SizedBox(height: 10.h),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => _confirmExit(context),
+              icon: const Icon(Icons.power_settings_new_rounded),
+              label: const Text('Tutup Aplikasi'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF9E2A2B),
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(vertical: 14.h),
+              ),
+            ),
+          ),
+        ],
       ],
     );
+  }
+
+  /// Konfirmasi sebelum menutup — tombolnya berada di layar yang juga dibuka
+  /// saat sesi berlangsung, dan salah tekan berarti sesi tamu ikut mati.
+  Future<void> _confirmExit(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.darkCoffee,
+        title: const Text('Tutup aplikasi?', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'Sesi yang sedang berjalan akan berhenti, dan kamera akan dilepas.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Tutup', style: TextStyle(color: Color(0xFFE57373))),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    // Lepaskan kamera dengan rapi sebelum keluar. Helper yang mati tanpa sempat
+    // melepas kamera meninggalkan handle basi, dan aplikasi berikutnya gagal
+    // dengan WIA_ERROR_BUSY sampai kamera dicabut-colok.
+    try {
+      await PhotoboothCaptureService.instance.releasePtp();
+      await PhotoboothCaptureService.instance.shutdownHelper();
+    } catch (_) {}
+
+    // destroy() melewati penjaga onWindowClose — memang itu maksudnya.
+    await windowManager.destroy();
   }
 }

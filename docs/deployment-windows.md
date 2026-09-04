@@ -107,8 +107,12 @@ Belum diotomatiskan installer; ini setelan sistem operasi.
 - [ ] **Settings → System → Notifications → Off**
 - [ ] **Windows Update → Active hours** mencakup SELURUH jam operasional
 - [ ] Sleep & screen timeout → **Never** (Power & battery)
-- [ ] Blokir `Alt+F4`, tombol Windows, `Ctrl+Shift+Esc` — Shell Launcher
-      (butuh Pro) atau kiosk mode
+- [x] `Alt+F4` dan tombol tutup **sudah diblokir aplikasi** (release saja).
+      Operator keluar lewat **Hidden Settings → System → Tutup Aplikasi**,
+      di balik PIN. Jangan lupakan ini saat menguji — tanpa jalan keluar itu,
+      satu-satunya cara menutup adalah Task Manager
+- [ ] Blokir tombol Windows dan `Ctrl+Shift+Esc` — TIDAK bisa dilakukan
+      aplikasi. Butuh Shell Launcher (Windows 11 Pro) atau kiosk mode
 - [ ] Matikan autoplay perangkat (supaya kamera tidak memicu dialog import
       yang merebut kamera dari helper)
 
