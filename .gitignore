@@ -60,5 +60,8 @@ flutter_app/build_log.txt
 # Berkas redistributable pihak ketiga (jangan masuk repo)
 installer/redist/
 
+# Hasil kompilasi Inno Setup (installer jadi, ~34 MB). Artefak build, bukan sumber.
+installer/output/
+
 # Berkas kerja sementara yang tidak bisa dihapus dari VM
 flutter_app/_to_delete/
