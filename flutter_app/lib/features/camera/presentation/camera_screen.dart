@@ -167,7 +167,15 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
 
   // ── Flow state ────────────────────────────────────────────────────────────
   _CaptureStep _step = _CaptureStep.initialPreview;
-  int _countdownValue = _countdownSeconds;
+  /// Nilai hitungan mundur.
+  ///
+  /// Sengaja `ValueNotifier`, bukan state biasa. Dulu tiap detik memanggil
+  /// `setState`, dan itu membangun ULANG SELURUH pohon layar — termasuk strip
+  /// foto, semua `Image.file` pose sebelumnya, dan preview kamera. Tujuh kali
+  /// per pose, makin berat tiap pose karena strip bertambah isi.
+  ///
+  /// Sekarang hanya angka dan lingkaran progresnya yang dibangun ulang.
+  final ValueNotifier<int> _countdown = ValueNotifier<int>(_countdownSeconds);
   Timer? _countdownTimer;
 
   // ── Poses state ───────────────────────────────────────────────────────────
@@ -203,6 +211,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   @override
   void dispose() {
     _countdownTimer?.cancel();
+    _countdown.dispose();
     _cameraController?.dispose();
     _cameraController = null;
     // Hanya lepaskan sesi PTP. Kamera UVC dikelola oleh UvcPreview — menutupnya
@@ -364,7 +373,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
 
     setState(() {
       _step = _CaptureStep.countdown;
-      _countdownValue = _countdownSeconds;
+      _countdown.value = _countdownSeconds;
     });
 
     _countdownTimer?.cancel();
@@ -373,12 +382,13 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
         t.cancel();
         return;
       }
-      if (_countdownValue > 1) {
-        setState(() => _countdownValue--);
+      if (_countdown.value > 1) {
+        // TANPA setState: hanya pendengar notifier yang dibangun ulang.
+        _countdown.value = _countdown.value - 1;
         // Kunci fokus satu hitungan sebelum jepret. AF butuh ~0,8 detik; kalau
         // baru dimulai saat hitungan habis, rana terasa telat sedetik.
         // Dijalankan tanpa ditunggu supaya hitungan mundur tetap presisi.
-        if (_countdownValue == 2) {
+        if (_countdown.value == 2) {
           unawaited(PhotoboothCaptureService.instance.prefocus());
         }
       } else {
@@ -469,6 +479,17 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
           _lastCaptured = processedFile;
           _step = _CaptureStep.result;
         });
+
+        // Mulai memperkecil foto SEKARANG — selagi tamu meninjau hasilnya.
+        //
+        // Dulu ini dipanggil di _onNext, yaitu tepat saat tombol Lanjut ditekan
+        // dan hitungan mundur berikutnya dimulai. Pekerjaannya ~1,5 detik plus
+        // penyalinan 7 MB antar-isolate, jadi hitungan mundur tersendat dan
+        // angkanya melompat: dari 7 tahu-tahu 3.
+        //
+        // Jendela peninjauan adalah waktu menganggur yang sesungguhnya — tidak
+        // ada animasi, tidak ada hitungan, dan tamu sedang melihat foto.
+        PhotoUploadPrepService.instance.warm(processedFile.path);
         return;
       }
 
@@ -660,13 +681,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
 
     final totalPoses = ref.read(sessionNotifierProvider).totalPoses;
     final nextPoseIndex = _currentPose + 1;
-
-    // Mulai memperkecil foto SEKARANG, selagi tamu bersiap untuk pose
-    // berikutnya. Saat halaman hasil dibuka, byte-nya sudah siap sehingga QR
-    // muncul jauh lebih cepat.
-    if (_lastCaptured != null) {
-      PhotoUploadPrepService.instance.warm(_lastCaptured!.path);
-    }
 
     setState(() {
       _capturedPhotos = [..._capturedPhotos, _lastCaptured];
@@ -964,21 +978,23 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
       child: SizedBox(
         width: 140.r,
         height: 140.r,
-        child: Stack(
+        child: ValueListenableBuilder<int>(
+          valueListenable: _countdown,
+          builder: (context, value, _) => Stack(
           alignment: Alignment.center,
           children: [
             SizedBox(
               width: 140.r,
               height: 140.r,
               child: CircularProgressIndicator(
-                value: _countdownValue / _countdownSeconds,
+                value: value / _countdownSeconds,
                 strokeWidth: 4.5,
                 backgroundColor: Colors.white24,
                 valueColor: const AlwaysStoppedAnimation<Color>(AppColors.gold),
               ),
             ),
             Text(
-              '$_countdownValue',
+              '$value',
               style: GoogleFonts.cormorantGaramond(
                 fontSize: 72.sp,
                 fontWeight: FontWeight.w700,
@@ -988,10 +1004,11 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
                 ],
               ),
             )
-                .animate(key: ValueKey(_countdownValue))
+                .animate(key: ValueKey(value))
                 .scale(begin: const Offset(1.25, 1.25), duration: 300.ms, curve: Curves.easeOut)
                 .fadeIn(duration: 150.ms),
           ],
+          ),
         ),
       ),
     );
