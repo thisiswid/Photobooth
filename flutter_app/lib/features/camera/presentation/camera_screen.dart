@@ -775,6 +775,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
       case _CaptureStep.capturing:
         return _buildCameraViewfinder(
           showOverlay: true,
+          opaqueOverlay: true,
           overlayChild: const Center(
             child: CircularProgressIndicator(color: AppColors.gold, strokeWidth: 3),
           ),
@@ -834,7 +835,11 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     return size.width / size.height;
   }
 
-  Widget _buildCameraViewfinder({required bool showOverlay, Widget? overlayChild}) {
+  Widget _buildCameraViewfinder({
+    required bool showOverlay,
+    Widget? overlayChild,
+    bool opaqueOverlay = false,
+  }) {
     return AspectRatio(
       aspectRatio: _viewfinderAspectRatio,
       child: Container(
@@ -914,7 +919,18 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
                 ),
 
               if (showOverlay)
-                Container(color: Colors.black.withValues(alpha: 0.55)),
+                Container(
+                  // Saat menjepret, preview ditutup RAPAT.
+                  //
+                  // Lapisan 55% transparan membuat preview hidup masih terlihat
+                  // bergerak setelah rana berbunyi — tamu melihat dirinya
+                  // bergerak padahal fotonya sudah diambil, dan itu terbaca
+                  // sebagai aplikasi yang menggantung. Saat hitungan mundur
+                  // sebaliknya: preview justru harus tetap terlihat.
+                  color: opaqueOverlay
+                      ? AppColors.darkCoffee
+                      : Colors.black.withValues(alpha: 0.55),
+                ),
               if (overlayChild != null) overlayChild,
               // Badge diagnostik jalur kamera (untuk operator)
               Positioned(
