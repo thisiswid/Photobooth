@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io' as dart_io;
-import 'dart:typed_data';
 import 'package:dio/dio.dart' as dio_pkg;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,6 +13,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/services/error_logger.dart';
+import '../../../core/services/photo_upload_prep_service.dart';
 import '../../../core/services/printer_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -48,12 +49,112 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
   int _printRetryCount = 0;
   bool _hasAutoPrinted = false;
   bool _isPrinting = false;
+
+  /// Tombol "Selesai" dikunci sampai QR muncul, agar tamu tidak keburu
+  /// menutup sesi sebelum sempat memindai. Dibuka paksa setelah
+  /// [_qrGraceDuration] supaya kiosk tidak mentok bila backend gagal.
+  static const Duration _qrGraceDuration = Duration(seconds: 20);
+  bool _qrWaitExpired = false;
+  Timer? _qrGraceTimer;
   bool _showPrintOverlay = false; // Overlay fullscreen saat PrintActivity aktif
 
   @override
   void initState() {
     super.initState();
     _triggerBackendGenerationAndAutoPrint();
+    _qrGraceTimer = Timer(_qrGraceDuration, () {
+      if (mounted) setState(() => _qrWaitExpired = true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _qrGraceTimer?.cancel();
+    PhotoUploadPrepService.instance.clear();
+    super.dispose();
+  }
+
+  /// Tombol "Selesai" beserta status penguncian QR.
+  Widget _buildFinishButton({required bool isMobile}) {
+    final qrToken = ref.watch(sessionNotifierProvider).session?.qrToken;
+    final hasQr = qrToken != null && qrToken.trim().isNotEmpty;
+    final unlocked = hasQr || _qrWaitExpired;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: double.infinity,
+          height: isMobile ? 42.h : 46.h,
+          child: ElevatedButton(
+            onPressed: unlocked ? _finishSession : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.buttonBrown,
+              foregroundColor: AppColors.creamWhite,
+              disabledBackgroundColor:
+                  AppColors.buttonBrown.withValues(alpha: 0.35),
+              disabledForegroundColor:
+                  AppColors.creamWhite.withValues(alpha: 0.6),
+              elevation: unlocked ? 3 : 0,
+              shadowColor: AppColors.darkBrown.withValues(alpha: 0.3),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10.r),
+                side: BorderSide(
+                  color: unlocked
+                      ? AppColors.gold
+                      : AppColors.gold.withValues(alpha: 0.35),
+                  width: 1.0,
+                ),
+              ),
+            ),
+            child: unlocked
+                ? Text(
+                    'Selesai',
+                    style: GoogleFonts.montserrat(
+                      fontSize: isMobile ? 13.sp : 14.5.sp,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.creamWhite,
+                      letterSpacing: 0.3,
+                    ),
+                  )
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 14.r,
+                        height: 14.r,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.creamWhite.withValues(alpha: 0.7),
+                        ),
+                      ),
+                      SizedBox(width: 8.w),
+                      Text(
+                        'Menyiapkan QR...',
+                        style: GoogleFonts.montserrat(
+                          fontSize: isMobile ? 12.sp : 13.sp,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.creamWhite.withValues(alpha: 0.7),
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+        ),
+        if (!hasQr && _qrWaitExpired) ...[
+          SizedBox(height: 4.h),
+          Text(
+            'QR gagal dibuat — foto tetap tercetak.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.montserrat(
+              fontSize: 9.5.sp,
+              color: AppColors.darkBrown.withValues(alpha: 0.7),
+            ),
+          ),
+        ],
+      ],
+    ).animate().fadeIn(delay: 300.ms);
   }
 
   /// URL helper for backend storage
@@ -94,16 +195,29 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
       }
       formData.fields.add(MapEntry('event_id', session.eventId.toString()));
 
+      // Ambil versi kecil SEMUA foto sekaligus (paralel). Sebagian besar
+      // biasanya sudah selesai disiapkan sejak dijepret — lihat
+      // PhotoUploadPrepService.
+      final paths = session.photos.map((p) => p.fileUrl).toList();
+      final prepared =
+          await PhotoUploadPrepService.instance.bytesForAll(paths);
+
       for (int i = 0; i < session.photos.length; i++) {
-        final path = session.photos[i].fileUrl;
+        final path = paths[i];
         final file = dart_io.File(path);
         if (await file.exists()) {
+          final small = prepared[i];
           formData.files.add(MapEntry(
             'photos[]',
-            await dio_pkg.MultipartFile.fromFile(
-              path,
-              filename: 'pose_${i + 1}.jpg',
-            ),
+            small != null
+                ? dio_pkg.MultipartFile.fromBytes(
+                    small,
+                    filename: 'pose_${i + 1}.jpg',
+                  )
+                : await dio_pkg.MultipartFile.fromFile(
+                    path,
+                    filename: 'pose_${i + 1}.jpg',
+                  ),
           ));
         } else {
           formData.fields.add(MapEntry('photos[]', path));
@@ -128,10 +242,25 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
       debugPrint('Backend result generation note: $e');
     }
 
-    // Auto-Print langsung setelah foto & template siap
+    // Auto-Print langsung setelah foto & template siap.
+    //
+    // Switch "Auto Print After Session" di Hidden Device Settings sebelumnya
+    // hanya tersimpan tanpa pernah dibaca — dimatikan pun tetap mencetak.
+    // Sekarang benar-benar dihormati.
     if (!_hasAutoPrinted && mounted) {
-      _hasAutoPrinted = true;
-      await _executePrint(finalUrl: generatedFinalUrl);
+      final autoPrintEnabled = await PrinterService.getAutoPrint();
+      if (autoPrintEnabled) {
+        _hasAutoPrinted = true;
+        await _executePrint(finalUrl: generatedFinalUrl);
+      } else {
+        debugPrint('ℹ️ Auto-print dimatikan di settings — menunggu cetak manual.');
+        if (mounted) {
+          setState(() {
+            _printStatus = PrintUiStatus.idle;
+            _printStatusMessage = 'Auto-print dimatikan. Tekan Cetak Ulang bila perlu.';
+          });
+        }
+      }
     }
   }
 
@@ -241,11 +370,6 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
 
     final sessionState = ref.read(sessionNotifierProvider);
     await _executePrint(finalUrl: sessionState.session?.finalUrl);
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
   }
 
   void _finishSession() {
@@ -368,7 +492,7 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
                     ? ClipRRect(
                         borderRadius: BorderRadius.circular(8.r),
                         child: Image.network(
-                          _getStorageUrl(finalUrl!),
+                          _getStorageUrl(finalUrl),
                           fit: BoxFit.contain,
                           loadingBuilder: (context, child, progress) {
                             if (progress == null) return child;
@@ -445,33 +569,11 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
 
           SizedBox(height: isMobile ? 8.h : 10.h),
 
-          // ── Tombol Selesai (Tanpa Tulisan di Bawahnya) ──
-          SizedBox(
-            width: double.infinity,
-            height: isMobile ? 42.h : 46.h,
-            child: ElevatedButton(
-              onPressed: _finishSession,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.buttonBrown,
-                foregroundColor: AppColors.creamWhite,
-                elevation: 3,
-                shadowColor: AppColors.darkBrown.withValues(alpha: 0.3),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10.r),
-                  side: const BorderSide(color: AppColors.gold, width: 1.0),
-                ),
-              ),
-              child: Text(
-                'Selesai',
-                style: GoogleFonts.montserrat(
-                  fontSize: isMobile ? 13.sp : 14.5.sp,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.creamWhite,
-                  letterSpacing: 0.3,
-                ),
-              ),
-            ),
-          ).animate().fadeIn(delay: 300.ms),
+          // ── Tombol Selesai ──
+          // Terkunci sampai QR siap dipindai. Setelah _qrGraceDuration tombol
+          // dibuka apa pun yang terjadi, supaya kiosk tidak mentok kalau
+          // backend lambat atau gagal.
+          _buildFinishButton(isMobile: isMobile),
 
           SizedBox(height: 6.h),
 

@@ -1,10 +1,10 @@
 # Project-level configuration.
 cmake_minimum_required(VERSION 3.14)
-project(fakultas_kopi_photobooth LANGUAGES CXX)
+project(snaptechbooth LANGUAGES CXX)
 
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
-set(BINARY_NAME "fakultas_kopi_photobooth")
+set(BINARY_NAME "snaptechbooth")
 
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
 # versions of CMake.
@@ -31,6 +31,16 @@ set(CMAKE_CXX_FLAGS_PROFILE "${CMAKE_CXX_FLAGS_RELEASE}")
 
 # Use Unicode for all projects.
 add_definitions(-DUNICODE -D_UNICODE)
+
+# MSVC pada Visual Studio 2022 17.13+ / VS 18 menolak <experimental/coroutine>
+# dengan static_assert (STL1011), sedangkan permission_handler_windows masih
+# memakainya. Tanpa definisi ini, `flutter build windows` gagal di
+# permission_handler_windows_plugin.vcxproj.
+#
+# add_definitions() berlaku untuk direktori ini beserta seluruh subdirektori
+# yang ditambahkan SETELAHNYA — termasuk runner dan semua plugin yang
+# dimasukkan lewat flutter/generated_plugins.cmake.
+add_definitions(-D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)
 
 # Compilation settings that should be applied to most targets.
 #

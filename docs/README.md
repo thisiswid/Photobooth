@@ -1,4 +1,4 @@
-# LumaBooth Documentation
+# SnapTechBooth Documentation
 
 ## Canonical Customer Flow
 
@@ -68,3 +68,14 @@ Screen content lifecycle: `Draft → Preview → Publish → Active`
 - [Alur Provisioning & Onboarding Mesin](file:///c:/PROJECT/Photobooth/docs/flows/06-device-provisioning-and-tenant-onboarding.md)
 - [Arsitektur APK Flutter Kiosk](file:///c:/PROJECT/Photobooth/docs/architecture/09-flutter-kiosk-apk-architecture.md)
 
+---
+
+## Migrasi ke Windows (2026-09)
+- [Indeks Dokumen Migrasi](windows-migration/README.md)
+- [PRD Migrasi Android → Windows](windows-migration/00-prd.md)
+- [Matriks Paritas Fitur](windows-migration/01-feature-parity-matrix.md)
+- [Arsitektur Target Kiosk Windows](windows-migration/02-target-architecture.md)
+- [BOM & Spesifikasi Hardware](windows-migration/03-hardware-bom.md)
+- [Rencana Uji & Kriteria Penerimaan](windows-migration/04-test-acceptance.md)
+- [Daftar Risiko](windows-migration/05-risk-register.md)
+- [Prompt untuk AI Agent](windows-migration-prompt.md)

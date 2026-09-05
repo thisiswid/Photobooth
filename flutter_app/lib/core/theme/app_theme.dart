@@ -4,7 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
 
-/// Central theme configuration for Fakultas Kopi Photobooth.
+/// Central theme configuration for SnapTechBooth.
 /// Uses Material 3 with a custom coffee-themed color scheme.
 final class AppTheme {
   const AppTheme._();

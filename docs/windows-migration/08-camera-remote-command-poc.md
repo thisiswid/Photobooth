@@ -1,0 +1,504 @@
+# Camera Remote Command POC — Sony ZV-E10
+
+**Status: BLOCKED** — menunggu persetujuan akses korporat dari Sony.
+Ditulis 2026-09-02. Semua isian PASS/FAIL menunggu eksekusi nyata.
+
+> Aturan dokumen ini: **tidak ada klaim tanpa bukti.** Kolom yang belum diuji
+> ditulis `BLOCKED` atau `UNKNOWN`, bukan ditebak. Nama perintah, class, event,
+> dan callback tidak boleh ditulis sebelum Command Reference resmi diterima.
+
+---
+
+## 0. Temuan sebelum coding
+
+### 0.1 Camera Remote Command ≠ Camera Remote SDK
+
+Ini dua produk berbeda di bawah payung Camera Remote Toolkit, dan pembedaan itu
+menyelamatkan proyek ini.
+
+| | Camera Remote **SDK** | Camera Remote **Command** |
+|---|---|---|
+| Bentuk | Pustaka biner (C++) | **Spesifikasi perintah/protokol** |
+| Dasar | API milik Sony | **Perluasan proprietary Sony atas PTP standar ISO** |
+| ZV-E10 Gen 1 | **TIDAK didukung** | **DIDUKUNG** |
+| Isi paket | Library + header + sample | **Command Reference + Example Code** |
+| Siapa boleh | umum (registrasi) | **hanya pelanggan korporat** |
+
+Daftar ZV yang didukung Camera Remote Command, dikutip persis dari halaman
+resmi: `ZV-E1, ZV-E10, ZV-E10M2, ZV-1M2, ZV-1F, ZV-1A, ZV-1`
+
+Bandingkan dengan daftar Camera Remote SDK 2.02.00 yang hanya memuat `ZV-E1`
+dan `ZV-E10M2` — inilah sebab gerbang C4 gagal pada 2026-09-02.
+
+### 0.2 Konsekuensi bentuknya adalah spesifikasi, bukan pustaka
+
+Karena Camera Remote Command adalah **spesifikasi protokol di atas PTP**, POC
+tetap membutuhkan **transport PTP di Windows**. Sony memberi tahu perintah apa
+yang harus dikirim; mengirimkannya tetap urusan kita.
+
+Tiga kemungkinan transport, belum ditentukan karena bergantung isi Example Code:
+
+1. **Example Code Sony** sudah menyertakan transport — kemungkinan terbaik
+2. **WinUSB via libusb** — driver kamera diganti lewat Zadig. Konsekuensi:
+   kamera tidak lagi dikenali sebagai perangkat MTP biasa di mesin itu
+3. **WPD/MTP API bawaan Windows** — tanpa ganti driver, tapi belum jelas apakah
+   perintah vendor Sony bisa lewat jalur ini
+
+> Ini pembeda penting dari asumsi awal: masalahnya bukan "apakah ada API",
+> melainkan "bagaimana perintah resmi itu dikirimkan".
+
+### 0.3 Hubungan dengan jalur Android yang sudah ada
+
+`SonyPtpCameraManager.kt` sudah berbicara PTP ke kamera yang sama, memakai
+properti vendor `0xD2C1` (half-press) dan `0xD2C2` (full-press) yang diambil
+dari libgphoto2 — hasil rekayasa balik pihak ketiga, bukan dokumentasi Sony.
+
+Kemungkinan besar perintah yang sama terdokumentasi resmi di Command Reference.
+Kalau benar, nilai dari Command Reference bukan "membuka kemampuan baru",
+melainkan:
+
+- Mengganti tebakan dengan perintah yang terdokumentasi
+- Memberi tahu apakah **status AF** benar-benar bisa dibaca — inilah yang
+  membuat `delay(500)` di Android bisa dihapus
+- Memberi tahu apakah ada **notifikasi foto selesai**, menggantikan pembacaan
+  interrupt endpoint mentah
+
+Kedua hal terakhir belum diketahui. Lihat P3 dan P4.
+
+### 0.4 Lisensi — bukan penghalang
+
+Pemakaian komersial **diizinkan**. Lisensi memberi hak "develop and using
+application software" untuk mengendalikan perangkat Sony dan menjualnya ke
+pengguna akhir, serta menyertakan example program ke dalam aplikasi secara
+tidak terpisahkan lalu mendistribusikannya.
+
+Kewajiban yang menempel:
+
+- Memberi tahu pengguna akhir bahwa **perangkat keluar dari garansi pabrik**
+  begitu dikendalikan lewat aplikasi
+- Tidak menyiratkan Sony sebagai pemilik/pembuat aplikasi
+- Menanggung dukungan pelanggan sendiri
+- Dilarang untuk keperluan militer/persenjataan
+- Dilarang melakukan reverse engineering atas materi berlisensi
+
+Tidak ada kewajiban kerahasiaan atas spesifikasinya yang disebutkan, dan tidak
+ada royalti.
+
+### 0.5 Prasyarat firmware — mengandung risiko
+
+Halaman resmi: **"Only supports the latest firmware version."**
+
+> ⚠️ Memperbarui firmware ZV-E10 berpotensi **mengubah perilaku jalur PTP
+> Android** yang memakai opcode hasil rekayasa balik. Catat versi firmware
+> sebelum dan sesudah update, lalu uji ulang tablet. Jangan update firmware di
+> hari yang sama dengan jadwal operasional.
+
+---
+
+## 1. Environment
+
+Isi setelah menjalankan `tools/sony_camera_remote_poc/scripts/probe-camera.ps1`.
+
+| | Nilai |
+|---|---|
+| Windows version | Windows 11 Home Single Language, build 26200, AMD64 |
+| Camera model | Sony ZV-E10 (generasi 1) |
+| Camera firmware | **bodi 2.30, lensa 01** (dicatat 2026-09-02, sebelum update apa pun) |
+| USB VID/PID saat PC Remote | `VID_054C&PID_0D97` — "Sony Remote Control Camera" |
+| Driver pemegang perangkat | **libusbK** (status OK) |
+| Camera Remote Command version | **2.02.00** |
+| Contoh yang dipakai | `Examples/example-v2-windows` dan `example-v3-windows` |
+
+> ⚠️ **Windows 11 Home.** Untuk mesin kiosk nanti tetap dibutuhkan **Pro** —
+> Shell Launcher dan Group Policy penunda update tidak ada di Home. Ini urusan
+> C7, bukan penghalang POC.
+
+Perangkat Sony lain yang terlihat di probe (status Unknown = sisa koneksi lama,
+tidak tersambung saat ini): `PID_0DE3` UVC+audio (mode USB Streaming),
+`PID_0D95` dan `PID_03E2` mass storage.
+
+---
+
+## 2. Compatibility
+
+Dikutip dari matriks resmi di `README.pdf`:
+
+| Model | Camera Control PTP 3 | Camera Control PTP 2 | USB | IP |
+|---|---|---|---|---|
+| **ZV-E10** | ✓ | ✓ | ✓ | ✓ |
+| ZV-E10M2 | ✓ | ✓*4 | ✓ | ✓ |
+| ZV-E1 | ✓ | ✓*4 | ✓ | ✓ |
+
+**ZV-E10 mendukung KEDUA versi protokol tanpa catatan kaki pembatas** — lebih
+bersih daripada ZV-E10M2 dan ZV-E1 yang memakai tanda `*4` pada PTP 2.
+
+- **PTP 3** = "2020 models or later", fitur terbaru
+- **PTP 2** = model sebelum 2020, fitur lebih terbatas
+
+Karena ZV-E10 mendukung dua-duanya, POC sebaiknya memakai **PTP 3** (fitur lebih
+lengkap) dan menyimpan PTP 2 sebagai cadangan bila ada perintah yang bermasalah.
+
+---
+
+## 3. Test Results
+
+| Test | Requirement | Result | Evidence |
+|---|---|---|---|
+| P1 | USB connect | **PASS** ✅ | GUI menampilkan Model ZV-E10, Device Version 2.03, Serial 7242356 |
+| P2 | Shutter | **PASS** ✅ | S1 lalu S2 ditekan, kamera benar-benar menjepret |
+| P3 | AF status | **PASS** ✅ | `DPC_AF_STATUS = 0xD213`; kolom "AF status" hidup di GUI, berubah saat S1 |
+| P4 | Photo complete | **PASS** ✅ | `DPC_SHOOTING_FILE_INFOMATION = 0xD215`; file muncul otomatis di Save Folder |
+| P5 | JPEG transfer | **PASS** ✅ | JPEG sampai ke disk lewat Save Destination = Host Device |
+| P6 | Original JPEG | **PASS** ✅ | 11-13 MB, bukan thumbnail/preview |
+| P7 | Resolution | **PASS — MELAMPAUI TARGET** ✅ | **6000 x 4000 (24,0 MP)** pada Aspect Ratio 3:2 |
+| P8 | 10 captures | **PASS** ✅ | DSC05118-DSC05127, 10 berkas berurutan, semua 6000x4000, semua utuh |
+
+### Verifikasi P8 — diperiksa berkasnya, bukan hanya dilaporkan
+
+Sepuluh capture berturut-turut: `DSC05118.JPG` sampai `DSC05127.JPG`.
+
+| Pemeriksaan | Hasil |
+|---|---|
+| Jumlah berkas | 10, berurutan tanpa lompatan |
+| Dimensi | 6000 x 4000 pada **seluruh** berkas |
+| Ukuran | 9,30 - 13,11 MB, wajar dan konsisten |
+| Integritas | Penanda akhir JPEG (EOI `FFD9`) ada di **semua** berkas — **0 rusak** |
+| Nama bertabrakan | Tidak ada |
+| Hang / crash / koneksi putus | Tidak ada |
+
+### 3.1 Transport — WIA, BUKAN libusb
+
+`PTPControl.cpp` memakai **Windows Image Acquisition**: `IWiaDevMgr`,
+`IWiaItemExtras`, `Sti.h`, `Wia.h`. Perintah vendor dikirim lewat mekanisme
+escape WIA.
+
+**Artinya tidak perlu Zadig dan tidak perlu mengganti driver ke WinUSB.**
+Kekhawatiran di dokumen 07 tentang driver replacement gugur.
+
+> ✅ **TERSELESAIKAN 2026-09-02 21:30.** Setelah driver libusbK dilepas, kamera
+> mengikat ke driver bawaan Windows dan langsung terlihat oleh WIA:
+>
+> ```
+> [A] WIA Device Manager : OK  ZV-E10  [Camera]
+> [B] service            : WUDFWpdMtp   (sebelumnya: libusbK)
+>     kelas              : WPD
+>     id                 : USB\VID_054C&PID_0D97\D036806E8274
+> ```
+>
+> **Resep yang berhasil:**
+> 1. Kamera: `MENU > Setup > USB > USB Connection = PC Remote`
+>    (ZV-E10 TIDAK punya opsi "Sel. When Connect" seperti tertulis di
+>    Instruction Manual — menu itu milik bodi yang lebih baru)
+> 2. Cabut kamera
+> 3. Device Manager > libusbK Usb Devices > Sony Remote Control Camera >
+>    Uninstall device, centang hapus driver
+> 4. `pnputil /enum-drivers` untuk memastikan paket driver benar-benar hilang
+> 5. Colok kembali — Windows mengikat `WUDFWpdMtp` bawaan
+>
+> **Konsekuensi:** Imaging Edge Remote kemungkinan berhenti bekerja karena
+> driver libusbK-nya dilepas. Untuk mengembalikannya, instal ulang Imaging Edge.
+> Baseline JPEG harus sudah disimpan sebelum langkah 3.
+>
+> ⚠️ **Catatan riwayat — konflik yang sudah terselesaikan:**
+>
+> Instruction Manual mensyaratkan: *"Ensure that the connected camera is under
+> **Portable Devices** in the Device Manager window."*
+>
+> Probe 2026-09-02 menunjukkan kamera justru terikat ke **libusbK** sebagai
+> "Sony Remote Control Camera", dan **tidak muncul** di daftar perangkat
+> portabel. Driver libusbK itu kemungkinan besar dipasang oleh Imaging Edge.
+>
+> Selama binding itu bertahan, WIA tidak akan melihat kamera — dan P1 akan gagal
+> karena alasan yang tidak ada hubungannya dengan protokol.
+
+### 3.2 Alur capture resmi
+
+Dari `CaptureDlg.cpp` dan `DataManager.cpp`:
+
+```text
+SDIOConnect / SDIOGetExtDeviceInfo          <- buka sesi
+   │
+SDIOControlDevice(DPC_S1_BUTTON, DOWN)      <- half-press
+   │
+baca DPC_AF_STATUS (0xD213)                 <- STATUS AF RESMI
+   │                                           bukan delay tebakan
+SDIOControlDevice(DPC_S2_BUTTON, DOWN)      <- shutter
+SDIOControlDevice(DPC_S2_BUTTON, UP)
+SDIOControlDevice(DPC_S1_BUTTON, UP)
+   │
+DPC_SHOOTING_FILE_INFOMATION (0xD215)       <- pemberitahuan file siap
+   │
+GetObjectInfo(SHOT_OBJECT_HANDLE)           <- 0xFFFFC001
+ExecuteGetObject(SHOT_OBJECT_HANDLE, buf)
+   │
+WriteFile -> JPEG di disk
+```
+
+### 3.3 Temuan yang mengubah cara memandang jalur Android
+
+Opcode dan properti yang dipakai `SonyPtpCameraManager.kt` **ternyata benar dan
+resmi**:
+
+| Dipakai di Android | Nama resmi Sony |
+|---|---|
+| `0xD2C1` | `DPC_S1_BUTTON` |
+| `0xD2C2` | `DPC_S2_BUTTON` |
+| `0x9207` | `PTP_OC_SDIOControlDevice` |
+
+Jadi jalur Android bukan "protokol karangan" — ia memakai perintah yang benar,
+diambil dari libgphoto2 yang rupanya memetakan hal yang sama.
+
+**Yang hilang di Android bukan perintah shutter-nya, melainkan `DPC_AF_STATUS`.**
+Itulah sebabnya di sana ada `delay(500)` yang menebak AF sudah lock. Dengan
+Command Reference, tebakan itu bisa diganti pembacaan status sungguhan — dan
+inilah nilai terbesar dari paket ini, bukan kemampuan menjepretnya.
+
+---
+
+## 4. Actual JPEG
+
+Baseline dari **Imaging Edge Remote** (bukan hasil POC, hanya pembanding):
+
+| | Nilai |
+|---|---|
+| dimensions | **5328 x 4000** (~21,3 MP) |
+| sumber | Imaging Edge Remote via USB, mode PC Remote |
+| status | **TERBUKTI 2026-09-02** — shutter menyala, JPEG tersimpan ke PC |
+
+### Apa yang sudah dibuktikan baseline ini
+
+Bukan sekadar "Imaging Edge bisa". Yang terbukti adalah seluruh rantai fisiknya:
+
+- Kamera menerima perintah shutter lewat USB dalam mode PC Remote
+- Firmware ZV-E10 saat ini mendukung jalur itu
+- Kabel dan port USB memadai untuk transfer file besar
+- JPEG resolusi penuh sampai ke disk Windows, bukan preview
+
+Artinya risiko POC menyusut drastis. Pertanyaannya bukan lagi "apakah kamera
+ini bisa dikendalikan dari Windows" — itu sudah dijawab. Yang tersisa: apakah
+kita boleh memerintahnya **langsung** tanpa Imaging Edge sebagai perantara.
+
+### ⚠️ Catatan tentang angka 5328 x 4000
+
+Rasio 5328:4000 adalah **4:3**. Sensor ZV-E10 berformat **3:2**, yang pada
+ukuran L menghasilkan **6000 x 4000**.
+
+Artinya ada pemotongan di sisi lebar — kemungkinan besar dari setelan kamera,
+bukan dari Imaging Edge. Yang perlu diperiksa di kamera:
+
+- `MENU > Shooting > Aspect Ratio` — apakah sedang 4:3 atau 3:2
+- `MENU > Shooting > JPEG Image Size` — apakah L, M, atau S
+- `MENU > Shooting > JPEG Quality`
+
+Ini **bukan** masalah yang harus diselesaikan sekarang, dan **bukan** alasan
+menunda POC. Tapi kalau nanti file digital resolusi penuh dijual ke pelanggan,
+selisih 5328 dan 6000 piksel itu berarti — dan perbaikannya cuma satu setelan
+di menu kamera, bukan pekerjaan koding.
+
+Catat rasio yang dipakai saat POC supaya hasilnya bisa dibandingkan setara.
+
+Hasil POC — **terukur dari file di disk**, bukan dari tampilan GUI:
+
+| Berkas | Waktu | Dimensi | Ukuran | Sumber |
+|---|---|---|---|---|
+| `DSC09582.JPG` | 08:50 | 5328 x 4000 (21,3 MP) | 13,99 MB | Imaging Edge (baseline) |
+| `DSC04094.JPG` | 14:35 | 5328 x 4000 (21,3 MP) | 11,71 MB | **Camera Remote Command**, Aspect 4:3 |
+| `DSC05118.JPG` | 14:37 | **6000 x 4000 (24,0 MP)** | 13,11 MB | **Camera Remote Command**, Aspect 3:2 |
+
+Format: JPEG, Image Size L, JPEG Quality Extra Fine, Save Destination Host Device.
+
+### Kesimpulan resolusi
+
+Camera Remote Command **menyamai baseline pada setelan yang sama**, lalu
+**melampauinya** begitu Aspect Ratio diubah ke 3:2.
+
+Batas 5328 x 4000 yang selama ini terlihat **bukan batasan protokol maupun
+batasan Imaging Edge** — itu semata setelan Aspect Ratio 4:3 di kamera, yang
+memotong sisi lebar sensor. Dengan 3:2, sensor terpakai penuh: **6000 x 4000,
+24,0 MP.**
+
+Target awal C4 adalah 24 MP. Tercapai, dari kamera yang dua hari lalu
+disimpulkan tidak bisa dikendalikan API resmi Sony.
+
+> Resolusi **wajib diukur dari file di disk**, bukan dari tampilan aplikasi.
+> Catatan: 1920x1080 yang sempat terlihat di Viewer ternyata hanya representasi
+> preview — file aslinya 5328x4000. Jangan mengulang kesalahan pembacaan itu.
+>
+> **6000x4000 BUKAN requirement.** Yang terbukti adalah 5328x4000.
+
+---
+
+## 5. Limitations
+
+Yang sudah pasti, sebelum POC dijalankan:
+
+1. **Driver kamera saat ini terikat libusbK, bukan WIA.** Ini penghalang nomor
+   satu. Kamera harus muncul di bawah "Portable Devices" di Device Manager
+   sebelum contoh Windows bisa melihatnya. Melepas binding libusbK kemungkinan
+   membuat **Imaging Edge Remote berhenti bekerja** — dan Imaging Edge adalah
+   baseline pembanding kita. Lakukan setelah baseline JPEG-nya disimpan.
+2. **Contoh program dilarang dipakai di produk.** Instruction Manual menyatakan
+   tegas: *"please do not use them in your products."* Contoh dipakai untuk
+   MEMBUKTIKAN (POC); implementasi produksi harus ditulis sendiri berdasarkan
+   Command Reference. Ini mengubah perkiraan usaha untuk helper produksi.
+3. **Butuh Visual Studio 2022 + Windows SDK 10.0** untuk membangun contoh
+   Windows. Sudah ada di laptop (dipakai Flutter Windows), tapi workload C++
+   harus lengkap.
+4. **Hanya untuk pelanggan korporat.** Sudah teratasi — paket diterima.
+5. **Wajib firmware terbaru.** Firmware saat ini bodi 2.30. Belum diverifikasi
+   apakah itu yang terbaru. Kalau perlu update, ingat risikonya ke jalur Android.
+6. **Satu perangkat USB, satu pemilik.** Imaging Edge harus ditutup saat POC.
+
+---
+
+## 5.1 Jalan pintas yang HARUS ditolak
+
+Karena Imaging Edge Remote sudah terbukti bekerja, akan muncul godaan untuk
+mengotomasi GUI-nya — menekan tombol shutter Imaging Edge lewat UI automation,
+lalu memantau folder keluarannya.
+
+**Jangan.** Itu persis kelas kesalahan yang sama dengan Accessibility Service di
+Android: menekan tombol aplikasi lain secara otomatis, rapuh terhadap perubahan
+tata letak, dan gagal diam-diam tanpa pesan error. Seluruh migrasi ini dilakukan
+justru untuk keluar dari pola itu.
+
+Imaging Edge tetap berperan sebagai **baseline pembanding**, bukan sebagai
+dependency produksi. Kalau Camera Remote Command akhirnya tidak bisa diakses,
+opsi yang jujur adalah tetap di 1080p dari capture card — bukan mengotomasi GUI
+orang lain.
+
+---
+
+## 6. Conclusion
+
+**PASS. Seluruh P1-P8 lulus.**
+
+Camera Remote Command memenuhi seluruh kebutuhan dasar remote shutter dan
+transfer JPEG untuk ZV-E10 generasi pertama, **tanpa Imaging Edge sebagai
+dependency**, dan menghasilkan JPEG 24 MP penuh.
+
+Seluruh kemampuan yang dibutuhkan **terdokumentasi resmi dan berlaku untuk
+ZV-E10**:
+
+- ZV-E10 didukung PTP 3 dan PTP 2, lewat USB maupun IP, tanpa catatan kaki
+- Shutter: `DPC_S1_BUTTON` / `DPC_S2_BUTTON` lewat `SDIOControlDevice`
+- **Status AF: `DPC_AF_STATUS` — tersedia.** Ini jawaban paling penting
+- **Pemberitahuan foto siap: `DPC_SHOOTING_FILE_INFOMATION` — tersedia**
+- Transfer JPEG: `GetObjectInfo` + `ExecuteGetObject` pada `SHOT_OBJECT_HANDLE`
+- Transport WIA — **tidak perlu Zadig, tidak perlu ganti driver ke WinUSB**
+
+Seluruhnya **dibuktikan dengan eksekusi nyata pada 2026-09-02**, bukan hanya
+dari dokumentasi. Setiap berkas hasil diperiksa langsung di disk — dimensi,
+ukuran, dan penanda akhir JPEG — bukan sekadar dilihat di GUI.
+
+Penghalang driver sudah terselesaikan: setelah libusbK dilepas, kamera mengikat
+ke `WUDFWpdMtp` bawaan Windows dan terlihat oleh WIA.
+
+---
+
+## 7. Langkah berikutnya
+
+### Langkah 0 — amankan baseline SEBELUM menyentuh driver
+
+Melepas binding libusbK kemungkinan membuat Imaging Edge berhenti bekerja.
+Sebelum itu:
+
+1. Ambil satu foto lewat Imaging Edge Remote
+2. Simpan JPEG-nya ke `tools/sony_camera_remote_poc/results/`
+3. Catat dimensi dan ukuran file-nya
+
+Kalau POC gagal dan Imaging Edge juga rusak, kita kehilangan dua-duanya.
+
+### Langkah 1 — pindahkan kamera ke Portable Devices
+
+Di kamera: `Setting > USB > USB Connection Mode` = **"Sel. When Connect"**
+(bukan "PC Remote" yang dipatok). Colok USB, lalu di layar kamera pilih
+**"Remote Shoot (PC Remote)"**.
+
+Lalu di Device Manager, pastikan kamera muncul di bawah **Portable Devices**.
+Kalau masih di bawah "libusbK Usb Devices": klik kanan perangkat itu →
+Uninstall device → centang hapus driver → cabut dan colok ulang kamera.
+
+Jalankan `probe-camera.ps1` lagi untuk memastikan.
+
+### Langkah 2 — bangun dan jalankan contoh Sony
+
+```powershell
+# buka di Visual Studio 2022
+E:\sony-crc\CameraRemoteCommand-2.02.00\Examples\example-v3-windows\CameraControlPTP.sln
+# build Release, lalu jalankan Release\CameraControlPTP.exe
+```
+
+Pakai **v3** lebih dulu (fitur lebih lengkap); v2 sebagai cadangan.
+
+Ini menguji P1, P2, P5, P6, P7 sekaligus, tanpa menulis satu baris kode pun.
+
+#### Resep build yang BERHASIL (2026-09-02)
+
+Contoh v3 berhasil dibangun dengan:
+
+| | Nilai |
+|---|---|
+| Solution | `Examples/example-v3-windows/CameraControlPTP.sln` |
+| Platform Toolset | **v141** (MSVC 14.16) — di kedua konfigurasi, Debug dan Release |
+| Konfigurasi | **Debug \| Win32** |
+| Keluaran | `example-v3-windows\Debug\CameraControlPTP.exe` |
+
+Kenapa v141 dan bukan toolset terbaru: dari dua toolset yang terpasang, hanya
+**14.16 (v141) yang punya MFC lengkap**. Toolset terbaru 14.51 (v145) hanya
+punya ATL, tanpa header MFC. Project ini `<UseOfMfc>Dynamic</UseOfMfc>`, jadi
+MFC wajib ada.
+
+Kenapa Debug dan bukan Release: di dalam `.sln` bawaan Sony, `Release|Win32`
+dipetakan ke build `Debug|Win32`. Memilih Release tidak menghasilkan folder
+`Release\` seperti tertulis di Instruction Manual.
+
+#### Masalah build yang sudah ditemui
+
+**MSB8020 — Platform Toolset v143 tidak ditemukan.**
+Solusi Sony dibuat untuk Visual Studio 2022 (`v143`); laptop memakai Visual
+Studio 18 (`v180`). Bukan masalah path.
+
+Perbaikan: klik kanan **solution** (bukan project) → **Retarget solution** →
+pilih toolset yang tersedia + Windows SDK terbaru. Tidak perlu unduh apa pun.
+
+**Kemungkinan menyusul: MFC dan ATL belum terpasang.**
+Contoh ini berbasis MFC (`afxdialogex.h`, `atlimage.h`, `CComPtr`), dan
+komponen itu tidak ikut terpasang secara default. Kalau muncul
+`cannot open source file "afxdialogex.h"`, buka Visual Studio Installer →
+Modify → Individual components, centang **C++ MFC** dan **C++ ATL** untuk
+build tools terbaru (x86 & x64).
+
+**MSB8020 — Platform Toolset v100 tidak ditemukan.**
+Menyesatkan: bukan berarti VS 2010 dibutuhkan. `v100` adalah default MSBuild
+ketika konfigurasi yang dibangun **tidak punya `PlatformToolset`**. Penyebabnya
+Visual Studio menulis ulang `.vcxproj` dan menghapus entri toolset dari salah
+satu konfigurasi.
+
+**Aturan kerja:** tutup Visual Studio sebelum mengedit `.vcxproj` dari luar.
+VS memegang file itu dan menulis versinya sendiri saat ditutup, menimpa editan
+eksternal. Dua kegagalan berturut-turut di sini semuanya berasal dari itu.
+
+**Catatan penomoran toolset.** Angka di path MSBuild (`MSBuild\Microsoft\VC\v180\`)
+BUKAN nama Platform Toolset. Toolset untuk MSVC 14.51 adalah `v145`. Salah
+membaca ini memakan satu putaran penuh.
+
+**Cadangan bila semua gagal:** pasang Build Tools untuk Visual Studio 2022
+(v143) berdampingan. Unduhannya besar tapi menghilangkan seluruh variabel versi
+compiler. Cadangan file asli tersimpan sebagai `.vcxproj.bak-v143`.
+
+### Langkah 3 — catat hasilnya
+
+Isi tabel §3 dan §4 dokumen ini dengan hasil sungguhan. Untuk P7, ukur file di
+disk — bukan tampilan di GUI.
+
+### Langkah 4 — sepuluh capture berturut-turut
+
+P8. Perhatikan hang, crash, JPEG korup, nama file bertabrakan, dan pertumbuhan
+memori.
+
+### Baru setelah P1-P7 PASS
+
+Rancang helper produksi. Ingat: **contoh Sony tidak boleh dipakai di produk** —
+implementasi ditulis sendiri berdasarkan Command Reference, dengan contoh
+sebagai rujukan pemahaman.

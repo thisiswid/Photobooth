@@ -1,8 +1,24 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Menutupi dialog cetak Android dengan layar kiosk sendiri, supaya
+         pelanggan tidak pernah melihat print spooler. Dialognya tetap terbuka
+         di baliknya dan tetap ditekan oleh KioskAutoPrintService. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Storage legacy. CATATAN: jangan tambahkan android:maxSdkVersion di sini —
+         plugin camera_android_camerax sudah mendeklarasikannya dengan nilai 28,
+         dan nilai yang berbeda membuat manifest merger gagal.
+         Jalur UVC/HDMI TIDAK bergantung pada permission ini: sejak Android 13
+         (API 33) permission-nya sudah dihapus sistem dan file hasil capture
+         ditulis ke app-scoped storage. Lihat patch di
+         packages/flutter_uvc_camera/.../PermissionManager.kt -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
     <application
         android:label="SnapTechBooth"
         android:name="${applicationName}"

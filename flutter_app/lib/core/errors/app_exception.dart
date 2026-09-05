@@ -1,4 +1,4 @@
-/// Sealed exception hierarchy for Fakultas Kopi Photobooth.
+/// Sealed exception hierarchy for SnapTechBooth.
 /// Every failure in the app maps to one of these typed exceptions
 /// so the UI layer can display the right friendly message.
 sealed class AppException implements Exception {

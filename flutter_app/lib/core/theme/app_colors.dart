@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Fakultas Kopi brand color palette — Authentic Vintage Coffee & Heritage Stationery.
+/// SnapTechBooth default color palette — Authentic Vintage Coffee & Heritage Stationery.
 /// Warm aged cream, roasted espresso brown, antique brass gold, and vintage stamp accents.
 abstract final class AppColors {
   // ── Primary Brand Palette (Vintage Coffeehouse) ───────────────────────────

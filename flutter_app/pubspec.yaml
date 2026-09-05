@@ -34,6 +34,13 @@ dependencies:
   cached_network_image: ^3.3.1
   flutter_animate: ^4.5.0
   camera: ^0.11.0
+  # Implementasi Windows untuk package camera TIDAK otomatis ikut — paket
+  # `camera` hanya meng-endorse Android/iOS/Web, sehingga di Windows harus
+  # ditambahkan eksplisit. Tanpa ini, availableCameras() mengembalikan kosong.
+  camera_windows: ^0.2.6
+  # Android saja. Plugin tanpa implementasi Windows dilewati saat build Windows,
+  # jadi tidak menggagalkan build — tapi pemanggilannya harus dijaga di runtime.
+  flutter_uvc_camera: ^1.0.0
 
   # Image Processing
   image: ^4.2.0
@@ -41,6 +48,10 @@ dependencies:
   # Printing & PDF Document Generation (Epson L8050 / Android Print Service)
   pdf: ^3.10.8
   printing: ^5.13.2
+
+  # Kiosk Windows — fullscreen & penguncian jendela.
+  # SystemChrome.setEnabledSystemUIMode tidak berefek apa pun di Windows.
+  window_manager: ^0.4.2
 
   # Utilities
   intl: ^0.19.0
@@ -56,6 +67,15 @@ dependencies:
 
   # Fonts
   google_fonts: ^6.2.1
+
+
+# ── PATCHED PLUGIN ─────────────────────────────────────────────────────────
+# flutter_uvc_camera 1.0.0 upstream mewajibkan WRITE_EXTERNAL_STORAGE yang
+# tidak pernah bisa di-grant di Android 13+ -> preview UVC selalu hitam.
+# Salinan lokal di packages/ sudah dipatch (lihat PermissionManager.kt).
+dependency_overrides:
+  flutter_uvc_camera:
+    path: ./packages/flutter_uvc_camera
 
 dev_dependencies:
   flutter_test:

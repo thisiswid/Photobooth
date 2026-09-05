@@ -1,8 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Sony ZV-E10 / Alpha Cameras -->
+    <!-- Sony ZV-E10 / Alpha Cameras (PTP Direct) -->
     <usb-device vendor-id="1356" product-id="3479" />
     <usb-device vendor-id="1356" />
+
+    <!-- MacroSilicon MS2109 HDMI Capture Card (VID 0x534D / PID 0x2109) -->
+    <usb-device vendor-id="21325" product-id="8457" />
+    <usb-device vendor-id="21325" />
+
+    <!-- Generic USB Video Class (UVC) — HDMI Capture Cards, Webcams, etc. -->
+    <usb-device class="14" subclass="1" />
+    <usb-device class="14" subclass="2" />
+
     <!-- Still Image Capture Devices (PTP Class 6, Subclass 1, Protocol 1) -->
     <usb-device class="6" subclass="1" protocol="1" />
 </resources>
