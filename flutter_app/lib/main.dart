@@ -6,16 +6,24 @@ import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:win32/win32.dart' as win32;
 import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
 import 'core/network/dio_client.dart';
 import 'core/constants/app_constants.dart';
 import 'core/services/heartbeat_service.dart';
+import 'core/services/provisioning_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Mencegah monitor Windows / sistem sleep (Always ON Kiosk)
+  _preventDisplaySleep();
+
   await _setupKioskDisplay();
+
+  // Pastikan info device key & tenant config termuat sebelum router aktif
+  await ProvisioningService.instance.warmUp();
 
   // Initialize DioClient (dev mode for now)
   DioClient.instance.initialize(isProduction: false);
@@ -28,6 +36,22 @@ void main() async {
       child: SnapTechBoothApp(),
     ),
   );
+}
+
+/// Menjaga layar monitor dan sistem tetap menyala (mencegah sleep/screensaver)
+void _preventDisplaySleep() {
+  if (!kIsWeb && Platform.isWindows) {
+    try {
+      // ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED
+      // 0x80000000 | 0x00000001 | 0x00000002 = 0x80000003
+      win32.SetThreadExecutionState(
+        win32.ES_CONTINUOUS | win32.ES_SYSTEM_REQUIRED | win32.ES_DISPLAY_REQUIRED,
+      );
+      debugPrint('☀️ [Kiosk] Windows display sleep prevented (Always ON)');
+    } catch (e) {
+      debugPrint('⚠️ [Kiosk] Failed to set display execution state: $e');
+    }
+  }
 }
 
 /// Menyiapkan tampilan kiosk sesuai platform.
@@ -46,12 +70,12 @@ Future<void> _setupKioskDisplay() async {
     // saat debug membuat aplikasi tampak "tidak terbuka" — jendelanya menutupi
     // seluruh layar tanpa title bar, sulit dibedakan dari aplikasi yang gagal
     // start, dan menyulitkan melihat log di terminal sebelah.
-    final options = kReleaseMode
-        ? const WindowOptions(
+    const options = kReleaseMode
+        ? WindowOptions(
             fullScreen: true,
             titleBarStyle: TitleBarStyle.hidden,
           )
-        : const WindowOptions(
+        : WindowOptions(
             size: Size(1280, 800),
             center: true,
             title: 'SnapTechBooth (debug)',
@@ -114,7 +138,7 @@ class SnapTechBoothApp extends ConsumerWidget {
         return MaterialApp.router(
           title: AppConstants.appName,
           debugShowCheckedModeBanner: false,
-          theme: AppTheme.dark,
+          theme: AppTheme.paper,
           routerConfig: router,
           builder: (context, child) {
             return MediaQuery(

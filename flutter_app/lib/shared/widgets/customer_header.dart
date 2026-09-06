@@ -1,135 +1,119 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:google_fonts/google_fonts.dart';
-import '../../../core/constants/app_constants.dart';
-import '../../../core/theme/app_colors.dart';
-import '../../../features/provisioning/providers/tenant_provider.dart';
+import '../../core/constants/app_constants.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_fonts.dart';
+import '../../core/theme/app_geometry.dart';
+import '../../core/theme/booth_material.dart';
+import '../../features/provisioning/providers/tenant_provider.dart';
 import 'logo_emblem.dart';
 import 'responsive_layout_builder.dart';
 
-/// Reusable internal page header — logo + brand name centered without overflow.
-class CustomerHeader extends StatelessWidget {
+/// Kepala halaman: lambang tenant + "<Nama Kafe> Photobooth".
+class CustomerHeader extends ConsumerWidget {
   const CustomerHeader({
     super.key,
-    this.trailing,
-    this.showTimer,
-    this.currentStep,
+    this.material = BoothMaterial.paper,
+    this.isLeftAligned = false,
   });
 
-  final Widget? trailing;
-  final bool? showTimer;
-  final int? currentStep;
+  final BoothMaterial material;
+  final bool isLeftAligned;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isMobile = context.isMobile;
+    final cafeName = ref.watch(tenantNotifierProvider).valueOrNull?.cafe.name ??
+        AppConstants.defaultCafeBrandName;
 
     return Padding(
-      padding: EdgeInsets.only(top: isMobile ? 4.h : 6.h, bottom: isMobile ? 2.h : 4.h),
-      child: Center(
-        child: _BrandLockup(isMobile: isMobile),
+      padding: EdgeInsets.symmetric(
+        horizontal: isLeftAligned ? 0 : AppGeometry.s8.w,
+        vertical: (isMobile ? AppGeometry.s4 : AppGeometry.s8).h,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: isLeftAligned ? MainAxisAlignment.start : MainAxisAlignment.center,
+        children: [
+          LogoEmblem(size: isMobile ? 26.r : 32.r, showRing: false),
+          SizedBox(width: AppGeometry.s8.w),
+          Flexible(
+            child: Text(
+              '$cafeName Photobooth',
+              textAlign: isLeftAligned ? TextAlign.start : TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppFonts.display(
+                fontSize: (isMobile ? 15 : 18).sp,
+                fontWeight: FontWeight.w700,
+                color: material.onSurface,
+                height: 1.1,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-/// Brand lockup — logo + "Nama Cafe Photobooth", centered & overflow-safe.
-class _BrandLockup extends ConsumerWidget {
-  const _BrandLockup({this.isMobile = false});
-  final bool isMobile;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final tenantConfig = ref.watch(tenantNotifierProvider).valueOrNull;
-    final cafeName = tenantConfig?.cafe.name ?? AppConstants.defaultCafeBrandName;
-    final title = '$cafeName Photobooth';
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        LogoEmblem(
-          size: isMobile ? 36.r : 44.r,
-          showRing: false,
-        ),
-        SizedBox(height: 2.h),
-        Text(
-          title,
-          textAlign: TextAlign.center,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: GoogleFonts.cormorantGaramond(
-            fontSize: isMobile ? 18.sp : 24.sp,
-            fontWeight: FontWeight.w700,
-            color: AppColors.darkBrown,
-            letterSpacing: 0.5,
-            height: 1.1,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Session countdown chip — displayed at screen top-right by PhotoboothLayout.
+/// Pil timer sesi — satu-satunya tempat radius pil dipakai di aplikasi ini.
+///
+/// Angkanya tabular, jadi lebarnya tidak bergeser tiap detik. Saat waktu
+/// menipis, warnanya berubah DAN kata "SISA" berganti "HABIS" — warna tidak
+/// pernah jadi satu-satunya penanda.
 class TimerChip extends StatelessWidget {
   const TimerChip({
     super.key,
     required this.text,
     this.isWarning = false,
-    this.isMobile = false,
+    this.material = BoothMaterial.paper,
   });
 
   final String text;
   final bool isWarning;
-  final bool isMobile;
+  final BoothMaterial material;
 
   @override
   Widget build(BuildContext context) {
-    final color = isWarning ? AppColors.error : AppColors.darkBrown;
+    final fg = isWarning
+        ? (material.isDark ? AppColors.inkOxideLit : AppColors.inkOxide)
+        : material.onSurface;
 
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: isMobile ? 10.w : 14.w,
-        vertical: isMobile ? 4.h : 6.h,
+        horizontal: AppGeometry.s12.w,
+        vertical: AppGeometry.s4.h,
       ),
       decoration: BoxDecoration(
-        color: isWarning
-            ? AppColors.error.withValues(alpha: 0.08)
-            : AppColors.creamWhite,
-        borderRadius: BorderRadius.circular(10.r),
+        color: material.raised,
+        borderRadius: BorderRadius.circular(AppGeometry.radiusPill.r),
         border: Border.all(
-          color: isWarning
-              ? AppColors.error
-              : AppColors.darkBrown.withValues(alpha: 0.5),
-          width: 1.2,
+          color: isWarning ? fg : material.rule,
+          width: isWarning ? AppGeometry.ruleSelected : AppGeometry.hairline,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.darkBrown.withValues(alpha: 0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.schedule_rounded,
-            size: isMobile ? 13.sp : 15.sp,
-            color: color,
+          Text(
+            isWarning ? 'HABIS' : 'SISA',
+            style: AppFonts.ui(
+              color: material.onSurfaceFaint,
+              fontSize: 11.sp,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.6,
+            ),
           ),
-          SizedBox(width: 6.w),
+          SizedBox(width: AppGeometry.s8.w),
           Text(
             text,
-            style: GoogleFonts.montserrat(
-              color: color,
-              fontSize: isMobile ? 12.sp : 13.5.sp,
+            style: AppFonts.ui(
+              color: fg,
+              fontSize: 14.sp,
               fontWeight: FontWeight.w700,
-              letterSpacing: 0.5,
+              letterSpacing: 0.8,
             ),
           ),
         ],

@@ -1,19 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
+import 'app_geometry.dart';
+import 'app_text_styles.dart';
 
-/// Central theme configuration for SnapTechBooth.
-/// Uses Material 3 with a custom coffee-themed color scheme.
+/// Tema Sistem Kamar Gelap.
+///
+/// Nama lama getter-nya `dark`, padahal isinya `Brightness.light` — sekarang
+/// namanya `paper`, sesuai materialnya. Terang memang bawaan aplikasi ini;
+/// gelap hanya dipakai di layar tempat gambar jadi subjeknya, dan layar-layar
+/// itu memasang warnanya sendiri.
+///
+/// Seluruh nilai di sini diturunkan dari token. Tidak ada satu pun warna,
+/// ukuran huruf, atau radius yang diketik langsung.
 final class AppTheme {
   const AppTheme._();
 
-  static ThemeData get dark => ThemeData(
+  static ThemeData get paper => ThemeData(
         useMaterial3: true,
         brightness: Brightness.light,
         colorScheme: _colorScheme,
         textTheme: _textTheme,
+        scaffoldBackgroundColor: AppColors.paper,
         appBarTheme: _appBarTheme,
         elevatedButtonTheme: _elevatedButtonTheme,
         outlinedButtonTheme: _outlinedButtonTheme,
@@ -26,290 +35,250 @@ final class AppTheme {
         progressIndicatorTheme: _progressIndicatorTheme,
         dividerTheme: _dividerTheme,
         iconTheme: _iconTheme,
-        scaffoldBackgroundColor: AppColors.backgroundParchment,
-        splashColor: AppColors.coffeeBrown.withValues(alpha: 0.1),
-        highlightColor: AppColors.coffeeBrown.withValues(alpha: 0.05),
+
+        // Kedalaman datang dari garis dan cerukan, bukan dari blur.
+        splashColor: AppColors.ink.withValues(alpha: 0.06),
+        highlightColor: AppColors.ink.withValues(alpha: 0.04),
+        shadowColor: Colors.transparent,
       );
 
-  // ── Color Scheme ──────────────────────────────────────────────────────────
+  // ── Skema warna ──────────────────────────────────────────────────────────
+
   static const ColorScheme _colorScheme = ColorScheme(
     brightness: Brightness.light,
-    primary: AppColors.coffeeBrown,
-    onPrimary: AppColors.white,
-    primaryContainer: AppColors.parchmentLight,
-    onPrimaryContainer: AppColors.textPrimary,
-    secondary: AppColors.goldAccent,
-    onSecondary: AppColors.white,
-    secondaryContainer: AppColors.parchmentDark,
-    onSecondaryContainer: AppColors.textPrimary,
-    tertiary: AppColors.coffeeLight,
-    onTertiary: AppColors.white,
-    error: AppColors.error,
-    onError: AppColors.white,
-    surface: AppColors.surfaceCard,
-    onSurface: AppColors.textPrimary,
-    surfaceContainerHighest: AppColors.parchmentLight,
-    onSurfaceVariant: AppColors.textSecondary,
-    outline: AppColors.borderWarm,
-    outlineVariant: AppColors.borderGold,
-    shadow: Colors.black26,
-    scrim: Colors.black38,
-    inverseSurface: AppColors.coffeeBrown,
-    onInverseSurface: AppColors.white,
-    inversePrimary: AppColors.goldAccent,
+    primary: AppColors.ink,
+    onPrimary: AppColors.paperBright,
+    primaryContainer: AppColors.paperDeep,
+    onPrimaryContainer: AppColors.ink,
+    secondary: AppColors.spot,
+    onSecondary: AppColors.paperBright,
+    secondaryContainer: AppColors.paperDeep,
+    onSecondaryContainer: AppColors.ink,
+    tertiary: AppColors.ink70,
+    onTertiary: AppColors.paperBright,
+    error: AppColors.inkOxide,
+    onError: AppColors.paperBright,
+    surface: AppColors.paperBright,
+    onSurface: AppColors.ink,
+    surfaceContainerHighest: AppColors.paperDeep,
+    onSurfaceVariant: AppColors.ink70,
+    outline: AppColors.ink40,
+    outlineVariant: AppColors.ink15,
+    shadow: Colors.transparent,
+    scrim: AppColors.scrim,
+    inverseSurface: AppColors.bench,
+    onInverseSurface: AppColors.light,
+    inversePrimary: AppColors.spotLit,
   );
 
-  // ── Text Theme ────────────────────────────────────────────────────────────
-  static TextTheme get _textTheme => GoogleFonts.montserratTextTheme(
-        TextTheme(
-          displayLarge: GoogleFonts.cormorantGaramond(
-            fontSize: 57.sp,
-            fontWeight: FontWeight.w700,
-            color: AppColors.textPrimary,
-          ),
-          displayMedium: GoogleFonts.cormorantGaramond(
-            fontSize: 45.sp,
-            fontWeight: FontWeight.w700,
-            color: AppColors.textPrimary,
-          ),
-          displaySmall: GoogleFonts.cormorantGaramond(
-            fontSize: 36.sp,
-            fontWeight: FontWeight.w600,
-            color: AppColors.textPrimary,
-          ),
-          headlineLarge: GoogleFonts.cormorantGaramond(
-            fontSize: 32.sp,
-            fontWeight: FontWeight.w700,
-            color: AppColors.textPrimary,
-          ),
-          headlineMedium: GoogleFonts.cormorantGaramond(
-            fontSize: 28.sp,
-            fontWeight: FontWeight.w600,
-            color: AppColors.textPrimary,
-          ),
-          headlineSmall: GoogleFonts.cormorantGaramond(
-            fontSize: 24.sp,
-            fontWeight: FontWeight.w600,
-            color: AppColors.textPrimary,
-          ),
-          titleLarge: GoogleFonts.montserrat(
-            fontSize: 22.sp,
-            fontWeight: FontWeight.w700,
-            color: AppColors.textPrimary,
-          ),
-          titleMedium: GoogleFonts.montserrat(
-            fontSize: 16.sp,
-            fontWeight: FontWeight.w600,
-            color: AppColors.textPrimary,
-          ),
-          titleSmall: GoogleFonts.montserrat(
-            fontSize: 14.sp,
-            fontWeight: FontWeight.w600,
-            color: AppColors.textSecondary,
-          ),
-          bodyLarge: GoogleFonts.montserrat(
-            fontSize: 16.sp,
-            color: AppColors.textPrimary,
-          ),
-          bodyMedium: GoogleFonts.montserrat(
-            fontSize: 14.sp,
-            color: AppColors.textPrimary,
-          ),
-          bodySmall: GoogleFonts.montserrat(
-            fontSize: 12.sp,
-            color: AppColors.textSecondary,
-          ),
-          labelLarge: GoogleFonts.montserrat(
-            fontSize: 14.sp,
-            fontWeight: FontWeight.w700,
-            color: AppColors.textPrimary,
-          ),
-          labelMedium: GoogleFonts.montserrat(
-            fontSize: 12.sp,
-            fontWeight: FontWeight.w600,
-            color: AppColors.textSecondary,
-          ),
-          labelSmall: GoogleFonts.montserrat(
-            fontSize: 11.sp,
-            fontWeight: FontWeight.w500,
-            color: AppColors.textMuted,
-          ),
-        ),
+  // ── Tema teks ────────────────────────────────────────────────────────────
+
+  static TextTheme get _textTheme => TextTheme(
+        displayLarge: AppTextStyles.displayLarge,
+        displayMedium: AppTextStyles.displayMedium,
+        displaySmall: AppTextStyles.displaySmall,
+        headlineLarge: AppTextStyles.headlineLarge,
+        headlineMedium: AppTextStyles.headlineMedium,
+        headlineSmall: AppTextStyles.headlineSmall,
+        titleLarge: AppTextStyles.titleLarge,
+        titleMedium: AppTextStyles.titleMedium,
+        titleSmall: AppTextStyles.titleSmall,
+        bodyLarge: AppTextStyles.bodyLarge,
+        bodyMedium: AppTextStyles.bodyMedium,
+        bodySmall: AppTextStyles.bodySmall,
+        labelLarge: AppTextStyles.labelLarge,
+        labelMedium: AppTextStyles.labelMedium,
+        labelSmall: AppTextStyles.labelSmall,
       );
 
-  // ── App Bar ───────────────────────────────────────────────────────────────
+  // ── App bar ──────────────────────────────────────────────────────────────
+
   static const AppBarTheme _appBarTheme = AppBarTheme(
-    backgroundColor: AppColors.backgroundParchment,
-    foregroundColor: AppColors.textPrimary,
+    backgroundColor: AppColors.paper,
+    foregroundColor: AppColors.ink,
     elevation: 0,
     scrolledUnderElevation: 0,
     centerTitle: true,
     systemOverlayStyle: SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.dark,
-      systemNavigationBarColor: AppColors.backgroundParchment,
+      systemNavigationBarColor: AppColors.paper,
     ),
   );
 
-  // ── Elevated Button ───────────────────────────────────────────────────────
+  // ── Tombol utama ─────────────────────────────────────────────────────────
+  //
+  // Target sentuh 64 ditegakkan di sini, sekali, untuk semua tombol.
+
+  static ButtonStyle get _base => ButtonStyle(
+        minimumSize: WidgetStatePropertyAll(
+          Size(AppGeometry.touchTarget.w, AppGeometry.touchTarget.h),
+        ),
+        padding: WidgetStatePropertyAll(
+          EdgeInsets.symmetric(
+            horizontal: AppGeometry.s24.w,
+            vertical: AppGeometry.s12.h,
+          ),
+        ),
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppGeometry.radiusCard.r),
+          ),
+        ),
+        elevation: const WidgetStatePropertyAll(0),
+        textStyle: WidgetStatePropertyAll(AppTextStyles.buttonText),
+      );
+
   static ElevatedButtonThemeData get _elevatedButtonTheme =>
       ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.coffeeBrown,
-          foregroundColor: AppColors.white,
-          minimumSize: Size(120.w, 64.h),
-          padding: EdgeInsets.symmetric(horizontal: 32.w, vertical: 16.h),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(30.r),
+        style: _base.copyWith(
+          backgroundColor: WidgetStateProperty.resolveWith(
+            (s) => s.contains(WidgetState.disabled)
+                ? AppColors.ink15
+                : AppColors.ink,
           ),
-          textStyle: GoogleFonts.inter(
-            fontSize: 18.sp,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.5,
+          foregroundColor: WidgetStateProperty.resolveWith(
+            (s) => s.contains(WidgetState.disabled)
+                ? AppColors.ink40
+                : AppColors.paperBright,
           ),
-          elevation: 4,
-          shadowColor: AppColors.coffeeBrown.withValues(alpha: 0.3),
         ),
       );
 
-  // ── Outlined Button ───────────────────────────────────────────────────────
   static OutlinedButtonThemeData get _outlinedButtonTheme =>
       OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.coffeeBrown,
-          side: const BorderSide(color: AppColors.coffeeBrown, width: 1.5),
-          minimumSize: Size(120.w, 64.h),
-          padding: EdgeInsets.symmetric(horizontal: 32.w, vertical: 16.h),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(30.r),
+        style: _base.copyWith(
+          backgroundColor: const WidgetStatePropertyAll(AppColors.paperBright),
+          foregroundColor: WidgetStateProperty.resolveWith(
+            (s) => s.contains(WidgetState.disabled)
+                ? AppColors.ink40
+                : AppColors.ink,
           ),
-          textStyle: GoogleFonts.inter(
-            fontSize: 18.sp,
-            fontWeight: FontWeight.w600,
+          side: WidgetStateProperty.resolveWith(
+            (s) => BorderSide(
+              color: s.contains(WidgetState.disabled)
+                  ? AppColors.ink15
+                  : AppColors.ink,
+              width: AppGeometry.hairline,
+            ),
+          ),
+          textStyle: WidgetStatePropertyAll(
+            AppTextStyles.buttonText.copyWith(color: AppColors.ink),
           ),
         ),
       );
 
-  // ── Text Button ───────────────────────────────────────────────────────────
   static TextButtonThemeData get _textButtonTheme => TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: AppColors.coffeeBrown,
-          minimumSize: Size(64.w, 48.h),
-          padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
-          textStyle: GoogleFonts.inter(
-            fontSize: 16.sp,
-            fontWeight: FontWeight.w500,
+          foregroundColor: AppColors.ink,
+          minimumSize: Size(AppGeometry.s48.w, AppGeometry.touchTarget.h),
+          padding: EdgeInsets.symmetric(
+            horizontal: AppGeometry.s16.w,
+            vertical: AppGeometry.s8.h,
+          ),
+          textStyle: AppTextStyles.labelLarge,
+        ),
+      );
+
+  // ── Kartu ────────────────────────────────────────────────────────────────
+  //
+  // Nol bayangan. Satu-satunya bayangan di aplikasi ini milik strip foto,
+  // dan itu dipasang di widget-nya sendiri karena strip memang sebuah benda.
+
+  static CardThemeData get _cardTheme => CardThemeData(
+        color: AppColors.paperBright,
+        elevation: 0,
+        shadowColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppGeometry.radiusCard.r),
+          side: const BorderSide(
+            color: AppColors.ink15,
+            width: AppGeometry.hairline,
           ),
         ),
+        margin: EdgeInsets.zero,
       );
 
-  // ── Card ──────────────────────────────────────────────────────────────────
-  static CardThemeData get _cardTheme => CardThemeData(
-        color: AppColors.surfaceCard,
-        elevation: 2,
-        shadowColor: Colors.black12,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16.r),
-          side: const BorderSide(color: AppColors.borderWarm, width: 1),
-        ),
-        margin: EdgeInsets.all(8.r),
+  // ── Isian ────────────────────────────────────────────────────────────────
+
+  static OutlineInputBorder _border(Color c, double w) => OutlineInputBorder(
+        borderRadius: BorderRadius.circular(AppGeometry.radiusCard.r),
+        borderSide: BorderSide(color: c, width: w),
       );
 
-  // ── Input Decoration ──────────────────────────────────────────────────────
   static InputDecorationTheme get _inputDecorationTheme =>
       InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.parchmentLight,
-        contentPadding:
-            EdgeInsets.symmetric(horizontal: 24.w, vertical: 20.h),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16.r),
-          borderSide: const BorderSide(color: AppColors.borderWarm),
+        fillColor: AppColors.paperBright,
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: AppGeometry.s16.w,
+          vertical: AppGeometry.s16.h,
         ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16.r),
-          borderSide:
-              const BorderSide(color: AppColors.borderWarm, width: 1.5),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16.r),
-          borderSide:
-              const BorderSide(color: AppColors.coffeeBrown, width: 2.0),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16.r),
-          borderSide:
-              const BorderSide(color: AppColors.error, width: 1.5),
-        ),
-        labelStyle: GoogleFonts.inter(
-            fontSize: 14.sp, color: AppColors.textSecondary),
-        hintStyle:
-            GoogleFonts.inter(fontSize: 14.sp, color: AppColors.textMuted),
-        errorStyle: GoogleFonts.inter(
-            fontSize: 12.sp, color: AppColors.error),
+        border: _border(AppColors.ink15, AppGeometry.hairline),
+        enabledBorder: _border(AppColors.ink15, AppGeometry.hairline),
+        focusedBorder: _border(AppColors.ink, AppGeometry.ruleSelected),
+        errorBorder: _border(AppColors.inkOxide, AppGeometry.hairline),
+        focusedErrorBorder: _border(AppColors.inkOxide, AppGeometry.ruleSelected),
+        labelStyle: AppTextStyles.labelMedium,
+        hintStyle: AppTextStyles.bodyMedium.copyWith(color: AppColors.ink40),
+        errorStyle: AppTextStyles.bodySmall.copyWith(color: AppColors.inkOxide),
       );
 
-  // ── Bottom Sheet ──────────────────────────────────────────────────────────
+  // ── Lembar bawah & dialog ────────────────────────────────────────────────
+
   static BottomSheetThemeData get _bottomSheetTheme => BottomSheetThemeData(
-        backgroundColor: AppColors.surfaceModal,
+        backgroundColor: AppColors.paperBright,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28.r)),
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(AppGeometry.radiusCard.r),
+          ),
         ),
-        elevation: 16,
-        modalBarrierColor: AppColors.overlayDark,
+        elevation: 0,
+        modalBarrierColor: AppColors.scrim,
       );
 
-  // ── Dialog ────────────────────────────────────────────────────────────────
   static DialogThemeData get _dialogTheme => DialogThemeData(
-        backgroundColor: AppColors.surfaceModal,
+        backgroundColor: AppColors.paperBright,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24.r),
+          borderRadius: BorderRadius.circular(AppGeometry.radiusCard.r),
+          side: const BorderSide(
+            color: AppColors.ink,
+            width: AppGeometry.hairline,
+          ),
         ),
-        elevation: 24,
-        titleTextStyle: GoogleFonts.playfairDisplay(
-          fontSize: 22.sp,
-          fontWeight: FontWeight.w700,
-          color: AppColors.textPrimary,
-        ),
-        contentTextStyle: GoogleFonts.inter(
-          fontSize: 15.sp,
-          color: AppColors.textPrimary,
-          height: 1.5,
-        ),
+        elevation: 0,
+        titleTextStyle: AppTextStyles.headlineMedium,
+        contentTextStyle: AppTextStyles.bodyMedium,
       );
 
-  // ── SnackBar ──────────────────────────────────────────────────────────────
   static SnackBarThemeData get _snackBarTheme => SnackBarThemeData(
-        backgroundColor: AppColors.coffeeBrown,
-        contentTextStyle: GoogleFonts.inter(
-          fontSize: 14.sp,
-          color: AppColors.white,
-        ),
+        backgroundColor: AppColors.ink,
+        contentTextStyle:
+            AppTextStyles.bodyMedium.copyWith(color: AppColors.paperBright),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12.r),
+          borderRadius: BorderRadius.circular(AppGeometry.radiusCard.r),
         ),
         behavior: SnackBarBehavior.floating,
-        elevation: 8,
+        elevation: 0,
       );
 
-  // ── Progress Indicator ───────────────────────────────────────────────────
+  // ── Sisanya ──────────────────────────────────────────────────────────────
+
   static const ProgressIndicatorThemeData _progressIndicatorTheme =
       ProgressIndicatorThemeData(
-    color: AppColors.coffeeBrown,
-    linearTrackColor: AppColors.parchmentDark,
-    circularTrackColor: AppColors.parchmentDark,
+    color: AppColors.ink,
+    linearTrackColor: AppColors.ink15,
+    circularTrackColor: AppColors.ink15,
   );
 
-  // ── Divider ───────────────────────────────────────────────────────────────
   static const DividerThemeData _dividerTheme = DividerThemeData(
-    color: AppColors.borderWarm,
-    thickness: 1,
-    space: 1,
+    color: AppColors.ink15,
+    thickness: AppGeometry.hairline,
+    space: AppGeometry.hairline,
   );
 
-  // ── Icon ──────────────────────────────────────────────────────────────────
   static const IconThemeData _iconTheme = IconThemeData(
-    color: AppColors.coffeeBrown,
-    size: 24,
+    color: AppColors.ink,
+    size: 22,
   );
 }

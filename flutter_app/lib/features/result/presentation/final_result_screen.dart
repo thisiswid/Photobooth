@@ -7,8 +7,8 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+
 import '../../../core/constants/app_constants.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/router/app_router.dart';
@@ -16,12 +16,15 @@ import '../../../core/services/error_logger.dart';
 import '../../../core/services/photo_upload_prep_service.dart';
 import '../../../core/services/printer_service.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_text_styles.dart';
+import '../../../core/theme/app_fonts.dart';
+import '../../../core/theme/app_geometry.dart';
+import '../../../core/theme/booth_material.dart';
+import '../../../features/session/domain/models/session_model.dart';
 import '../../../features/session/providers/session_provider.dart';
-import '../../../shared/widgets/customer_header.dart';
-import '../../../shared/widgets/photobooth_layout.dart';
 import '../../../shared/widgets/photo_strip_widget.dart';
+import '../../../shared/widgets/photobooth_layout.dart';
 import '../../../shared/widgets/printer_settings_modal.dart';
+import '../../../shared/widgets/responsive_button.dart';
 import '../../../shared/widgets/responsive_layout_builder.dart';
 
 enum PrintUiStatus {
@@ -32,9 +35,9 @@ enum PrintUiStatus {
   failed,
 }
 
-/// Final Result Screen — header transparan centered 2x.
-/// "Hasil Foto" di bawah header.
-/// Preview foto LEBIH LEBAR dari QR.
+/// Final Result Screen — Redesigned with the Darkroom Editorial design system.
+/// Displays print preview / boomerang motion, editorial QR ticket card,
+/// real-time printer status, and finish action.
 class FinalResultScreen extends ConsumerStatefulWidget {
   const FinalResultScreen({super.key});
 
@@ -50,13 +53,10 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
   bool _hasAutoPrinted = false;
   bool _isPrinting = false;
 
-  /// Tombol "Selesai" dikunci sampai QR muncul, agar tamu tidak keburu
-  /// menutup sesi sebelum sempat memindai. Dibuka paksa setelah
-  /// [_qrGraceDuration] supaya kiosk tidak mentok bila backend gagal.
   static const Duration _qrGraceDuration = Duration(seconds: 20);
   bool _qrWaitExpired = false;
   Timer? _qrGraceTimer;
-  bool _showPrintOverlay = false; // Overlay fullscreen saat PrintActivity aktif
+  bool _showPrintOverlay = false;
 
   @override
   void initState() {
@@ -74,90 +74,6 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
     super.dispose();
   }
 
-  /// Tombol "Selesai" beserta status penguncian QR.
-  Widget _buildFinishButton({required bool isMobile}) {
-    final qrToken = ref.watch(sessionNotifierProvider).session?.qrToken;
-    final hasQr = qrToken != null && qrToken.trim().isNotEmpty;
-    final unlocked = hasQr || _qrWaitExpired;
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        SizedBox(
-          width: double.infinity,
-          height: isMobile ? 42.h : 46.h,
-          child: ElevatedButton(
-            onPressed: unlocked ? _finishSession : null,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.buttonBrown,
-              foregroundColor: AppColors.creamWhite,
-              disabledBackgroundColor:
-                  AppColors.buttonBrown.withValues(alpha: 0.35),
-              disabledForegroundColor:
-                  AppColors.creamWhite.withValues(alpha: 0.6),
-              elevation: unlocked ? 3 : 0,
-              shadowColor: AppColors.darkBrown.withValues(alpha: 0.3),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10.r),
-                side: BorderSide(
-                  color: unlocked
-                      ? AppColors.gold
-                      : AppColors.gold.withValues(alpha: 0.35),
-                  width: 1.0,
-                ),
-              ),
-            ),
-            child: unlocked
-                ? Text(
-                    'Selesai',
-                    style: GoogleFonts.montserrat(
-                      fontSize: isMobile ? 13.sp : 14.5.sp,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.creamWhite,
-                      letterSpacing: 0.3,
-                    ),
-                  )
-                : Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      SizedBox(
-                        width: 14.r,
-                        height: 14.r,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.creamWhite.withValues(alpha: 0.7),
-                        ),
-                      ),
-                      SizedBox(width: 8.w),
-                      Text(
-                        'Menyiapkan QR...',
-                        style: GoogleFonts.montserrat(
-                          fontSize: isMobile ? 12.sp : 13.sp,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.creamWhite.withValues(alpha: 0.7),
-                          letterSpacing: 0.3,
-                        ),
-                      ),
-                    ],
-                  ),
-          ),
-        ),
-        if (!hasQr && _qrWaitExpired) ...[
-          SizedBox(height: 4.h),
-          Text(
-            'QR gagal dibuat — foto tetap tercetak.',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.montserrat(
-              fontSize: 9.5.sp,
-              color: AppColors.darkBrown.withValues(alpha: 0.7),
-            ),
-          ),
-        ],
-      ],
-    ).animate().fadeIn(delay: 300.ms);
-  }
-
-  /// URL helper for backend storage
   String _getStorageUrl(String relativePath) {
     if (relativePath.startsWith('http://') || relativePath.startsWith('https://')) {
       return relativePath;
@@ -176,7 +92,7 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
 
     setState(() {
       _printStatus = PrintUiStatus.preparing;
-      _printStatusMessage = 'Menyiapkan hasil foto HD...';
+      _printStatusMessage = 'Menyiapkan master cetak resolusi tinggi...';
     });
 
     String? generatedFinalUrl;
@@ -195,12 +111,8 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
       }
       formData.fields.add(MapEntry('event_id', session.eventId.toString()));
 
-      // Ambil versi kecil SEMUA foto sekaligus (paralel). Sebagian besar
-      // biasanya sudah selesai disiapkan sejak dijepret — lihat
-      // PhotoUploadPrepService.
       final paths = session.photos.map((p) => p.fileUrl).toList();
-      final prepared =
-          await PhotoUploadPrepService.instance.bytesForAll(paths);
+      final prepared = await PhotoUploadPrepService.instance.bytesForAll(paths);
 
       for (int i = 0; i < session.photos.length; i++) {
         final path = paths[i];
@@ -242,11 +154,6 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
       debugPrint('Backend result generation note: $e');
     }
 
-    // Auto-Print langsung setelah foto & template siap.
-    //
-    // Switch "Auto Print After Session" di Hidden Device Settings sebelumnya
-    // hanya tersimpan tanpa pernah dibaca — dimatikan pun tetap mencetak.
-    // Sekarang benar-benar dihormati.
     if (!_hasAutoPrinted && mounted) {
       final autoPrintEnabled = await PrinterService.getAutoPrint();
       if (autoPrintEnabled) {
@@ -257,7 +164,7 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
         if (mounted) {
           setState(() {
             _printStatus = PrintUiStatus.idle;
-            _printStatusMessage = 'Auto-print dimatikan. Tekan Cetak Ulang bila perlu.';
+            _printStatusMessage = 'Auto-print dimatikan. Tekan tombol cetak bila perlu.';
           });
         }
       }
@@ -388,339 +295,470 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
 
     final qrToken = session?.qrToken;
     final hasQrToken = qrToken != null && qrToken.trim().isNotEmpty;
-    final qrUrl = hasQrToken
-        ? '${AppConstants.resultBaseUrl}/$qrToken'
-        : null;
+    final qrUrl = hasQrToken ? '${AppConstants.resultBaseUrl}/$qrToken' : null;
 
     final isMobile = context.isMobile;
     final isPortrait = context.isPortrait;
+    final isCompact = isMobile || isPortrait;
 
-    // Gunakan finalUrl dari backend jika sudah tersedia, fallback ke PhotoStripWidget
     final finalUrl = session?.finalUrl;
     final hasFinalUrl = finalUrl != null && finalUrl.trim().isNotEmpty;
-
-    final previewContent = Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        // ── Segmented Toggle: Strip Foto vs Motion Video ─────────
-        Container(
-          padding: EdgeInsets.all(4.r),
-          decoration: BoxDecoration(
-            color: AppColors.creamWhite,
-            borderRadius: BorderRadius.circular(30.r),
-            border: Border.all(color: AppColors.gold, width: 1.2),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.darkBrown.withValues(alpha: 0.06),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              GestureDetector(
-                onTap: () => setState(() => _showMotionPreview = false),
-                child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 6.h),
-                  decoration: BoxDecoration(
-                    color: !_showMotionPreview ? AppColors.darkBrown : Colors.transparent,
-                    borderRadius: BorderRadius.circular(24.r),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.photo_library_rounded,
-                        size: 15.sp,
-                        color: !_showMotionPreview ? AppColors.creamWhite : AppColors.darkBrown,
-                      ),
-                      SizedBox(width: 6.w),
-                      Text(
-                        'Strip Cetak',
-                        style: GoogleFonts.montserrat(
-                          fontSize: 11.5.sp,
-                          fontWeight: FontWeight.w700,
-                          color: !_showMotionPreview ? AppColors.creamWhite : AppColors.darkBrown,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              SizedBox(width: 4.w),
-              GestureDetector(
-                onTap: () => setState(() => _showMotionPreview = true),
-                child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 6.h),
-                  decoration: BoxDecoration(
-                    color: _showMotionPreview ? AppColors.darkBrown : Colors.transparent,
-                    borderRadius: BorderRadius.circular(24.r),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.movie_filter_rounded,
-                        size: 15.sp,
-                        color: _showMotionPreview ? AppColors.creamWhite : AppColors.darkBrown,
-                      ),
-                      SizedBox(width: 6.w),
-                      Text(
-                        'Motion Video / GIF',
-                        style: GoogleFonts.montserrat(
-                          fontSize: 11.5.sp,
-                          fontWeight: FontWeight.w700,
-                          color: _showMotionPreview ? AppColors.creamWhite : AppColors.darkBrown,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ).animate().fadeIn(duration: 300.ms),
-        SizedBox(height: 12.h),
-
-        // ── Display Active Preview ──────────────────────────────
-        Expanded(
-          child: Center(
-            child: !_showMotionPreview
-                ? (hasFinalUrl
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(8.r),
-                        child: Image.network(
-                          _getStorageUrl(finalUrl),
-                          fit: BoxFit.contain,
-                          loadingBuilder: (context, child, progress) {
-                            if (progress == null) return child;
-                            return Center(
-                              child: CircularProgressIndicator(
-                                color: AppColors.gold,
-                                value: progress.expectedTotalBytes != null
-                                    ? progress.cumulativeBytesLoaded / progress.expectedTotalBytes!
-                                    : null,
-                              ),
-                            );
-                          },
-                          errorBuilder: (_, __, ___) => PhotoStripWidget(
-                            photos: photos,
-                            frame: frame,
-                            colorFilter: sessionState.selectedFilter?.colorFilter,
-                          ),
-                        ),
-                      )
-                    : PhotoStripWidget(
-                        photos: photos,
-                        frame: frame,
-                        colorFilter: sessionState.selectedFilter?.colorFilter,
-                      ))
-                : _MotionPlayerWidget(
-                    photos: photos,
-                    colorFilter: sessionState.selectedFilter?.colorFilter,
-                  ),
-          ),
-        ),
-      ],
-    );
-
-    final actionPanel = SingleChildScrollView(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _QrCard(qrUrl: qrUrl),
-          SizedBox(height: isMobile ? 8.h : 12.h),
-
-          // ── UI Status Cetak (Loading / Berhasil / Gagal) ──
-          _buildPrintStatusWidget(),
-          SizedBox(height: isMobile ? 6.h : 8.h),
-
-          // ── Tombol Cetak / Cetak Ulang ───────────────────
-          SizedBox(
-            width: double.infinity,
-            height: isMobile ? 42.h : 46.h,
-            child: OutlinedButton(
-              onPressed: (_printStatus == PrintUiStatus.printing || _printStatus == PrintUiStatus.preparing)
-                  ? null
-                  : _handleManualPrintRetry,
-              style: OutlinedButton.styleFrom(
-                backgroundColor: AppColors.creamWhite,
-                foregroundColor: AppColors.darkBrown,
-                side: const BorderSide(color: AppColors.darkBrown, width: 1.4),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10.r),
-                ),
-              ),
-              child: Text(
-                (_printStatus == PrintUiStatus.printing || _printStatus == PrintUiStatus.preparing)
-                    ? 'Sedang mencetak...'
-                    : 'Cetak',
-                style: GoogleFonts.montserrat(
-                  fontSize: isMobile ? 12.5.sp : 14.sp,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.darkBrown,
-                ),
-              ),
-            ),
-          ).animate().fadeIn(delay: 200.ms),
-
-          SizedBox(height: isMobile ? 8.h : 10.h),
-
-          // ── Tombol Selesai ──
-          // Terkunci sampai QR siap dipindai. Setelah _qrGraceDuration tombol
-          // dibuka apa pun yang terjadi, supaya kiosk tidak mentok kalau
-          // backend lambat atau gagal.
-          _buildFinishButton(isMobile: isMobile),
-
-          SizedBox(height: 6.h),
-
-        ],
-      ),
-    ).animate().slideX(begin: 0.05, delay: 200.ms);
 
     return Stack(
       children: [
         PhotoboothLayout(
-          header: const CustomerHeader(),
-          child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // "Hasil Foto" & Tombol Setting Printer di bawah header
-          Padding(
-            padding: EdgeInsets.fromLTRB(isMobile ? 14.w : 32.w, 4.h, isMobile ? 14.w : 32.w, 0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Hasil Foto',
-                  style: GoogleFonts.cormorantGaramond(
-                    fontSize: isMobile ? 22.sp : 30.sp,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.darkBrown,
-                  ),
-                ).animate().fadeIn(),
-              ],
-            ),
-          ),
-          SizedBox(height: isMobile ? 6.h : 10.h),
+          material: BoothMaterial.paper,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Ambient watermark & crop marks
+              _ResultBackground(isCompact: isCompact),
 
-          Expanded(
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: isMobile ? 12.w : 32.w),
-              child: isMobile || isPortrait
-                  ? SingleChildScrollView(
-                      child: Column(
-                        children: [
-                          Center(
-                            child: SizedBox(
-                              height: 400.h,
-                              child: previewContent,
-                            ),
-                          ),
-                          SizedBox(height: 14.h),
-                          actionPanel,
-                          SizedBox(height: 16.h),
-                        ],
-                      ),
+              // Main Body Content
+              isCompact
+                  ? _buildCompactLayout(
+                      context,
+                      sessionState,
+                      photos,
+                      frame,
+                      hasFinalUrl,
+                      finalUrl,
+                      qrUrl,
+                      hasQrToken,
                     )
-                  : Row(
-                      children: [
-                        // ── Preview Photo Strip / Motion Video (flex: 3) ─────────
-                        Expanded(
-                          flex: 3,
-                          child: previewContent.animate().scale(begin: const Offset(0.95, 0.95), duration: 500.ms).fadeIn(duration: 500.ms),
-                        ),
-
-                        SizedBox(width: 24.w),
-
-                        // ── QR + Status Print + Selesai (flex: 2) ─────────────
-                        Expanded(
-                          flex: 2,
-                          child: actionPanel,
-                        ),
-                      ],
+                  : _buildLandscapeLayout(
+                      context,
+                      sessionState,
+                      photos,
+                      frame,
+                      hasFinalUrl,
+                      finalUrl,
+                      qrUrl,
+                      hasQrToken,
                     ),
-            ),
+            ],
           ),
-          SizedBox(height: isMobile ? 6.h : 12.h),
-        ],
-      ),
         ),
 
-        // ── Overlay fullscreen saat PrintActivity aktif ──
-        if (_showPrintOverlay)
-          Positioned.fill(
-            child: Material(
-              color: AppColors.darkBrown.withValues(alpha: 0.92),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  SizedBox(
-                    width: 72.r,
-                    height: 72.r,
-                    child: CircularProgressIndicator(
-                      color: AppColors.gold,
-                      strokeWidth: 3,
-                    ),
-                  ),
-                  SizedBox(height: 28.h),
-                  Text(
-                    'Sedang Mencetak...',
-                    style: GoogleFonts.cormorantGaramond(
-                      color: AppColors.creamWhite,
-                      fontSize: 26.sp,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                  SizedBox(height: 10.h),
-                  Text(
-                    'Mohon tunggu, foto sedang dicetak',
-                    style: GoogleFonts.montserrat(
-                      color: AppColors.creamWhite.withValues(alpha: 0.7),
-                      fontSize: 13.sp,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+        // Fullscreen Processing Overlay when printing
+        if (_showPrintOverlay) _buildPrintingOverlay(),
       ],
     );
   }
 
-  /// Widget Indikator Status Cetak Real-Time
-  Widget _buildPrintStatusWidget() {
+  // ── Desktop / Landscape / Kiosk Layout ────────────────────────────────────
+
+  Widget _buildLandscapeLayout(
+    BuildContext context,
+    SessionState sessionState,
+    List<PhotoModel> photos,
+    dynamic frame,
+    bool hasFinalUrl,
+    String? finalUrl,
+    String? qrUrl,
+    bool hasQrToken,
+  ) {
+    return Row(
+      children: [
+        // ── Kiri (Flex: 6): Large Framed Photo Strip / Boomerang Preview ───
+        Expanded(
+          flex: 6,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(20.w, 10.h, 16.w, 14.h),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Top control bar: Segmented switch & Section Title
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'HASIL SESI FOTO',
+                          style: AppFonts.display(
+                            fontSize: 20.sp,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.ink,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                        SizedBox(height: 2.h),
+                        Text(
+                          'Master cetak siap diunduh dan dicetak',
+                          style: AppFonts.ui(
+                            fontSize: 11.sp,
+                            color: AppColors.ink70,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    // Segmented Toggle: Strip Cetak vs Motion Loop
+                    Container(
+                      padding: EdgeInsets.all(3.r),
+                      decoration: BoxDecoration(
+                        color: AppColors.paperDeep,
+                        border: Border.all(color: AppColors.ink15, width: AppGeometry.hairline),
+                        borderRadius: BorderRadius.circular(AppGeometry.radiusCard.r),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _SegmentTab(
+                            label: 'Strip Cetak',
+                            icon: Icons.photo_library_outlined,
+                            isSelected: !_showMotionPreview,
+                            onTap: () => setState(() => _showMotionPreview = false),
+                          ),
+                          _SegmentTab(
+                            label: 'Motion Boomerang',
+                            icon: Icons.movie_creation_outlined,
+                            isSelected: _showMotionPreview,
+                            onTap: () => setState(() => _showMotionPreview = true),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                SizedBox(height: 10.h),
+                Container(height: AppGeometry.hairline, color: AppColors.ink15),
+                SizedBox(height: 10.h),
+
+                // Main Stage: Large Photo Strip or Motion Player
+                Expanded(
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: AppColors.paperBright,
+                        border: Border.all(color: AppColors.ink15, width: AppGeometry.hairline),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.ink.withValues(alpha: 0.10),
+                            blurRadius: AppGeometry.stripShadowBlur,
+                            offset: const Offset(0, AppGeometry.stripShadowY),
+                          ),
+                        ],
+                      ),
+                      child: !_showMotionPreview
+                          ? (hasFinalUrl
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(2.r),
+                                  child: Image.network(
+                                    _getStorageUrl(finalUrl!),
+                                    fit: BoxFit.contain,
+                                    loadingBuilder: (context, child, progress) {
+                                      if (progress == null) return child;
+                                      return Center(
+                                        child: CircularProgressIndicator(
+                                          color: AppColors.ink,
+                                          strokeWidth: 2,
+                                          value: progress.expectedTotalBytes != null
+                                              ? progress.cumulativeBytesLoaded / progress.expectedTotalBytes!
+                                              : null,
+                                        ),
+                                      );
+                                    },
+                                    errorBuilder: (_, __, ___) => PhotoStripWidget(
+                                      photos: photos,
+                                      frame: frame,
+                                      colorFilter: sessionState.selectedFilter?.colorFilter,
+                                    ),
+                                  ),
+                                )
+                              : PhotoStripWidget(
+                                  photos: photos,
+                                  frame: frame,
+                                  colorFilter: sessionState.selectedFilter?.colorFilter,
+                                ))
+                          : _MotionPlayerWidget(
+                              photos: photos,
+                              colorFilter: sessionState.selectedFilter?.colorFilter,
+                            ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // Hairline Divider
+        Container(
+          width: AppGeometry.hairline,
+          color: AppColors.ink15,
+        ),
+
+        // ── Kanan (Flex: 5): Full Height QR Download Card + Actions ─────────
+        Expanded(
+          flex: 5,
+          child: Container(
+            color: AppColors.paperDeep,
+            padding: EdgeInsets.fromLTRB(18.w, 14.h, 20.w, 14.h),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // QR Digital Download Ticket Card (Mengisi ruang secara dominan)
+                Expanded(
+                  child: _EditorialQrTicket(
+                    qrUrl: qrUrl,
+                    isFullHeight: true,
+                  ),
+                ),
+                SizedBox(height: 10.h),
+
+                // Real-time Printer Status Banner (Kecil & Rapi di bawah)
+                _buildPrintStatusWidget(context),
+                SizedBox(height: 10.h),
+
+                // Action Buttons: Print Again & Selesai
+                Row(
+                  children: [
+                    // Tombol Cetak / Cetak Ulang
+                    Expanded(
+                      child: ResponsiveButton(
+                        label: (_printStatus == PrintUiStatus.printing || _printStatus == PrintUiStatus.preparing)
+                            ? 'Mencetak...'
+                            : 'Cetak Ulang',
+                        icon: Icons.print_outlined,
+                        variant: ButtonVariant.outlined,
+                        onPressed: (_printStatus == PrintUiStatus.printing || _printStatus == PrintUiStatus.preparing)
+                            ? null
+                            : _handleManualPrintRetry,
+                      ),
+                    ),
+                    SizedBox(width: 10.w),
+
+                    // Tombol Selesai (Locked until QR ready or grace period expired)
+                    Expanded(
+                      child: _buildFinishButton(
+                        isMobile: false,
+                        hasQr: hasQrToken,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Compact / Mobile / Portrait Layout ────────────────────────────────────
+
+  Widget _buildCompactLayout(
+    BuildContext context,
+    SessionState sessionState,
+    List<PhotoModel> photos,
+    dynamic frame,
+    bool hasFinalUrl,
+    String? finalUrl,
+    String? qrUrl,
+    bool hasQrToken,
+  ) {
+    return Column(
+      children: [
+        // Sub-Header
+        Padding(
+          padding: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 6.h),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'HASIL SESI FOTO',
+                    style: AppFonts.display(
+                      fontSize: 17.sp,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.ink,
+                      letterSpacing: 1.1,
+                    ),
+                  ),
+                  SizedBox(height: 1.h),
+                  Text(
+                    'Scan QR atau ambil cetakan foto Anda',
+                    style: AppFonts.ui(fontSize: 10.5.sp, color: AppColors.ink70),
+                  ),
+                ],
+              ),
+              // Segmented Toggle
+              Container(
+                padding: EdgeInsets.all(2.r),
+                decoration: BoxDecoration(
+                  color: AppColors.paperDeep,
+                  border: Border.all(color: AppColors.ink15, width: AppGeometry.hairline),
+                  borderRadius: BorderRadius.circular(AppGeometry.radiusCard.r),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _SegmentTab(
+                      label: 'Strip',
+                      icon: Icons.photo_library_outlined,
+                      isSelected: !_showMotionPreview,
+                      isCompact: true,
+                      onTap: () => setState(() => _showMotionPreview = false),
+                    ),
+                    _SegmentTab(
+                      label: 'Motion',
+                      icon: Icons.movie_creation_outlined,
+                      isSelected: _showMotionPreview,
+                      isCompact: true,
+                      onTap: () => setState(() => _showMotionPreview = true),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16.w),
+          child: Container(height: AppGeometry.hairline, color: AppColors.ink15),
+        ),
+
+        // Scrollable Body for Mobile
+        Expanded(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
+            child: Column(
+              children: [
+                // Preview Box
+                Container(
+                  height: 380.h,
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: AppColors.paperBright,
+                    border: Border.all(color: AppColors.ink15, width: AppGeometry.hairline),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.ink.withValues(alpha: 0.08),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: !_showMotionPreview
+                        ? (hasFinalUrl
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(2.r),
+                                child: Image.network(
+                                  _getStorageUrl(finalUrl!),
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (_, __, ___) => PhotoStripWidget(
+                                    photos: photos,
+                                    frame: frame,
+                                    colorFilter: sessionState.selectedFilter?.colorFilter,
+                                  ),
+                                ),
+                              )
+                            : PhotoStripWidget(
+                                photos: photos,
+                                frame: frame,
+                                colorFilter: sessionState.selectedFilter?.colorFilter,
+                              ))
+                        : _MotionPlayerWidget(
+                            photos: photos,
+                            colorFilter: sessionState.selectedFilter?.colorFilter,
+                          ),
+                  ),
+                ),
+                SizedBox(height: 12.h),
+
+                // QR Card
+                _EditorialQrTicket(qrUrl: qrUrl, isCompact: true),
+                SizedBox(height: 10.h),
+
+                // Printer Status Widget
+                _buildPrintStatusWidget(context),
+                SizedBox(height: 10.h),
+
+                // Buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: ResponsiveButton(
+                        label: (_printStatus == PrintUiStatus.printing || _printStatus == PrintUiStatus.preparing)
+                            ? 'Mencetak...'
+                            : 'Cetak Ulang',
+                        icon: Icons.print_outlined,
+                        variant: ButtonVariant.outlined,
+                        onPressed: (_printStatus == PrintUiStatus.printing || _printStatus == PrintUiStatus.preparing)
+                            ? null
+                            : _handleManualPrintRetry,
+                      ),
+                    ),
+                    SizedBox(width: 8.w),
+                    Expanded(
+                      child: _buildFinishButton(
+                        isMobile: true,
+                        hasQr: hasQrToken,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 12.h),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Tombol Selesai ────────────────────────────────────────────────────────
+
+  Widget _buildFinishButton({required bool isMobile, required bool hasQr}) {
+    final unlocked = hasQr || _qrWaitExpired;
+
+    return ResponsiveButton(
+      label: unlocked ? 'Selesai' : 'Menyiapkan...',
+      icon: unlocked ? Icons.check_circle_outline_rounded : null,
+      isLoading: !unlocked,
+      onPressed: unlocked ? _finishSession : null,
+    );
+  }
+
+  // ── Status Cetak Widget ───────────────────────────────────────────────────
+
+  Widget _buildPrintStatusWidget(BuildContext context) {
     switch (_printStatus) {
       case PrintUiStatus.preparing:
       case PrintUiStatus.printing:
         return Container(
-          padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
+          padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
           decoration: BoxDecoration(
-            color: AppColors.gold.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(10.r),
-            border: Border.all(color: AppColors.gold.withValues(alpha: 0.8), width: 1.2),
+            color: AppColors.paperBright,
+            borderRadius: BorderRadius.circular(AppGeometry.radiusCard.r),
+            border: Border.all(color: AppColors.ink15, width: AppGeometry.hairline),
           ),
           child: Row(
             children: [
               SizedBox(
-                width: 18.r,
-                height: 18.r,
+                width: 16.r,
+                height: 16.r,
                 child: const CircularProgressIndicator(
-                  strokeWidth: 2.2,
-                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.darkBrown),
+                  strokeWidth: 2,
+                  color: AppColors.ink,
                 ),
               ),
               SizedBox(width: 10.w),
               Expanded(
                 child: Text(
-                  _printStatusMessage.isNotEmpty ? _printStatusMessage : 'Sedang memproses & mencetak foto...',
-                  style: AppTextStyles.caption.copyWith(
-                    color: AppColors.darkBrown,
+                  _printStatusMessage.isNotEmpty ? _printStatusMessage : 'Sedang memproses master cetak...',
+                  style: AppFonts.ui(
+                    fontSize: 11.sp,
                     fontWeight: FontWeight.w600,
+                    color: AppColors.ink,
                   ),
                 ),
               ),
@@ -730,22 +768,23 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
 
       case PrintUiStatus.success:
         return Container(
-          padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
+          padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
           decoration: BoxDecoration(
-            color: const Color(0xFFE8F5E9),
-            borderRadius: BorderRadius.circular(10.r),
-            border: Border.all(color: const Color(0xFF4CAF50), width: 1.2),
+            color: AppColors.paperBright,
+            borderRadius: BorderRadius.circular(AppGeometry.radiusCard.r),
+            border: Border.all(color: AppColors.inkGreen, width: 1.0),
           ),
           child: Row(
             children: [
-              Icon(Icons.check_circle_rounded, color: const Color(0xFF2E7D32), size: 20.r),
+              Icon(Icons.check_circle_rounded, color: AppColors.inkGreen, size: 18.r),
               SizedBox(width: 10.w),
               Expanded(
                 child: Text(
-                  'Foto berhasil dikirim ke printer! Silakan ambil di ${_connectedPrinterName ?? "printer"}.',
-                  style: AppTextStyles.caption.copyWith(
-                    color: const Color(0xFF1B5E20),
+                  'Foto berhasil dikirim ke printer ${_connectedPrinterName ?? "studio"}. Silakan ambil cetakan!',
+                  style: AppFonts.ui(
+                    fontSize: 11.sp,
                     fontWeight: FontWeight.w600,
+                    color: AppColors.inkGreen,
                   ),
                 ),
               ),
@@ -755,53 +794,59 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
 
       case PrintUiStatus.failed:
         return Container(
-          padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
+          padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
           decoration: BoxDecoration(
-            color: const Color(0xFFFFEBEE),
-            borderRadius: BorderRadius.circular(10.r),
-            border: Border.all(color: const Color(0xFFEF5350), width: 1.2),
+            color: AppColors.paperBright,
+            borderRadius: BorderRadius.circular(AppGeometry.radiusCard.r),
+            border: Border.all(color: AppColors.inkOxide, width: 1.0),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  Icon(Icons.warning_amber_rounded, color: const Color(0xFFC62828), size: 20.r),
+                  Icon(Icons.warning_amber_rounded, color: AppColors.inkOxide, size: 18.r),
                   SizedBox(width: 10.w),
                   Expanded(
                     child: Text(
                       _printStatusMessage.isNotEmpty
                           ? _printStatusMessage
-                          : 'Gagal terhubung ke printer Epson L8050.',
-                      style: AppTextStyles.caption.copyWith(
-                        color: const Color(0xFFB71C1C),
+                          : 'Gagal mencetak otomatis.',
+                      style: AppFonts.ui(
+                        fontSize: 11.sp,
                         fontWeight: FontWeight.w600,
+                        color: AppColors.inkOxide,
                       ),
                     ),
                   ),
                 ],
               ),
-              SizedBox(height: 6.h),
+              SizedBox(height: 4.h),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  TextButton.icon(
-                    style: TextButton.styleFrom(
-                      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    onPressed: () => PrinterSettingsModal.show(
+                  GestureDetector(
+                    onTap: () => PrinterSettingsModal.show(
                       context,
                       onPrinterConfigured: () => setState(() => _connectedPrinterName = 'Epson L8050'),
                     ),
-                    icon: Icon(Icons.settings_rounded, size: 14.r, color: const Color(0xFFB71C1C)),
-                    label: Text(
-                      'Pilih Printer / Cek Koneksi',
-                      style: TextStyle(
-                        color: const Color(0xFFB71C1C),
-                        fontWeight: FontWeight.w700,
-                        fontSize: 11.sp,
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 2.h, horizontal: 4.w),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.settings_rounded, size: 12.r, color: AppColors.inkOxide),
+                          SizedBox(width: 4.w),
+                          Text(
+                            'PILIH PRINTER / CEK KONEKSI',
+                            style: AppFonts.ui(
+                              color: AppColors.inkOxide,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 10.sp,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -815,77 +860,317 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
         return const SizedBox.shrink();
     }
   }
+
+  // ── Fullscreen Overlay saat Cetak Berlangsung ──────────────────────────────
+
+  Widget _buildPrintingOverlay() {
+    return Positioned.fill(
+      child: Material(
+        color: AppColors.bench.withValues(alpha: 0.94),
+        child: Center(
+          child: Container(
+            padding: EdgeInsets.all(28.r),
+            decoration: BoxDecoration(
+              color: AppColors.benchRaised,
+              border: Border.all(color: AppColors.benchLine, width: AppGeometry.hairline),
+              borderRadius: BorderRadius.circular(AppGeometry.radiusCard.r),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.5),
+                  blurRadius: 30,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 52.r,
+                  height: 52.r,
+                  child: const CircularProgressIndicator(
+                    color: AppColors.light,
+                    strokeWidth: 3,
+                  ),
+                ),
+                SizedBox(height: 20.h),
+                Text(
+                  'SEDANG MENCETAK FOTO',
+                  style: AppFonts.display(
+                    color: AppColors.light,
+                    fontSize: 20.sp,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.4,
+                  ),
+                ),
+                SizedBox(height: 6.h),
+                Text(
+                  'Mohon tunggu, berkas sedang diproses oleh printer studio...',
+                  style: AppFonts.ui(
+                    color: AppColors.light60,
+                    fontSize: 12.sp,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
-class _QrCard extends StatelessWidget {
-  const _QrCard({this.qrUrl});
-  final String? qrUrl;
+// ── Segment Tab Switcher ────────────────────────────────────────────────────
+
+class _SegmentTab extends StatelessWidget {
+  const _SegmentTab({
+    required this.label,
+    required this.icon,
+    required this.isSelected,
+    required this.onTap,
+    this.isCompact = false,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final bool isCompact;
 
   @override
   Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: EdgeInsets.symmetric(
+          horizontal: isCompact ? 8.w : 12.w,
+          vertical: isCompact ? 4.h : 6.h,
+        ),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.ink : Colors.transparent,
+          borderRadius: BorderRadius.circular(3.r),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: isCompact ? 12.sp : 14.sp,
+              color: isSelected ? AppColors.paperBright : AppColors.ink,
+            ),
+            SizedBox(width: 4.w),
+            Text(
+              label,
+              style: AppFonts.ui(
+                fontSize: isCompact ? 9.5.sp : 11.sp,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                color: isSelected ? AppColors.paperBright : AppColors.ink,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Editorial QR Ticket Card (Simple & Prominent QR Box) ─────────────────────
+
+class _EditorialQrTicket extends StatelessWidget {
+  const _EditorialQrTicket({
+    this.qrUrl,
+    this.isCompact = false,
+    this.isFullHeight = false,
+  });
+
+  final String? qrUrl;
+  final bool isCompact;
+  final bool isFullHeight;
+
+  @override
+  Widget build(BuildContext context) {
+    final qrReady = qrUrl != null && qrUrl!.isNotEmpty;
+    // Di layar landscape full height, ukuran QR diperbesar menjadi 240-270r
+    final qrSize = isFullHeight ? 250.r : (isCompact ? 170.r : 210.r);
+
+    final content = Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: isFullHeight ? 20.w : 16.w,
+        vertical: isFullHeight ? 18.h : 14.h,
+      ),
+      child: Column(
+        mainAxisSize: isFullHeight ? MainAxisSize.max : MainAxisSize.min,
+        mainAxisAlignment: isFullHeight ? MainAxisAlignment.center : MainAxisAlignment.start,
+        children: [
+          // White container for QR Code (High contrast & Large)
+          Container(
+            width: qrSize,
+            height: qrSize,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              border: Border.all(color: AppColors.ink, width: 1.8),
+              borderRadius: BorderRadius.circular(8.r),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.ink.withValues(alpha: 0.06),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: qrReady
+                ? QrImageView(
+                    data: qrUrl!,
+                    version: QrVersions.auto,
+                    backgroundColor: Colors.white,
+                    eyeStyle: const QrEyeStyle(
+                      eyeShape: QrEyeShape.square,
+                      color: AppColors.ink,
+                    ),
+                    dataModuleStyle: const QrDataModuleStyle(
+                      dataModuleShape: QrDataModuleShape.square,
+                      color: AppColors.ink,
+                    ),
+                    padding: EdgeInsets.zero,
+                  )
+                : Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 32.r,
+                          height: 32.r,
+                          child: const CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: AppColors.ink,
+                          ),
+                        ),
+                        SizedBox(height: 10.h),
+                        Text(
+                          'Membuat QR...',
+                          style: AppFonts.ui(
+                            fontSize: 11.sp,
+                            color: AppColors.ink70,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+          ),
+          SizedBox(height: isFullHeight ? 16.h : 10.h),
+
+          // Simple & Direct Instruction Text
+          Text(
+            'Scan untuk download foto & video ke HP',
+            textAlign: TextAlign.center,
+            style: AppFonts.ui(
+              fontSize: isFullHeight ? 13.sp : 11.sp,
+              fontWeight: FontWeight.w700,
+              color: AppColors.ink,
+              letterSpacing: 0.2,
+            ),
+          ),
+          SizedBox(height: isFullHeight ? 12.h : 8.h),
+
+          // Powered by SnapTech
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(width: 10.w, height: 1, color: AppColors.ink15),
+              SizedBox(width: 6.w),
+              Text(
+                'POWERED BY SNAPTECH',
+                style: AppFonts.ui(
+                  fontSize: 8.5.sp,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.ink40,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              SizedBox(width: 6.w),
+              Container(width: 10.w, height: 1, color: AppColors.ink15),
+            ],
+          ),
+        ],
+      ),
+    );
+
     return Container(
-      padding: EdgeInsets.all(14.r),
       decoration: BoxDecoration(
-        color: AppColors.creamWhite,
-        borderRadius: BorderRadius.circular(12.r),
-        border: Border.all(color: AppColors.darkBrown, width: 1.5),
+        color: AppColors.paperBright,
+        border: Border.all(color: AppColors.ink15, width: AppGeometry.hairline),
+        borderRadius: BorderRadius.circular(AppGeometry.radiusCard.r),
         boxShadow: [
           BoxShadow(
-            color: AppColors.darkBrown.withValues(alpha: 0.08),
-            blurRadius: 12,
-            offset: const Offset(2, 3),
+            color: AppColors.ink.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            'Download Foto',
-            style: GoogleFonts.cormorantGaramond(
-              fontSize: 18.sp,
-              fontWeight: FontWeight.w700,
-              color: AppColors.darkBrown,
-            ),
-          ).animate().fadeIn(delay: 200.ms),
-          SizedBox(height: 8.h),
+          // Header Bar
           Container(
-            width: 140.r,
-            height: 140.r,
-            padding: EdgeInsets.all(8.r),
-            decoration: BoxDecoration(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(8.r),
+            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 10.h),
+            decoration: const BoxDecoration(
+              color: AppColors.ink,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(3)),
             ),
-            child: qrUrl != null && qrUrl!.isNotEmpty
-                ? QrImageView(
-                    data: qrUrl!,
-                    version: QrVersions.auto,
-                    size: 124.r,
-                    backgroundColor: Colors.white,
-                    foregroundColor: Colors.black,
-                  )
-                : const Center(
-                    child: SizedBox(
-                      width: 28,
-                      height: 28,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        color: AppColors.darkBrown,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.qr_code_2_rounded, color: AppColors.paperBright, size: 16.sp),
+                    SizedBox(width: 8.w),
+                    Text(
+                      'UNDUH FOTO DIGITAL',
+                      style: AppFonts.ui(
+                        fontSize: 11.sp,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.paperBright,
+                        letterSpacing: 1.2,
                       ),
                     ),
+                  ],
+                ),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
+                  decoration: BoxDecoration(
+                    color: AppColors.spot,
+                    borderRadius: BorderRadius.circular(3.r),
                   ),
-          ).animate().scale(
-                begin: const Offset(0.9, 0.9),
-                duration: 400.ms,
-                delay: 200.ms,
-              ),
+                  child: Text(
+                    'SCAN ME',
+                    style: AppFonts.ui(
+                      fontSize: 8.5.sp,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.paperBright,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // QR Code Body
+          if (isFullHeight)
+            Expanded(child: Center(child: SingleChildScrollView(child: content)))
+          else
+            content,
         ],
       ),
     );
   }
 }
 
-/// Widget Looping Boomerang Motion Animation untuk Tablet Kiosk
+// ── Motion Player (Boomerang Loop) ──────────────────────────────────────────
+
 class _MotionPlayerWidget extends StatefulWidget {
   const _MotionPlayerWidget({
     required this.photos,
@@ -928,7 +1213,7 @@ class _MotionPlayerWidgetState extends State<_MotionPlayerWidget> {
   void _startAnimationLoop() {
     if (_sequence.isEmpty) return;
     _loopTimer?.cancel();
-    _loopTimer = Timer.periodic(const Duration(milliseconds: 350), (timer) {
+    _loopTimer = Timer.periodic(const Duration(milliseconds: 320), (timer) {
       if (!mounted) {
         timer.cancel();
         return;
@@ -949,11 +1234,10 @@ class _MotionPlayerWidgetState extends State<_MotionPlayerWidget> {
   Widget build(BuildContext context) {
     if (widget.photos.isEmpty) {
       return Container(
-        padding: EdgeInsets.all(24.r),
+        padding: EdgeInsets.all(20.r),
         decoration: BoxDecoration(
-          color: AppColors.creamWhite,
-          borderRadius: BorderRadius.circular(16.r),
-          border: Border.all(color: AppColors.gold, width: 1.5),
+          color: AppColors.paperBright,
+          borderRadius: BorderRadius.circular(AppGeometry.radiusCard.r),
         ),
         child: const Center(
           child: Text('Foto belum tersedia untuk animasi motion.'),
@@ -983,8 +1267,8 @@ class _MotionPlayerWidgetState extends State<_MotionPlayerWidget> {
               height: double.infinity,
             )
           : Container(
-              color: Colors.grey.shade300,
-              child: const Icon(Icons.broken_image, color: Colors.grey),
+              color: AppColors.paperDeep,
+              child: const Icon(Icons.broken_image, color: AppColors.ink40),
             );
     }
 
@@ -995,91 +1279,87 @@ class _MotionPlayerWidgetState extends State<_MotionPlayerWidget> {
       );
     }
 
-    return Container(
-      width: 280.w,
-      height: 380.h,
-      padding: EdgeInsets.fromLTRB(14.w, 14.h, 14.w, 18.h),
-      decoration: BoxDecoration(
-        color: AppColors.creamWhite,
-        borderRadius: BorderRadius.circular(16.r),
-        border: Border.all(color: AppColors.gold, width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.darkBrown.withValues(alpha: 0.12),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Header Badge
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
+    return AspectRatio(
+      aspectRatio: 2 / 3,
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.paperBright,
+          border: Border.all(color: AppColors.ink15, width: AppGeometry.hairline),
+          borderRadius: BorderRadius.circular(AppGeometry.radiusCard.r),
+        ),
+        child: Column(
+          children: [
+            // Top Bar
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
+              decoration: const BoxDecoration(
+                color: AppColors.paperDeep,
+                border: Border(bottom: BorderSide(color: AppColors.ink15, width: AppGeometry.hairline)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Container(
-                    width: 8.r,
-                    height: 8.r,
-                    decoration: const BoxDecoration(
-                      color: Colors.redAccent,
-                      shape: BoxShape.circle,
-                    ),
+                  Row(
+                    children: [
+                      Container(
+                        width: 7.r,
+                        height: 7.r,
+                        decoration: const BoxDecoration(
+                          color: AppColors.spot,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      SizedBox(width: 6.w),
+                      Text(
+                        'BOOMERANG LOOP',
+                        style: AppFonts.ui(
+                          fontSize: 9.sp,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.ink,
+                          letterSpacing: 0.6,
+                        ),
+                      ),
+                    ],
                   ),
-                  SizedBox(width: 6.w),
                   Text(
-                    'LIVE BOOMERANG',
-                    style: GoogleFonts.montserrat(
-                      fontSize: 9.5.sp,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.darkBrown,
-                      letterSpacing: 0.8,
+                    'POSE ${photoIdx + 1}/${widget.photos.length}',
+                    style: AppFonts.ui(
+                      fontSize: 8.5.sp,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.ink70,
                     ),
                   ),
                 ],
               ),
-              Text(
-                'Pose ${photoIdx + 1} / ${widget.photos.length}',
-                style: GoogleFonts.montserrat(
-                  fontSize: 9.5.sp,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.brown,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 8.h),
+            ),
 
-          // Foto Motion Animation
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(10.r),
+            // Image Frame
+            Expanded(
               child: Stack(
                 fit: StackFit.expand,
                 children: [
                   imageWidget,
-                  // Film strip perforation overlay
                   Positioned(
-                    bottom: 8.h,
-                    right: 8.w,
+                    bottom: 6.h,
+                    right: 6.w,
                     child: Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
+                      padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.6),
-                        borderRadius: BorderRadius.circular(12.r),
+                        color: AppColors.ink.withValues(alpha: 0.7),
+                        borderRadius: BorderRadius.circular(2.r),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.loop_rounded, color: Colors.white, size: 12.sp),
-                          SizedBox(width: 4.w),
+                          Icon(Icons.loop_rounded, color: AppColors.paperBright, size: 10.sp),
+                          SizedBox(width: 3.w),
                           Text(
-                            'LOOP',
-                            style: GoogleFonts.montserrat(
-                              fontSize: 9.sp,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
+                            'MOTION',
+                            style: AppFonts.ui(
+                              fontSize: 8.sp,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.paperBright,
+                              letterSpacing: 0.4,
                             ),
                           ),
                         ],
@@ -1089,19 +1369,134 @@ class _MotionPlayerWidgetState extends State<_MotionPlayerWidget> {
                 ],
               ),
             ),
-          ),
-          SizedBox(height: 8.h),
-          Text(
-            'Scan QR untuk download Video MP4 & Motion GIF',
-            style: AppTextStyles.caption.copyWith(
-              fontSize: 10.sp,
-              color: AppColors.brown,
-              fontWeight: FontWeight.w600,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Background Ambient Watermark & Registration Marks ────────────────────────
+
+class _ResultBackground extends StatelessWidget {
+  const _ResultBackground({required this.isCompact});
+  final bool isCompact;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Watermark cap stempel lab film
+          Positioned(
+            right: isCompact ? 12.w : 36.w,
+            bottom: isCompact ? 12.h : 28.h,
+            child: Opacity(
+              opacity: 0.05,
+              child: Transform.rotate(
+                angle: -0.06,
+                child: Text(
+                  '★ ARCHIVE LAB GRADE ★ 300 DPI MASTER',
+                  style: AppFonts.display(
+                    fontSize: isCompact ? 28.sp : 44.sp,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.ink,
+                    letterSpacing: 3.5,
+                  ),
+                ),
+              ),
             ),
-            textAlign: TextAlign.center,
+          ),
+
+          // 4-Corner Hairline Crop Marks
+          Positioned(
+            top: 10.h,
+            left: 12.w,
+            child: const _HairlineCropMark(corner: _CropCorner.topLeft),
+          ),
+          Positioned(
+            top: 10.h,
+            right: 12.w,
+            child: const _HairlineCropMark(corner: _CropCorner.topRight),
+          ),
+          Positioned(
+            bottom: 10.h,
+            left: 12.w,
+            child: const _HairlineCropMark(corner: _CropCorner.bottomLeft),
+          ),
+          Positioned(
+            bottom: 10.h,
+            right: 12.w,
+            child: const _HairlineCropMark(corner: _CropCorner.bottomRight),
           ),
         ],
       ),
     );
   }
+}
+
+enum _CropCorner { topLeft, topRight, bottomLeft, bottomRight }
+
+class _HairlineCropMark extends StatelessWidget {
+  const _HairlineCropMark({required this.corner});
+  final _CropCorner corner;
+
+  @override
+  Widget build(BuildContext context) {
+    const double markSize = 14.0;
+    const double lineW = 1.0;
+    const color = AppColors.ink15;
+
+    return SizedBox(
+      width: markSize,
+      height: markSize,
+      child: CustomPaint(
+        painter: _CropMarkPainter(corner: corner, color: color, strokeWidth: lineW),
+      ),
+    );
+  }
+}
+
+class _CropMarkPainter extends CustomPainter {
+  const _CropMarkPainter({
+    required this.corner,
+    required this.color,
+    required this.strokeWidth,
+  });
+
+  final _CropCorner corner;
+  final Color color;
+  final double strokeWidth;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke;
+
+    switch (corner) {
+      case _CropCorner.topLeft:
+        canvas.drawLine(const Offset(0, 0), Offset(size.width, 0), paint);
+        canvas.drawLine(const Offset(0, 0), Offset(0, size.height), paint);
+        break;
+      case _CropCorner.topRight:
+        canvas.drawLine(Offset(size.width, 0), const Offset(0, 0), paint);
+        canvas.drawLine(Offset(size.width, 0), Offset(size.width, size.height), paint);
+        break;
+      case _CropCorner.bottomLeft:
+        canvas.drawLine(Offset(0, size.height), Offset(size.width, size.height), paint);
+        canvas.drawLine(const Offset(0, 0), Offset(0, size.height), paint);
+        break;
+      case _CropCorner.bottomRight:
+        canvas.drawLine(Offset(0, size.height), Offset(size.width, size.height), paint);
+        canvas.drawLine(Offset(size.width, 0), Offset(size.width, size.height), paint);
+        break;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _CropMarkPainter old) =>
+      old.corner != corner || old.color != color;
 }

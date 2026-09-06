@@ -1,132 +1,136 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_geometry.dart';
+import '../../core/theme/booth_material.dart';
 import '../../features/session/providers/session_provider.dart';
 import 'customer_header.dart';
-import 'corner_decorations.dart';
 import 'responsive_layout_builder.dart';
 
-/// Layout frame for internal customer screens with authentic vintage coffeehouse styling.
-/// Session timer is always shown at screen top-right as a Positioned overlay — never inside the header.
+/// Cangkang bersama untuk seluruh layar tamu.
+///
+/// Versi sebelumnya menumpuk EMPAT lapis ornamen di setiap halaman: noise
+/// tekstur kertas (CustomPaint yang menggambar ribuan lingkaran tiap
+/// repaint), bingkai emas ganda, botanical empat sudut, dan gradient. Semua
+/// dinyalakan bersamaan, di semua layar, tanpa satu pun punya tugas.
+///
+/// Sekarang cangkangnya hanya tiga hal: material, kepala halaman, dan satu
+/// garis registrasi yang memisahkan kepala dari isi. Anggarannya satu
+/// ornamen per layar, dan garis itu jatahnya.
 class PhotoboothLayout extends ConsumerWidget {
   const PhotoboothLayout({
     super.key,
     required this.child,
-    this.showTimer = false,   // kept for API compat — timer is auto-shown from session state
-    this.timerText,           // kept for API compat — ignored
-    this.showDecorations = true,
+    this.material = BoothMaterial.paper,
     this.header,
-    this.currentStep,
+    this.showHeader = true,
   });
 
   final Widget child;
-  final bool showTimer;
-  final String? timerText;
-  final bool showDecorations;
+
+  /// Kertas (bawaan) untuk layar tempat tamu memilih; kamar gelap untuk layar
+  /// tempat gambar jadi subjeknya.
+  final BoothMaterial material;
+
+  /// Kepala halaman khusus. Kosongkan untuk memakai [CustomerHeader], yang
+  /// otomatis mengikuti [material].
   final Widget? header;
-  final int? currentStep;
+
+  /// Set false pada layar yang isinya SUDAH membawa nama tenant — misalnya
+  /// Tiket, yang mencetak nama kafe di kepala tiketnya sendiri. Menampilkan
+  /// brand dua kali di satu layar membuat keduanya terbaca lebih lemah.
+  final bool showHeader;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isMobile = context.isMobile;
-    final sessionState = ref.watch(sessionNotifierProvider);
-    final hasTimer = sessionState.hasActiveSession || sessionState.remainingSeconds > 0;
+    final session = ref.watch(sessionNotifierProvider);
+    final hasTimer = session.hasActiveSession || session.remainingSeconds > 0;
 
     return Scaffold(
-      backgroundColor: AppColors.cream,
-      body: Stack(
-        children: [
-          // ── Background warm parchment ─────────────────────────────────
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFFFBF4E8),
-                  AppColors.cream,
-                  Color(0xFFEFE2CF),
-                ],
+      backgroundColor: material.surface,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // ── Kepala: brand di tengah, timer di kanan ──────────────────
+            //
+            // Timer duduk sebidang dengan kepala, bukan melayang di atas isi
+            // halaman. Brand tetap di tengah optis karena timer diposisikan,
+            // bukan ikut mengalir.
+            if (showHeader) ...[
+              Container(
+                height: (context.isMobile ? 52 : 62).h,
+                padding: EdgeInsets.symmetric(horizontal: AppGeometry.s16.w),
+                child: context.isMobile
+                    ? Row(
+                        children: [
+                          Expanded(
+                            child: header ?? CustomerHeader(material: material, isLeftAligned: true),
+                          ),
+                          if (hasTimer) ...[
+                            SizedBox(width: AppGeometry.s8.w),
+                            TimerChip(
+                              text: session.formattedRemainingTime,
+                              isWarning: session.isTimerWarning,
+                              material: material,
+                            ),
+                          ],
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          // Penyeimbang kiri agar judul berada tepat di tengah optis
+                          if (hasTimer)
+                            SizedBox(width: 140.w)
+                          else
+                            const SizedBox.shrink(),
+
+                          Expanded(
+                            child: Center(
+                              child: header ?? CustomerHeader(material: material),
+                            ),
+                          ),
+
+                          if (hasTimer)
+                            SizedBox(
+                              width: 140.w,
+                              child: Align(
+                                alignment: Alignment.centerRight,
+                                child: TimerChip(
+                                  text: session.formattedRemainingTime,
+                                  isWarning: session.isTimerWarning,
+                                  material: material,
+                                ),
+                              ),
+                            )
+                          else
+                            const SizedBox.shrink(),
+                        ],
+                      ),
               ),
-            ),
-          ),
 
-          // ── Subtle paper texture overlay ──────────────────────────────
-          Positioned.fill(
-            child: CustomPaint(painter: _PaperTexturePainter()),
-          ),
-
-          // ── Vintage Inner Double-Border Frame (Desktop & Tablet) ──────
-          if (!isMobile)
-            Positioned.fill(
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                      color: AppColors.gold.withValues(alpha: 0.25),
-                      width: 1.0,
-                    ),
-                    borderRadius: BorderRadius.circular(16.0),
+              // ── Garis registrasi ───────────────────────────────────────
+              Container(
+                height: AppGeometry.hairline,
+                color: material.rule,
+              ),
+            ] else if (hasTimer)
+              // Tanpa kepala, timer tetap butuh tempat yang tetap.
+              Align(
+                alignment: Alignment.centerRight,
+                child: Padding(
+                  padding: EdgeInsets.all(AppGeometry.s16.r),
+                  child: TimerChip(
+                    text: session.formattedRemainingTime,
+                    isWarning: session.isTimerWarning,
+                    material: material,
                   ),
                 ),
               ),
-            ),
 
-          // ── Botanical corner decorations ──────────────────────────────
-          if (showDecorations && !isMobile)
-            const CornerDecorations(opacity: 0.25),
-
-          // ── Content ───────────────────────────────────────────────────
-          SafeArea(
-            child: Column(
-              children: [
-                header ?? CustomerHeader(currentStep: currentStep),
-                Expanded(child: child),
-              ],
-            ),
-          ),
-
-          // ── Session Timer — pojok kanan atas layar ────────────────────
-          // Di luar SafeArea Column agar tidak bertabrakan dengan header
-          if (hasTimer)
-            Positioned(
-              top: isMobile ? 12.h : 16.h,
-              right: isMobile ? 12.w : 20.w,
-              child: SafeArea(
-                child: TimerChip(
-                  text: sessionState.formattedRemainingTime,
-                  isWarning: sessionState.isTimerWarning,
-                  isMobile: isMobile,
-                ),
-              ),
-            ),
-        ],
+            Expanded(child: child),
+          ],
+        ),
       ),
     );
   }
-}
-
-/// Subtle paper grain texture — vintage paper noise overlay.
-class _PaperTexturePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = AppColors.darkBrown.withValues(alpha: 0.025)
-      ..style = PaintingStyle.fill;
-
-    const spacing = 4.0;
-    for (double x = 0; x < size.width; x += spacing) {
-      for (double y = 0; y < size.height; y += spacing) {
-        final noise = ((x * 7 + y * 13) % 17) / 17.0;
-        if (noise > 0.65) {
-          canvas.drawCircle(Offset(x, y), 0.5, paint);
-        }
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

@@ -3,7 +3,6 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:printing/printing.dart' show Printer;
 
 import '../../../../core/services/printer_service.dart';
@@ -11,6 +10,7 @@ import '../../../../core/services/printing/windows_printer_backend.dart';
 import '../../../../core/services/ipp/ipp_client.dart';
 import '../../../../core/services/ipp/network_scan.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_fonts.dart';
 
 /// Tab Printer Settings khusus Operator Kiosk — Murni mengontrol koneksi Direct USB + Wi-Fi Fallback
 class PrinterSettingsTab extends StatefulWidget {
@@ -391,7 +391,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                 label: 'Model Printer',
                 child: Text(
                   'Epson L8050 Photo Printer',
-                  style: GoogleFonts.montserrat(
+                  style: AppFonts.ui(
                     color: AppColors.creamWhite,
                     fontWeight: FontWeight.w700,
                     fontSize: 13.sp,
@@ -406,7 +406,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                 child: DropdownButton<PrinterConnectionMode>(
                   value: _connectionMode,
                   dropdownColor: AppColors.darkBrown,
-                  style: GoogleFonts.montserrat(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 12.sp),
+                  style: AppFonts.ui(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 12.sp),
                   underline: const SizedBox.shrink(),
                   onChanged: (mode) async {
                     if (mode != null) {
@@ -500,7 +500,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                       controller: _ipController,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-                      style: GoogleFonts.montserrat(color: AppColors.creamWhite, fontSize: 12.sp),
+                      style: AppFonts.ui(color: AppColors.creamWhite, fontSize: 12.sp),
                       decoration: InputDecoration(
                         hintText: '192.168.1.11',
                         hintStyle: TextStyle(color: Colors.white30, fontSize: 11.sp),
@@ -567,7 +567,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                       : const Icon(Icons.print_rounded),
                   label: Text(
                     _isTestingPrint ? 'Mencetak Test Page...' : 'Test Print Direct',
-                    style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, fontSize: 12.5.sp),
+                    style: AppFonts.ui(fontWeight: FontWeight.bold, fontSize: 12.5.sp),
                   ),
                 ),
               ),
@@ -625,12 +625,12 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
             children: [
               _buildSettingRow(
                 label: 'Paper Size',
-                child: Text('4×6 inch (10×15 cm)', style: GoogleFonts.montserrat(color: AppColors.creamWhite, fontSize: 12.sp)),
+                child: Text('4×6 inch (10×15 cm)', style: AppFonts.ui(color: AppColors.creamWhite, fontSize: 12.sp)),
               ),
               const Divider(color: Colors.white12),
               _buildSettingRow(
                 label: 'Copies',
-                child: Text('1 Lembar per Sesi', style: GoogleFonts.montserrat(color: AppColors.creamWhite, fontSize: 12.sp)),
+                child: Text('1 Lembar per Sesi', style: AppFonts.ui(color: AppColors.creamWhite, fontSize: 12.sp)),
               ),
               const Divider(color: Colors.white12),
               _buildSettingRow(
@@ -638,7 +638,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                 child: DropdownButton<String>(
                   value: _quality,
                   dropdownColor: AppColors.darkBrown,
-                  style: GoogleFonts.montserrat(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 12.sp),
+                  style: AppFonts.ui(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 12.sp),
                   underline: const SizedBox.shrink(),
                   onChanged: (val) async {
                     if (val != null) {
@@ -656,7 +656,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
               const Divider(color: Colors.white12),
               _buildSettingRow(
                 label: 'Orientation',
-                child: Text('Auto (Portrait)', style: GoogleFonts.montserrat(color: AppColors.creamWhite, fontSize: 12.sp)),
+                child: Text('Auto (Portrait)', style: AppFonts.ui(color: AppColors.creamWhite, fontSize: 12.sp)),
               ),
               const Divider(color: Colors.white12),
               _buildSwitchRow(
@@ -700,7 +700,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                 child: DropdownButton<String>(
                   value: _marginUnit,
                   dropdownColor: AppColors.darkBrown,
-                  style: GoogleFonts.montserrat(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 12.sp),
+                  style: AppFonts.ui(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 12.sp),
                   underline: const SizedBox.shrink(),
                   onChanged: (u) async {
                     if (u != null) {
@@ -734,10 +734,10 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                         controller: _horizController,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^-?\d*\.?\d*'))],
-                        style: GoogleFonts.montserrat(color: AppColors.creamWhite, fontSize: 12.sp, fontWeight: FontWeight.bold),
+                        style: AppFonts.ui(color: AppColors.creamWhite, fontSize: 12.sp, fontWeight: FontWeight.bold),
                         decoration: InputDecoration(
                           suffixText: _marginUnit,
-                          suffixStyle: GoogleFonts.montserrat(color: AppColors.gold, fontSize: 11.sp),
+                          suffixStyle: AppFonts.ui(color: AppColors.gold, fontSize: 11.sp),
                           filled: true,
                           fillColor: Colors.white.withValues(alpha: 0.08),
                           contentPadding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
@@ -776,10 +776,10 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                         controller: _vertController,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^-?\d*\.?\d*'))],
-                        style: GoogleFonts.montserrat(color: AppColors.creamWhite, fontSize: 12.sp, fontWeight: FontWeight.bold),
+                        style: AppFonts.ui(color: AppColors.creamWhite, fontSize: 12.sp, fontWeight: FontWeight.bold),
                         decoration: InputDecoration(
                           suffixText: _marginUnit,
-                          suffixStyle: GoogleFonts.montserrat(color: AppColors.gold, fontSize: 11.sp),
+                          suffixStyle: AppFonts.ui(color: AppColors.gold, fontSize: 11.sp),
                           filled: true,
                           fillColor: Colors.white.withValues(alpha: 0.08),
                           contentPadding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
@@ -828,7 +828,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                 child: DropdownButton<int>(
                   value: _retryCount,
                   dropdownColor: AppColors.darkBrown,
-                  style: GoogleFonts.montserrat(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 12.sp),
+                  style: AppFonts.ui(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 12.sp),
                   underline: const SizedBox.shrink(),
                   onChanged: (val) async {
                     if (val != null) {
@@ -907,7 +907,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                       : const Icon(Icons.medical_services_rounded),
                   label: Text(
                     _isDiagnosing ? 'Mendiagnosa...' : 'DIAGNOSA OTOMATIS (satu tekan)',
-                    style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, fontSize: 12.5.sp),
+                    style: AppFonts.ui(fontWeight: FontWeight.bold, fontSize: 12.5.sp),
                   ),
                 ),
               ),
@@ -919,7 +919,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                   children: [
                     Text(
                       'HASIL DIAGNOSA',
-                      style: GoogleFonts.montserrat(
+                      style: AppFonts.ui(
                         color: AppColors.gold,
                         fontSize: 9.5.sp,
                         fontWeight: FontWeight.bold,
@@ -934,7 +934,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                       ),
                       onPressed: () async {
                         await Clipboard.setData(ClipboardData(text: _diagReport!));
-                        if (context.mounted) {
+                        if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text('Hasil diagnosa disalin'),
@@ -984,7 +984,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
               if (_netDiag != null) ...[
                 Text(
                   'ROUTING ANDROID',
-                  style: GoogleFonts.montserrat(
+                  style: AppFonts.ui(
                     color: AppColors.gold,
                     fontSize: 9.5.sp,
                     fontWeight: FontWeight.bold,
@@ -1058,7 +1058,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
               // ── Alamat tablet ──
               Text(
                 'ALAMAT TABLET INI',
-                style: GoogleFonts.montserrat(
+                style: AppFonts.ui(
                   color: AppColors.gold,
                   fontSize: 9.5.sp,
                   fontWeight: FontWeight.bold,
@@ -1149,7 +1149,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                       : Icon(Icons.lan_rounded, size: 16.r),
                   label: Text(
                     _isCheckingPorts ? 'Mengecek port...' : 'Cek Port di $targetIp',
-                    style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, fontSize: 11.5.sp),
+                    style: AppFonts.ui(fontWeight: FontWeight.bold, fontSize: 11.5.sp),
                   ),
                 ),
               ),
@@ -1226,7 +1226,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                       : const Icon(Icons.radar_rounded),
                   label: Text(
                     _isScanning ? 'Memindai jaringan...' : 'Pindai Jaringan — Cari Printer',
-                    style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, fontSize: 12.5.sp),
+                    style: AppFonts.ui(fontWeight: FontWeight.bold, fontSize: 12.5.sp),
                   ),
                 ),
               ),
@@ -1260,7 +1260,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                             children: [
                               Text(
                                 fp.ip,
-                                style: GoogleFonts.montserrat(
+                                style: AppFonts.ui(
                                   color: AppColors.creamWhite,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 11.5.sp,
@@ -1401,7 +1401,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                     controller: _ippPortController,
                     keyboardType: TextInputType.number,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    style: GoogleFonts.montserrat(color: AppColors.creamWhite, fontSize: 12.sp),
+                    style: AppFonts.ui(color: AppColors.creamWhite, fontSize: 12.sp),
                     decoration: InputDecoration(
                       hintText: '631',
                       hintStyle: TextStyle(color: Colors.white30, fontSize: 11.sp),
@@ -1443,7 +1443,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                       : const Icon(Icons.wifi_find_rounded),
                   label: Text(
                     _isIppProbing ? 'Menghubungi printer...' : 'Cek Kemampuan IPP Printer',
-                    style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, fontSize: 12.5.sp),
+                    style: AppFonts.ui(fontWeight: FontWeight.bold, fontSize: 12.5.sp),
                   ),
                 ),
               ),
@@ -1465,7 +1465,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                         info.isPrintable
                             ? 'SILENT PRINT SIAP DIPAKAI'
                             : 'SILENT PRINT BELUM BISA',
-                        style: GoogleFonts.montserrat(
+                        style: AppFonts.ui(
                           color: info.isPrintable ? Colors.greenAccent : Colors.redAccent,
                           fontWeight: FontWeight.bold,
                           fontSize: 11.sp,
@@ -1530,7 +1530,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                     children: [
                       Text(
                         'IPP ATTRIBUTE DUMP',
-                        style: GoogleFonts.montserrat(
+                        style: AppFonts.ui(
                           color: AppColors.gold,
                           fontSize: 9.5.sp,
                           fontWeight: FontWeight.bold,
@@ -1545,7 +1545,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                         ),
                         onPressed: () async {
                           await Clipboard.setData(ClipboardData(text: info.rawDump));
-                          if (context.mounted) {
+                          if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text('Atribut IPP disalin ke clipboard'),
@@ -1677,7 +1677,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                     icon: Icon(Icons.settings_accessibility_rounded, size: 16.r),
                     label: Text(
                       'Buka Pengaturan Accessibility',
-                      style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, fontSize: 12.sp),
+                      style: AppFonts.ui(fontWeight: FontWeight.bold, fontSize: 12.sp),
                     ),
                   ),
                 ),
@@ -1694,7 +1694,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
               // sendiri, sehingga pelanggan tidak pernah melihat dialog itu.
               Text(
                 'SEMBUNYIKAN DIALOG DARI PELANGGAN',
-                style: GoogleFonts.montserrat(
+                style: AppFonts.ui(
                   color: AppColors.gold,
                   fontSize: 9.5.sp,
                   fontWeight: FontWeight.bold,
@@ -1761,7 +1761,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                     icon: Icon(Icons.layers_rounded, size: 16.r),
                     label: Text(
                       'Beri Izin Tampil di Atas Aplikasi Lain',
-                      style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, fontSize: 11.5.sp),
+                      style: AppFonts.ui(fontWeight: FontWeight.bold, fontSize: 11.5.sp),
                     ),
                   ),
                 ),
@@ -1779,7 +1779,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                   ),
                   onPressed: () async {
                     await PrinterService.hidePrintCover();
-                    if (context.mounted) {
+                    if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text('Penutup dilepas paksa'),
@@ -1791,7 +1791,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                   icon: Icon(Icons.layers_clear_rounded, size: 15.r),
                   label: Text(
                     'Darurat: Lepas Penutup yang Tersangkut',
-                    style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, fontSize: 11.sp),
+                    style: AppFonts.ui(fontWeight: FontWeight.bold, fontSize: 11.sp),
                   ),
                 ),
               ),
@@ -1842,7 +1842,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                   icon: Icon(Icons.refresh_rounded, size: 16.r),
                   label: Text(
                     'Segarkan Status Helper',
-                    style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, fontSize: 11.5.sp),
+                    style: AppFonts.ui(fontWeight: FontWeight.bold, fontSize: 11.5.sp),
                   ),
                 ),
               ),
@@ -1935,7 +1935,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                       : const Icon(Icons.travel_explore_rounded),
                   label: Text(
                     _isProbing ? 'Memindai USB...' : 'Jalankan Probe USB',
-                    style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, fontSize: 12.5.sp),
+                    style: AppFonts.ui(fontWeight: FontWeight.bold, fontSize: 12.5.sp),
                   ),
                 ),
               ),
@@ -1957,7 +1957,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                     children: [
                       Text(
                         _pathLabel(path),
-                        style: GoogleFonts.montserrat(
+                        style: AppFonts.ui(
                           color: _pathColor(path),
                           fontWeight: FontWeight.bold,
                           fontSize: 11.sp,
@@ -2001,7 +2001,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                     children: [
                       Text(
                         'DESCRIPTOR DUMP',
-                        style: GoogleFonts.montserrat(
+                        style: AppFonts.ui(
                           color: AppColors.gold,
                           fontSize: 9.5.sp,
                           fontWeight: FontWeight.bold,
@@ -2016,7 +2016,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
                         ),
                         onPressed: () async {
                           await Clipboard.setData(ClipboardData(text: rawSummary));
-                          if (context.mounted) {
+                          if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text('Descriptor disalin ke clipboard'),
@@ -2252,7 +2252,7 @@ class _PrinterSettingsTabState extends State<PrinterSettingsTab> {
   Widget _buildSectionHeader(String title) {
     return Text(
       title,
-      style: GoogleFonts.montserrat(
+      style: AppFonts.ui(
         color: AppColors.gold,
         fontSize: 11.sp,
         fontWeight: FontWeight.bold,

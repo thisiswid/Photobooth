@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'dart:ui' show ImageDescriptor, ImmutableBuffer;
 
 import 'package:flutter/foundation.dart';
@@ -19,9 +17,18 @@ import 'windows_printer_status.dart';
 /// API silent print. Jalur Android karenanya butuh Accessibility Service untuk
 /// menekan tombol Print, plus overlay untuk menutupi dialognya dari pelanggan.
 ///
-/// Di Windows tidak ada aturan itu. Driver Epson resmi yang melakukan
-/// rasterisasi ESC/P-R, dan aplikasi cukup mengirim PDF ke spooler.
-/// Tidak ada dialog, tidak ada Accessibility, tidak ada overlay.
+/// Di Windows:
+/// 1. `Printing.directPrintPdf(printer: ...)` BENAR-BENAR silent — kirim EMF
+///    lewat GDI / Winspool tanpa satu piksel pun dialog muncul.
+/// 2. Windows Print Spooler menangani antrian di level OS.
+/// 3. Status printer terbaca langsung lewat Win32 `GetPrinter` (lihat
+///    [WindowsPrinterStatusService]).
+///
+/// Yang tersisa hanyalah:
+/// - Menyimpan pilihan printer (nama printer di Windows, misalnya
+///   "EPSON L8050 Series").
+/// - Merender halaman PDF pas 4R (4 x 6 inci) tanpa margin.
+/// - Mengirim PDF ke printer terpilih.
 /// ─────────────────────────────────────────────────────────────────────────
 ///
 /// HASIL SPIKE C0 (terbukti 2026-09-01, jangan diubah tanpa uji ulang):
@@ -50,14 +57,14 @@ class WindowsPrinterBackend {
   static const _usePrinterSettingsKey = 'windows_use_printer_settings';
 
   /// 4R = 4 x 6 inci, tanpa margin. Hasil C0.
-  static final PdfPageFormat page4R = PdfPageFormat(
+  static const PdfPageFormat page4R = PdfPageFormat(
     4 * PdfPageFormat.inch,
     6 * PdfPageFormat.inch,
     marginAll: 0,
   );
 
   /// Versi mendatar dari [page4R], dipakai bila foto berorientasi lanskap.
-  static final PdfPageFormat page4RLandscape = PdfPageFormat(
+  static const PdfPageFormat page4RLandscape = PdfPageFormat(
     6 * PdfPageFormat.inch,
     4 * PdfPageFormat.inch,
     marginAll: 0,
@@ -545,7 +552,7 @@ class WindowsPrinterBackend {
                   mainAxisAlignment: pw.MainAxisAlignment.center,
                   children: [
                     pw.Text('SNAPTECHBOOTH',
-                        style: pw.TextStyle(
+                        style: const pw.TextStyle(
                             fontSize: 16, fontWeight: pw.FontWeight.bold)),
                     pw.SizedBox(height: 5),
                     pw.Text('TEST PRINT',

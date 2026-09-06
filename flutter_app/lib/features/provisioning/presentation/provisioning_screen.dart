@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/services/provisioning_service.dart';
-import '../../../core/theme/app_colors.dart';
 import '../providers/tenant_provider.dart';
 
 /// Layar Setup Wizard & Aktivasi Perangkat Kiosk SnapTechBooth.
@@ -113,12 +112,12 @@ class _ProvisioningScreenState extends ConsumerState<ProvisioningScreen> {
                 color: const Color(0xFF1E1611),
                 borderRadius: BorderRadius.circular(24.r),
                 border: Border.all(
-                  color: const Color(0xFFD97706).withOpacity(0.3),
+                  color: const Color(0xFFD97706).withValues(alpha: 0.3),
                   width: 1.5,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.6),
+                    color: Colors.black.withValues(alpha: 0.6),
                     blurRadius: 30,
                     offset: const Offset(0, 10),
                   ),
@@ -137,7 +136,7 @@ class _ProvisioningScreenState extends ConsumerState<ProvisioningScreen> {
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFFD97706).withOpacity(0.2),
+                            color: const Color(0xFFD97706).withValues(alpha: 0.2),
                             blurRadius: 16,
                             spreadRadius: 2,
                           ),
@@ -198,9 +197,9 @@ class _ProvisioningScreenState extends ConsumerState<ProvisioningScreen> {
                       Container(
                         padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFEF4444).withOpacity(0.15),
+                          color: const Color(0xFFEF4444).withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(12.r),
-                          border: Border.all(color: const Color(0xFFEF4444).withOpacity(0.4)),
+                          border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.4)),
                         ),
                         child: Row(
                           children: [
@@ -324,7 +323,36 @@ class _ProvisioningScreenState extends ConsumerState<ProvisioningScreen> {
                               ),
                       ),
                     ),
-                    SizedBox(height: 20.h),
+                    SizedBox(height: 16.h),
+
+                    // ── Bantuan Hubungi Admin ─────────────────────────────────
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.25),
+                        borderRadius: BorderRadius.circular(10.r),
+                        border: Border.all(color: Colors.white12),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.support_agent_rounded, size: 18.sp, color: const Color(0xFFD97706)),
+                          SizedBox(width: 8.w),
+                          Flexible(
+                            child: Text(
+                              'Belum memiliki key? Hubungi Admin SnapTech untuk registrasi mesin kiosk.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 12.sp,
+                                color: Colors.white70,
+                                height: 1.3,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 16.h),
 
                     // ── Opsi Pengaturan Server Lanjutan (Advanced Settings) ───
                     TextButton.icon(

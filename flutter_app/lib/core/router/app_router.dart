@@ -6,20 +6,20 @@ import '../../features/tutorial/presentation/tutorial_screen.dart';
 import '../../features/payment/presentation/payment_screen.dart';
 import '../../features/frame/presentation/frame_selection_screen.dart';
 import '../../features/camera/presentation/camera_screen.dart';
-import '../../features/preview/presentation/photo_preview_screen.dart';
 import '../../features/filter/presentation/filter_screen.dart';
 import '../../features/result/presentation/final_result_screen.dart';
 import '../../features/settings/presentation/device_settings_screen.dart';
 import '../../features/provisioning/presentation/provisioning_screen.dart';
 import '../../features/provisioning/providers/tenant_provider.dart';
 import '../../features/session/providers/session_provider.dart';
+import '../services/provisioning_service.dart';
 
 part 'app_router.g.dart';
 
 // ── Route paths ───────────────────────────────────────────────────────────────
 
 /// Canonical flow:
-/// provisioning (if setup) → welcome → tutorial → payment → frame → camera → preview → filter → result
+/// provisioning (if setup) → welcome → tutorial → payment → frame → camera → filter → result
 abstract final class AppRoutes {
   static const provisioning   = '/provisioning';
   static const welcome        = '/';
@@ -27,7 +27,6 @@ abstract final class AppRoutes {
   static const payment        = '/payment';
   static const frame          = '/frame';
   static const camera         = '/camera';
-  static const preview        = '/preview';
   static const filter         = '/filter';
   static const result         = '/result';
   static const deviceSettings = '/device-settings';
@@ -57,6 +56,16 @@ GoRouter appRouter(AppRouterRef ref) {
     redirect: (BuildContext context, GoRouterState state) {
       final location = state.matchedLocation;
 
+      // 1. Cek aktivasi perangkat (Device Provisioning)
+      // Jika perangkat belum di-pair / baru di-install, wajib ke layar aktivasi
+      final isProvisioned = ProvisioningService.instance.isProvisionedSync;
+      if (!isProvisioned) {
+        if (location == AppRoutes.provisioning || location == AppRoutes.deviceSettings) {
+          return null;
+        }
+        return AppRoutes.provisioning;
+      }
+
       // Always allow setup/provisioning screen
       if (location == AppRoutes.provisioning) return null;
 
@@ -69,10 +78,9 @@ GoRouter appRouter(AppRouterRef ref) {
       if (!session.hasActiveSession || !session.isPaid) return AppRoutes.welcome;
       if (session.isExpired) return AppRoutes.welcome;
 
-      // Require frame selection before camera/preview/filter/result.
+      // Require frame selection before camera/filter/result.
       const requiresFrame = {
         AppRoutes.camera,
-        AppRoutes.preview,
         AppRoutes.filter,
         AppRoutes.result,
       };
@@ -90,7 +98,6 @@ GoRouter appRouter(AppRouterRef ref) {
       GoRoute(path: AppRoutes.payment,        builder: (_, __) => const PaymentScreen()),
       GoRoute(path: AppRoutes.frame,          builder: (_, __) => const FrameSelectionScreen()),
       GoRoute(path: AppRoutes.camera,         builder: (_, __) => const CameraScreen()),
-      GoRoute(path: AppRoutes.preview,        builder: (_, __) => const PhotoPreviewScreen()),
       GoRoute(path: AppRoutes.filter,         builder: (_, __) => const FilterScreen()),
       GoRoute(path: AppRoutes.result,         builder: (_, __) => const FinalResultScreen()),
       GoRoute(path: AppRoutes.deviceSettings, builder: (_, __) => const DeviceSettingsScreen()),
