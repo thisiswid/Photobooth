@@ -158,24 +158,14 @@ class _FilterScreenState extends ConsumerState<FilterScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'PILIH FILTER FILM',
-                    style: AppFonts.display(
-                      fontSize: 18.sp,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.ink,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                  SizedBox(height: 1.h),
-                  Text(
-                    'Sentuh warna filter favoritmu',
-                    style: AppFonts.ui(fontSize: 11.sp, color: AppColors.ink70),
-                  ),
-                ],
+              Text(
+                'PILIH FILTER FILM',
+                style: AppFonts.display(
+                  fontSize: 18.sp,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.ink,
+                  letterSpacing: 1.2,
+                ),
               ),
               Container(
                 padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
@@ -277,10 +267,9 @@ class _FilterScreenState extends ConsumerState<FilterScreen> {
               ),
               SizedBox(width: 12.w),
               SizedBox(
-                width: 130.w,
+                width: 140.w,
                 child: ResponsiveButton(
-                  label: 'Lanjut',
-                  icon: Icons.arrow_forward_rounded,
+                  label: 'Selanjutnya',
                   onPressed: _selectedFilter != null ? _onContinue : null,
                 ),
               ),
@@ -315,27 +304,14 @@ class _FilterScreenState extends ConsumerState<FilterScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'PILIH FILTER FILM',
-                          style: AppFonts.display(
-                            fontSize: 18.sp,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.ink,
-                            letterSpacing: 1.1,
-                          ),
-                        ),
-                        SizedBox(height: 2.h),
-                        Text(
-                          'Sentuh kartu swatch untuk menguji efek filter',
-                          style: AppFonts.ui(
-                            fontSize: 10.5.sp,
-                            color: AppColors.ink70,
-                          ),
-                        ),
-                      ],
+                    Text(
+                      'PILIH FILTER FILM',
+                      style: AppFonts.display(
+                        fontSize: 18.sp,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.ink,
+                        letterSpacing: 1.1,
+                      ),
                     ),
                     Container(
                       padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
@@ -402,19 +378,6 @@ class _FilterScreenState extends ConsumerState<FilterScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Center(
-                  child: Text(
-                    'PRATINJAU CETAK DENGAN FILTER',
-                    style: AppFonts.ui(
-                      fontSize: 10.5.sp,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.ink40,
-                      letterSpacing: 2.0,
-                    ),
-                  ),
-                ),
-                SizedBox(height: 6.h),
-
                 // Frame Strip Preview Widget (Memaksimalkan Ukuran Strip)
                 Expanded(
                   child: Center(
@@ -440,60 +403,11 @@ class _FilterScreenState extends ConsumerState<FilterScreen> {
                   ),
                 ),
 
-                SizedBox(height: 8.h),
+                SizedBox(height: 14.h),
 
-                // Detail Filter Card Info (Compact)
-                if (_selectedFilter != null) ...[
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
-                    decoration: BoxDecoration(
-                      color: AppColors.paperBright,
-                      border: Border.all(color: AppColors.ink15, width: AppGeometry.hairline),
-                      borderRadius: BorderRadius.circular(AppGeometry.radiusCard.r),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 10.r,
-                          height: 10.r,
-                          decoration: BoxDecoration(
-                            color: _selectedFilter!.previewTint ?? AppColors.spot,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: AppColors.ink15, width: 0.8),
-                          ),
-                        ),
-                        SizedBox(width: 8.w),
-                        Expanded(
-                          child: Text(
-                            _selectedFilter!.name.toUpperCase(),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppFonts.display(
-                              fontSize: 13.sp,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.ink,
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: 8.w),
-                        Text(
-                          _selectedFilter!.parameters?['type']?.toString().toUpperCase() ?? 'ORIGINAL',
-                          style: AppFonts.ui(
-                            fontSize: 10.5.sp,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.spot,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  SizedBox(height: 8.h),
-                ],
-
-                // Tombol Lanjut
+                // Tombol Selanjutnya
                 ResponsiveButton(
-                  label: 'Lanjut ke Hasil Akhir',
-                  icon: Icons.arrow_forward_rounded,
+                  label: 'Selanjutnya',
                   onPressed: _selectedFilter != null ? _onContinue : null,
                 ),
               ],

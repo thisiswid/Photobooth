@@ -17,7 +17,7 @@ class DownloadController extends Controller
     public function show(string $token)
     {
         $result = Result::where('qr_token', $token)
-            ->with(['session.event', 'session.frame', 'session.filter', 'session.photos'])
+            ->with(['session.cafe', 'session.event', 'session.frame', 'session.filter', 'session.photos'])
             ->first();
 
         if (!$result) {
@@ -27,6 +27,8 @@ class DownloadController extends Controller
         $isExpired = !$result->expires_at || now()->greaterThanOrEqualTo($result->expires_at) || $result->expires_at->isPast();
         $session = $result->session;
         $event = $session ? $session->event : null;
+        $cafe = $session ? $session->cafe : null;
+        $cafeName = $cafe ? $cafe->name : ($event ? $event->name : 'Photobooth');
         $hasFilter = $session && $session->filter_id;
 
         $rawPhotos = $session ? $session->photos()->where('type', 'raw')->orderBy('id')->get() : collect();
@@ -44,6 +46,7 @@ class DownloadController extends Controller
             'result'      => $result,
             'session'     => $session,
             'event'       => $event,
+            'cafeName'    => $cafeName,
             'hasFilter'   => $hasFilter,
             'rawPhotos'   => $rawPhotos,
             'stripUrl'    => $stripUrl,

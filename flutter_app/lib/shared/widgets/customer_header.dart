@@ -94,29 +94,14 @@ class TimerChip extends StatelessWidget {
           width: isWarning ? AppGeometry.ruleSelected : AppGeometry.hairline,
         ),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            isWarning ? 'HABIS' : 'SISA',
-            style: AppFonts.ui(
-              color: material.onSurfaceFaint,
-              fontSize: 11.sp,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.6,
-            ),
-          ),
-          SizedBox(width: AppGeometry.s8.w),
-          Text(
-            text,
-            style: AppFonts.ui(
-              color: fg,
-              fontSize: 14.sp,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.8,
-            ),
-          ),
-        ],
+      child: Text(
+        text,
+        style: AppFonts.ui(
+          color: fg,
+          fontSize: 14.sp,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.8,
+        ),
       ),
     );
   }

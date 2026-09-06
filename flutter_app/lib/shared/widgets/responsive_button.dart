@@ -101,22 +101,23 @@ class ResponsiveButton extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         if (icon != null) ...[
-                          Icon(icon, size: 18.sp, color: fg),
-                          SizedBox(width: AppGeometry.s8.w),
+                          Icon(icon, size: 20.sp, color: fg),
+                          if (label.isNotEmpty) SizedBox(width: AppGeometry.s8.w),
                         ],
-                        Flexible(
-                          child: Text(
-                            label.toUpperCase(),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppFonts.ui(
-                              fontSize: 14.sp,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1.8,
-                              color: fg,
+                        if (label.isNotEmpty)
+                          Flexible(
+                            child: Text(
+                              label.toUpperCase(),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppFonts.ui(
+                                fontSize: 14.sp,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1.8,
+                                color: fg,
+                              ),
                             ),
                           ),
-                        ),
                       ],
                     ),
             ),

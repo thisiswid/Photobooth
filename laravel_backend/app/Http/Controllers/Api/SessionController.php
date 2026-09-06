@@ -229,6 +229,16 @@ class SessionController extends Controller
         // Generate HD Photo Strip + Animated GIF + 7 days QR Token
         $result = $generator->generate($sessionModel);
 
+        $sessionModel->update(['status' => 'result_ready']);
+
+        // Catat print job di database agar admin dapat memantau riwayat cetak
+        \App\Models\PrintJob::create([
+            'session_id' => $sessionModel->id,
+            'printer'    => 'Kiosk Thermal/Photo Printer',
+            'status'     => 'done',
+            'printed_at' => now(),
+        ]);
+
         $host = request()->getSchemeAndHttpHost();
         $downloadUrl = $host . '/d/' . $result->qr_token;
 
@@ -250,12 +260,15 @@ class SessionController extends Controller
      * Finish the session when customer presses Selesai.
      * Returns to Welcome Screen flow. No email.
      */
-    public function finish(Request $request, Session $session): JsonResponse
+    public function finish(Request $request, $session): JsonResponse
     {
-        $session->update([
-            'status'      => 'finished',
-            'finished_at' => now(),
-        ]);
+        $sessionModel = is_numeric($session) ? Session::find((int)$session) : ($session instanceof Session ? $session : null);
+        if ($sessionModel) {
+            $sessionModel->update([
+                'status'      => 'finished',
+                'finished_at' => now(),
+            ]);
+        }
 
         return response()->json([
             'success' => true,

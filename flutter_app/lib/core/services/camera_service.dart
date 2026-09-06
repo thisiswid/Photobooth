@@ -286,7 +286,18 @@ class CameraService {
       imageFormatGroup: ImageFormatGroup.jpeg,
     );
 
-    await controller.initialize();
-    return controller;
+    try {
+      await controller.initialize();
+      return controller;
+    } catch (e, stack) {
+      ErrorLogger.instance.logCameraError(
+        message: 'Gagal inisialisasi controller kamera: $e',
+        stackTrace: stack,
+      );
+      try {
+        await controller.dispose();
+      } catch (_) {}
+      return null;
+    }
   }
 }

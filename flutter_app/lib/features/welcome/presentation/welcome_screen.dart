@@ -277,8 +277,27 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
               autofocus: true,
               obscureText: true,
               keyboardType: TextInputType.number,
+              textInputAction: TextInputAction.done,
               maxLength: 4,
               textAlign: TextAlign.center,
+              onSubmitted: (val) {
+                if (val.trim() == '1234') {
+                  Navigator.of(ctx).pop(true);
+                } else {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    SnackBar(
+                      backgroundColor: AppColors.inkOxide,
+                      content: Text(
+                        'PIN salah.',
+                        style: AppFonts.display(
+                          color: AppColors.paperBright,
+                          fontSize: 14.sp,
+                        ),
+                      ),
+                    ),
+                  );
+                }
+              },
               style: AppFonts.ui(
                 color: AppColors.light,
                 fontSize: 24.sp,
@@ -355,7 +374,28 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
     );
 
     if (authorized == true && mounted) {
-      context.go(AppRoutes.deviceSettings);
+      // Lepaskan controller kamera welcome screen terlebih dahulu agar tidak
+      // memicu konflik driver / hardware lock pada Windows MediaFoundation
+      // saat panel Settings membuka preview kamera.
+      final cam = _cameraController;
+      _cameraController = null;
+      if (mounted) {
+        setState(() {
+          _isCameraReady = false;
+          _showUvcView = false;
+          _isUvcReady = false;
+        });
+      }
+      try {
+        await cam?.dispose();
+      } catch (e) {
+        debugPrint('⚠️ [WelcomeScreen] Cam dispose before settings error: $e');
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+
+      if (mounted) {
+        context.go(AppRoutes.deviceSettings);
+      }
     }
   }
 
@@ -371,7 +411,6 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
 
     final cafeName = tenant?.cafe.name ?? AppConstants.defaultCafeBrandName;
     final title = ((screen?['title'] as String?) ?? cafeName).toUpperCase();
-    final subtitle = ((screen?['description'] as String?) ?? 'SELF-SERVICE PHOTOBOOTH').toUpperCase();
     final buttonLabel = (screen?['button_text'] as String?) ?? 'Mulai sesi foto';
     final spot = tenant?.cafe.theme.primaryColor ?? AppColors.spot;
 
@@ -413,14 +452,14 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
           SafeArea(
             child: Column(
               children: [
-                // ── Status Bar Atas (Status Kamera & Live HUD) ───────────
+                // ── Area Atas: Penanda Status Kamera (hanya indikator titik) ──
                 Padding(
                   padding: EdgeInsets.all(AppGeometry.s16.r),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _StatusMark(online: _isCameraReady),
-                      _LiveHudBadge(isCompact: isCompact),
+                      _StatusDot(online: _isCameraReady),
+                      const SizedBox.shrink(),
                     ],
                   ),
                 ),
@@ -440,27 +479,28 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                             onTap: _onLogoSecretTap,
                             behavior: HitTestBehavior.opaque,
                             child: Container(
-                              width: isMobile ? 104.r : 138.r,
-                              height: isMobile ? 104.r : 138.r,
+                              width: isMobile ? 190.r : 240.r,
+                              height: isMobile ? 190.r : 240.r,
                               padding: EdgeInsets.all(AppGeometry.s16.r),
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 color: AppColors.paperBright,
                                 border: Border.all(
-                                  color: spot,
-                                  width: AppGeometry.ruleSelected,
+                                  color: AppColors.ink,
+                                  width: 3.5.r,
                                 ),
                                 boxShadow: [
                                   BoxShadow(
                                     color: Colors.black.withValues(alpha: 0.35),
-                                    blurRadius: 20,
-                                    offset: const Offset(0, 6),
+                                    blurRadius: 28,
+                                    offset: const Offset(0, 10),
                                   ),
                                 ],
                               ),
                               child: LogoEmblem(
-                                size: (isMobile ? 104.r : 138.r) - AppGeometry.s32.r,
+                                size: (isMobile ? 190.r : 240.r) - AppGeometry.s32.r,
                                 showRing: false,
+                                padding: EdgeInsets.all(AppGeometry.s8.r),
                               ),
                             ),
                           ),
@@ -472,23 +512,10 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                             textAlign: TextAlign.center,
                             style: AppFonts.display(
                               color: AppColors.light,
-                              fontSize: (isMobile ? 28 : 42).sp,
+                              fontSize: (isMobile ? 32 : 46).sp,
                               fontWeight: FontWeight.w800,
-                              letterSpacing: 1.2,
+                              letterSpacing: 1.4,
                               height: 1.08,
-                            ),
-                          ),
-
-                          SizedBox(height: AppGeometry.s8.h),
-
-                          Text(
-                            subtitle,
-                            textAlign: TextAlign.center,
-                            style: AppFonts.ui(
-                              color: AppColors.light60,
-                              fontSize: (isMobile ? 11 : 12.5).sp,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 3.2,
                             ),
                           ),
 
@@ -509,7 +536,6 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                             ),
                             child: ResponsiveButton(
                               label: buttonLabel,
-                              icon: Icons.camera_alt_rounded,
                               material: _material,
                               isLoading: _isNavigating,
                               onPressed: _handleStartSession,
@@ -519,28 +545,6 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                                 duration: 1400.ms,
                                 curve: Curves.easeInOut,
                               ),
-
-                          SizedBox(height: AppGeometry.s12.h),
-
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.touch_app_outlined,
-                                size: 14.sp,
-                                color: AppColors.light60,
-                              ),
-                              SizedBox(width: 6.w),
-                              Text(
-                                'Sentuh layar untuk mulai',
-                                style: AppFonts.display(
-                                  color: AppColors.light60,
-                                  fontSize: 13.5.sp,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
                         ],
                       ),
                     ),
@@ -562,83 +566,26 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
 }
 
 /// Penanda status perangkat untuk operator
-class _StatusMark extends StatelessWidget {
-  const _StatusMark({required this.online});
+/// Penanda status perangkat untuk operator (titik halus tanpa teks)
+class _StatusDot extends StatelessWidget {
+  const _StatusDot({required this.online});
   final bool online;
 
   @override
   Widget build(BuildContext context) {
     final color = online ? AppColors.inkGreenLit : AppColors.spotLit;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 6.r,
-          height: 6.r,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        SizedBox(width: AppGeometry.s8.w),
-        Text(
-          online ? 'KAMERA SIAP' : 'KAMERA BELUM SIAP',
-          style: AppFonts.ui(
-            color: color,
-            fontSize: 10.5.sp,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.8,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Badge HUD Live Studio di pojok kanan atas
-class _LiveHudBadge extends StatelessWidget {
-  const _LiveHudBadge({required this.isCompact});
-  final bool isCompact;
-
-  @override
-  Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
+      width: 8.r,
+      height: 8.r,
       decoration: BoxDecoration(
-        color: AppColors.benchRaised,
-        borderRadius: BorderRadius.circular(4.r),
-        border: Border.all(color: AppColors.benchLine, width: AppGeometry.hairline),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 6.r,
-            height: 6.r,
-            decoration: const BoxDecoration(
-              color: AppColors.spotLit,
-              shape: BoxShape.circle,
-            ),
-          ).animate(onPlay: (c) => c.repeat(reverse: true)).fade(begin: 0.25, end: 1.0, duration: 900.ms),
-          SizedBox(width: 6.w),
-          Text(
-            'LIVE VIEW',
-            style: AppFonts.ui(
-              color: AppColors.light,
-              fontSize: 10.sp,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.4,
-            ),
+        color: color,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.5),
+            blurRadius: 6,
+            spreadRadius: 1,
           ),
-          if (!isCompact) ...[
-            SizedBox(width: 8.w),
-            Text(
-              '· 4R PRINT FORMAT',
-              style: AppFonts.ui(
-                color: AppColors.light60,
-                fontSize: 9.5.sp,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 1.0,
-              ),
-            ),
-          ],
         ],
       ),
     );

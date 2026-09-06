@@ -332,7 +332,7 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
           ),
           child: Column(
             children: [
-              if (_isUvcActive)
+              if (dart_io.Platform.isAndroid && _isUvcActive)
                 Container(
                   height: 240.h,
                   clipBehavior: Clip.hardEdge,

@@ -166,8 +166,8 @@ class GenerateResultService
             }
         }
 
-        $targetW = 600;
-        $targetH = 800; // 3:4 Portrait Photobooth standard
+        $targetW = 540;
+        $targetH = 960; // 9:16 Instagram Story standard
         $frames = [];
 
         // Pre-load and apply filter to each distinct photo
@@ -270,11 +270,11 @@ class GenerateResultService
             if ($photoImg) {
                 $this->applyFilter($photoImg, $filter);
 
-                $frameCanvas = imagecreatetruecolor(1080, 1440);
+                $frameCanvas = imagecreatetruecolor(1080, 1920); // 9:16 Full HD Instagram Story
                 $bgColor = imagecolorallocate($frameCanvas, 20, 20, 20);
-                imagefilledrectangle($frameCanvas, 0, 0, 1080, 1440, $bgColor);
+                imagefilledrectangle($frameCanvas, 0, 0, 1080, 1920, $bgColor);
 
-                $this->pasteProportional($frameCanvas, $photoImg, 0, 0, 1080, 1440);
+                $this->pasteProportional($frameCanvas, $photoImg, 0, 0, 1080, 1920);
 
                 imagejpeg($frameCanvas, "$tempDir/frame_{$frameIdx}.jpg", 90);
                 imagedestroy($frameCanvas);

@@ -95,7 +95,7 @@ class PaymentResource extends Resource
                     ->modalDescription('Apakah Anda ingin menandai pembayaran ini sebagai SUKSES / LUNAS? Sesi foto akan otomatis aktif.')
                     ->visible(fn ($record) => $record->status === 'pending')
                     ->action(function ($record) {
-                        \App\Services\XenditService::simulatePaid($record);
+                        \App\Services\PakasirService::simulatePaid($record);
                         \Filament\Notifications\Notification::make()
                             ->title('Pembayaran berhasil diverifikasi & sesi foto diaktifkan!')
                             ->success()

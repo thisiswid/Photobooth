@@ -37,7 +37,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   int? _paymentId;
   int? _sessionId;
   String? _orderId;
-  int _totalAmount = 25000;
+  int _totalAmount = 1000;
 
   Timer? _timeoutTimer;
   Timer? _pollTimer;
@@ -47,7 +47,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   void initState() {
     super.initState();
     final tenantConfig = ref.read(tenantNotifierProvider).valueOrNull;
-    _totalAmount = tenantConfig?.pricing.sessionPrice ?? 25000;
+    _totalAmount = tenantConfig?.pricing.sessionPrice ?? 1000;
     _timeoutLeft = tenantConfig?.timers.paymentTimeoutSeconds ?? 180;
 
     _startTimeout();
@@ -97,11 +97,16 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       _isLoading = true;
     });
 
+    final tenantConfig = ref.read(tenantNotifierProvider).valueOrNull;
+    final payload = <String, dynamic>{
+      'amount': _totalAmount,
+      if (tenantConfig?.event?.id != null) 'event_id': tenantConfig!.event!.id,
+      if (tenantConfig?.cafe.id != null) 'cafe_id': tenantConfig!.cafe.id,
+      if (tenantConfig?.device?.id != null) 'device_id': tenantConfig!.device!.id,
+    };
+
     try {
-      final res = await DioClient.instance.dio.post('/payments', data: {
-        'amount': _totalAmount,
-        'event_id': 1,
-      });
+      final res = await DioClient.instance.dio.post('/payments', data: payload);
 
       if (res.data['success'] == true && res.data['data'] != null) {
         final data = res.data['data'];
@@ -170,13 +175,17 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       _isProcessing = false;
     });
 
+    final tenantConfig = ref.read(tenantNotifierProvider).valueOrNull;
+    final durationSeconds = tenantConfig?.timers.sessionTimeoutSeconds ?? 300;
+    final eventId = tenantConfig?.event?.id ?? 1;
+
     // Inisialisasi session di Riverpod
     int realSessionId = _sessionId ?? 1;
-    DateTime expiresAt = DateTime.now().add(AppConstants.sessionDuration);
+    DateTime expiresAt = DateTime.now().add(Duration(seconds: durationSeconds));
 
     ref.read(sessionNotifierProvider.notifier).startSession(
           sessionId: realSessionId,
-          eventId: 1,
+          eventId: eventId,
           startedAt: DateTime.now(),
           expiresAt: expiresAt,
         );

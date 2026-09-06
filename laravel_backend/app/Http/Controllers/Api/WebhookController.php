@@ -64,10 +64,12 @@ class WebhookController extends Controller
             ]);
 
             if ($payment->session) {
+                $timerSetting = \App\Models\TimerSetting::resolveForCafe($payment->session->cafe_id);
+                $duration = $timerSetting->session_timeout_seconds ?? 300;
                 $payment->session->update([
                     'status'     => 'active',
                     'started_at' => now(),
-                    'expires_at' => now()->addMinutes(5),
+                    'expires_at' => now()->addSeconds($duration),
                 ]);
             }
 
@@ -126,10 +128,12 @@ class WebhookController extends Controller
             ]);
 
             if ($payment->session) {
+                $timerSetting = \App\Models\TimerSetting::resolveForCafe($payment->session->cafe_id);
+                $duration = $timerSetting->session_timeout_seconds ?? 300;
                 $payment->session->update([
                     'status'     => 'active',
                     'started_at' => now(),
-                    'expires_at' => now()->addMinutes(5),
+                    'expires_at' => now()->addSeconds($duration),
                 ]);
             }
 
