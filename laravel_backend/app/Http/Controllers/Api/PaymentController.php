@@ -16,18 +16,26 @@ class PaymentController extends Controller
     {
         $request->validate([
             'event_id'  => ['nullable', 'exists:events,id'],
-            'device_id' => ['nullable', 'exists:devices,id'],
+            'device_id' => ['nullable'],
+            'cafe_id'   => ['nullable', 'exists:cafes,id'],
             'amount'    => ['required', 'numeric', 'min:0'],
         ]);
 
-        $event = $request->event_id ? Event::find($request->event_id) : null;
-        $cafeId = $event?->cafe_id ?? auth()->user()?->cafe_id;
+        $device = null;
+        if ($request->filled('device_id')) {
+            $device = is_numeric($request->device_id)
+                ? \App\Models\Device::find((int) $request->device_id)
+                : \App\Models\Device::where('device_key', $request->device_id)->first();
+        }
+
+        $event = $request->event_id ? Event::find($request->event_id) : ($device?->event);
+        $cafeId = $request->cafe_id ?? $device?->cafe_id ?? $event?->cafe_id ?? auth()->user()?->cafe_id ?? \App\Models\Cafe::first()?->id;
 
         // 1. Create pending session
         $session = Session::create([
             'cafe_id'   => $cafeId,
-            'event_id'  => $request->event_id,
-            'device_id' => $request->device_id,
+            'event_id'  => $event?->id ?? $request->event_id,
+            'device_id' => $device?->id ?? (is_numeric($request->device_id) ? (int) $request->device_id : null),
             'status'    => 'pending',
         ]);
 

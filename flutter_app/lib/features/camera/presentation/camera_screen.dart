@@ -23,6 +23,7 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/booth_material.dart';
 import '../../../shared/widgets/responsive_button.dart';
 import '../../../features/frame/domain/models/frame_model.dart';
+import '../../../features/provisioning/providers/tenant_provider.dart';
 import '../../../features/session/domain/models/session_model.dart';
 import '../../../features/session/providers/session_provider.dart';
 import '../../../shared/widgets/photobooth_layout.dart';
@@ -139,7 +140,6 @@ enum _CaptureStep {
 }
 
 const _uuid = Uuid();
-const _countdownSeconds = 3;
 
 /// Lama aba-aba "lihat ke lensa" sebelum angka mulai turun.
 ///
@@ -182,7 +182,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   bool _isCameraReady = false;
 
   // ── Kamera eksternal (HDMI capture card + Sony PTP) ────────────────────────
-  CaptureMode _captureMode = CaptureMode.tabletOnly;
   /// True bila preview HDMI (UVC) sudah terbuka untuk view di layar ini.
   bool _isUvcReady = false;
   /// True begitu kita memutuskan me-render UvcPreview (sebelum open selesai).
@@ -205,8 +204,13 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   /// foto, semua `Image.file` pose sebelumnya, dan preview kamera. Tujuh kali
   /// per pose, makin berat tiap pose karena strip bertambah isi.
   ///
+  int get _configuredCountdownSeconds {
+    final tenant = ref.read(tenantNotifierProvider).valueOrNull;
+    return tenant?.timers.cameraCountdownSeconds ?? tenant?.hardware.countdownSeconds ?? 5;
+  }
+
   /// Sekarang hanya angka dan lingkaran progresnya yang dibangun ulang.
-  final ValueNotifier<int> _countdown = ValueNotifier<int>(_countdownSeconds);
+  late final ValueNotifier<int> _countdown = ValueNotifier<int>(_configuredCountdownSeconds);
   Timer? _countdownTimer;
 
   /// Penanda waktu untuk mengukur jeda antara tombol Lanjut ditekan dan
@@ -269,12 +273,10 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   Future<void> _initExternalCamera() async {
     try {
       final capture = PhotoboothCaptureService.instance;
-      final mode = await capture.detectMode();
+      await capture.detectMode();
       if (!mounted) return;
 
       if (capture.usesUvcPreview) {
-        setState(() => _captureMode = mode);
-
         // Handshake PTP DULU, sebelum stream HDMI dinyalakan.
         //
         // Ini satu-satunya jendela di mana bus USB cukup lengang: capture card
@@ -302,7 +304,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
         return;
       }
 
-      setState(() => _captureMode = mode);
       capture.startShutterPath();
       await _initCamera();
     } catch (e) {
@@ -425,9 +426,10 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     if (!mounted) return;
 
     // Ketukan kedua: angka turun.
-    _countdown.value = _countdownSeconds;
+    final totalCountdown = _configuredCountdownSeconds;
+    _countdown.value = totalCountdown;
 
-    debugPrint('⏱️ [Perf] Timer hitungan mundur dimulai dari 7 '
+    debugPrint('⏱️ [Perf] Timer hitungan mundur dimulai dari $totalCountdown '
         '(+${_perfWatch?.elapsedMilliseconds ?? 0} ms)');
 
     _countdownTimer?.cancel();
@@ -452,7 +454,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
         // Kunci fokus satu hitungan sebelum jepret. AF butuh ~0,8 detik; kalau
         // baru dimulai saat hitungan habis, rana terasa telat sedetik.
         // Dijalankan tanpa ditunggu supaya hitungan mundur tetap presisi.
-        if (_countdown.value == _countdownSeconds - 1) {
+        if (_countdown.value == totalCountdown - 1) {
           unawaited(PhotoboothCaptureService.instance.prefocus());
         }
       } else {
@@ -1061,36 +1063,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
               const Positioned.fill(
                 child: IgnorePointer(child: _FramingMarks()),
               ),
-
-              // Badge diagnostik jalur kamera — untuk operator, bukan tamu.
-              Positioned(
-                top: AppGeometry.s8.h,
-                left: AppGeometry.s8.w,
-                child: Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: AppGeometry.s8.w,
-                    vertical: AppGeometry.s4.h,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.bench,
-                    borderRadius:
-                        BorderRadius.circular(AppGeometry.radiusCell.r),
-                    border: Border.all(
-                      color: AppColors.benchLine,
-                      width: AppGeometry.hairline,
-                    ),
-                  ),
-                  child: Text(
-                    PhotoboothCaptureService.describeMode(_captureMode),
-                    style: AppFonts.ui(
-                      color: AppColors.light30,
-                      fontSize: 10.sp,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.4,
-                    ),
-                  ),
-                ),
-              ),
             ],
           ),
         ),
@@ -1133,7 +1105,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
               SizedBox(height: AppGeometry.s16.h),
               Row(
                 mainAxisSize: MainAxisSize.min,
-                children: List.generate(_countdownSeconds, (i) {
+                children: List.generate(_configuredCountdownSeconds, (i) {
                   final spent = i >= value;
                   return Container(
                     width: 26.w,
@@ -1159,7 +1131,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
           children: [
             Expanded(
               child: ResponsiveButton(
-                label: _isMirrorEnabled ? 'Cermin aktif' : 'Cermin mati',
+                label: 'Mirror',
                 icon: _isMirrorEnabled ? Icons.flip : Icons.flip_outlined,
                 // Terisi saat aktif, bergaris saat mati: keadaannya terbaca
                 // dari bentuknya, bukan cuma dari kata. "Mirror" / "No Mirror"

@@ -52,7 +52,7 @@ class TutorialScreen extends ConsumerWidget {
 
     final cafeName =
         (tenant?.cafe.name ?? AppConstants.defaultCafeBrandName).toUpperCase();
-    final price = tenant?.pricing.sessionPrice ?? 25000;
+    final price = tenant?.pricing.sessionPrice ?? 1000;
     final priceText = 'Rp ${NumberFormat('#,###', 'id_ID').format(price)}';
     final serial = 'No. ${DateFormat('yyyyMMdd').format(DateTime.now())}';
 
@@ -413,55 +413,11 @@ class _TicketStub extends StatelessWidget {
             ),
           ),
 
-          SizedBox(height: AppGeometry.s16.h),
-          Container(height: AppGeometry.hairline, color: AppColors.ink40),
-          SizedBox(height: AppGeometry.s16.h),
-
-          // Isi paketnya, memakai angka yang benar-benar berlaku di mesin ini.
-          const _StubLine(text: 'Cetak 4R · 10×15 cm'),
-          const _StubLine(text: 'Strip foto + motion'),
-          _StubLine(
-            text: 'Unduh QR · ${AppConstants.qrExpiryDuration.inDays} hari',
-          ),
-
           SizedBox(height: AppGeometry.s24.h),
 
           ResponsiveButton(
             label: 'Bayar',
-            icon: Icons.qr_code_2,
             onPressed: onPay,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StubLine extends StatelessWidget {
-  const _StubLine({required this.text});
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: AppGeometry.s4.h),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: EdgeInsets.only(top: 7.h),
-            child: Container(width: 4.r, height: 4.r, color: AppColors.spot),
-          ),
-          SizedBox(width: AppGeometry.s8.w),
-          Expanded(
-            child: Text(
-              text,
-              style: AppFonts.display(
-                fontSize: 14.sp,
-                color: AppColors.ink70,
-                height: 1.35,
-              ),
-            ),
           ),
         ],
       ),

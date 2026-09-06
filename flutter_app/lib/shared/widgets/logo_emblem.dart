@@ -14,12 +14,14 @@ class LogoEmblem extends ConsumerWidget {
     this.showRing = true,
     this.ringColor,
     this.customLogoUrl,
+    this.padding,
   });
 
   final double size;
   final bool showRing;
   final Color? ringColor;
   final String? customLogoUrl;
+  final EdgeInsetsGeometry? padding;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -49,7 +51,7 @@ class LogoEmblem extends ConsumerWidget {
     }
 
     final content = Padding(
-      padding: EdgeInsets.all(size * 0.12),
+      padding: padding ?? EdgeInsets.all(size * 0.12),
       child: logoContent,
     );
 

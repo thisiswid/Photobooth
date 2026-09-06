@@ -13,7 +13,6 @@ import '../../../core/theme/app_geometry.dart';
 import '../../../features/session/providers/session_provider.dart';
 import '../../../shared/widgets/photo_strip_widget.dart';
 import '../../../shared/widgets/photobooth_layout.dart';
-import '../../../shared/widgets/print_furniture.dart';
 import '../../../shared/widgets/responsive_button.dart';
 import '../../../shared/widgets/responsive_layout_builder.dart';
 import '../domain/models/frame_model.dart';
@@ -164,24 +163,14 @@ class _FrameSelectionScreenState extends ConsumerState<FrameSelectionScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'PILIH BINGKAI FOTO',
-                            style: AppFonts.display(
-                              fontSize: 18.sp,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.ink,
-                              letterSpacing: 1.0,
-                            ),
-                          ),
-                          SizedBox(height: 2.h),
-                          Text(
-                            'Sentuh desain frame favoritmu',
-                            style: AppFonts.ui(fontSize: 11.sp, color: AppColors.ink70),
-                          ),
-                        ],
+                      Text(
+                        'PILIH BINGKAI FOTO',
+                        style: AppFonts.display(
+                          fontSize: 18.sp,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.ink,
+                          letterSpacing: 1.0,
+                        ),
                       ),
                       Container(
                         padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
@@ -307,27 +296,14 @@ class _FrameSelectionScreenState extends ConsumerState<FrameSelectionScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'PILIH BINGKAI FOTO',
-                                style: AppFonts.display(
-                                  fontSize: 22.sp,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.ink,
-                                  letterSpacing: 1.2,
-                                ),
-                              ),
-                              SizedBox(height: 3.h),
-                              Text(
-                                'Sentuh desain bingkai favoritmu untuk sesi ini',
-                                style: AppFonts.ui(
-                                  fontSize: 11.5.sp,
-                                  color: AppColors.ink70,
-                                ),
-                              ),
-                            ],
+                          Text(
+                            'PILIH BINGKAI FOTO',
+                            style: AppFonts.display(
+                              fontSize: 22.sp,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.ink,
+                              letterSpacing: 1.2,
+                            ),
                           ),
                           Container(
                             padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
@@ -394,19 +370,6 @@ class _FrameSelectionScreenState extends ConsumerState<FrameSelectionScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Center(
-                        child: Text(
-                          'PRATINJAU CETAK',
-                          style: AppFonts.ui(
-                            fontSize: 11.sp,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.ink40,
-                            letterSpacing: 2.2,
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: 8.h),
-
                       // Frame Preview Widget
                       Expanded(
                         child: Center(
@@ -438,67 +401,11 @@ class _FrameSelectionScreenState extends ConsumerState<FrameSelectionScreen> {
                         ),
                       ),
 
-                      SizedBox(height: 12.h),
-
-                      // Detail Frame Card
-                      if (_selectedFrame != null) ...[
-                        Container(
-                          padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
-                          decoration: BoxDecoration(
-                            color: AppColors.paperBright,
-                            border: Border.all(color: AppColors.ink15, width: 1),
-                            borderRadius: BorderRadius.circular(4.r),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _selectedFrame!.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppFonts.display(
-                                  fontSize: 14.sp,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.ink,
-                                ),
-                              ),
-                              SizedBox(height: 4.h),
-                              Row(
-                                children: [
-                                  Text(
-                                    'Format Foto',
-                                    style: AppFonts.ui(fontSize: 11.sp, color: AppColors.ink70),
-                                  ),
-                                  SizedBox(width: 6.w),
-                                  Expanded(
-                                    child: Padding(
-                                      padding: EdgeInsets.only(top: 4.h),
-                                      child: const DotLeader(color: AppColors.ink15),
-                                    ),
-                                  ),
-                                  SizedBox(width: 6.w),
-                                  Text(
-                                    _selectedFrame!.slotCount > _selectedFrame!.poseCount
-                                        ? '${_selectedFrame!.poseCount} Pose (${_selectedFrame!.slotCount} Slot)'
-                                        : '${_selectedFrame!.poseCount} Pose',
-                                    style: AppFonts.ui(
-                                      fontSize: 11.sp,
-                                      fontWeight: FontWeight.w700,
-                                      color: AppColors.spot,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        SizedBox(height: 12.h),
-                      ],
+                      SizedBox(height: 16.h),
 
                       // Tombol Mulai
                       ResponsiveButton(
                         label: 'Mulai Pemotretan',
-                        icon: Icons.camera_alt_rounded,
                         onPressed: _selectedFrame != null ? _onContinue : null,
                       ),
                     ],

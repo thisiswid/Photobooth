@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Download Foto & Video — Fakultas Kopi Photobooth</title>
+    <title>Download Foto & Video — {{ $cafeName ?? 'Photobooth' }}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -179,7 +179,7 @@
             align-items: center;
             justify-content: center;
             gap: 6px;
-            padding: 9px 8px;
+            padding: 11px 8px;
             border: none;
             background: transparent;
             font-family: inherit;
@@ -196,6 +196,11 @@
             background: var(--dark-coffee);
             color: #FFFFFF;
             box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+        }
+
+        .tab-btn .icon {
+            width: 18px;
+            height: 18px;
         }
 
         /* Media Display */
@@ -218,6 +223,18 @@
             height: auto;
             display: block;
             object-fit: contain;
+        }
+
+        #media-video {
+            max-width: 100%;
+            aspect-ratio: 16 / 9;
+            background: #000000;
+        }
+
+        #media-video video, #media-video img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
         }
 
         /* Action Buttons */
@@ -383,11 +400,9 @@
         <!-- Header (Hanya muncul jika foto masih aktif) -->
         <header class="brand-header">
             <div class="brand-pill">
-                <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-                FAKULTAS KOPI PHOTOBOOTH
+                {{ strtoupper($cafeName ?? 'PHOTOBOOTH') }}
             </div>
             <h1 class="brand-title">Hasil Foto & Video</h1>
-            <p class="brand-subtitle">Simpan dan bagikan momen bahagiamu</p>
         </header>
 
         <!-- Expiry countdown info -->
@@ -408,20 +423,17 @@
         <div class="preview-card">
             <!-- Tabs Switcher -->
             <div class="media-tabs">
-                <button class="tab-btn active" onclick="switchMedia('strip')">
-                    <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-                    {{ $hasFilter ? 'Strip (Filter)' : 'Photo Strip' }}
+                <button class="tab-btn active" data-tab="strip" onclick="switchMedia('strip')" title="{{ $hasFilter ? 'Strip (Filter)' : 'Photo Strip' }}">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3z"></path></svg>
                 </button>
                 @if($hasFilter && $rawStripUrl)
-                    <button class="tab-btn" onclick="switchMedia('raw_strip')">
-                        <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
-                        Strip (Asli)
+                    <button class="tab-btn" data-tab="raw_strip" onclick="switchMedia('raw_strip')" title="Strip (Asli)">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
                     </button>
                 @endif
                 @if($videoUrl || $gifUrl)
-                    <button class="tab-btn" onclick="switchMedia('video')">
-                        <svg class="icon icon-sm" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-                        Motion Video
+                    <button class="tab-btn" data-tab="video" onclick="switchMedia('video')" title="Motion Video">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
                     </button>
                 @endif
             </div>
@@ -458,14 +470,14 @@
                 <!-- Button 1: Download Filtered Strip -->
                 <a href="{{ route('download.strip', $token) }}" class="btn btn-primary" id="btn-download-strip">
                     <svg class="icon icon-lg" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                    {{ $hasFilter ? 'Download Photo Strip (Filter)' : 'Download Photo Strip (HD)' }}
+                    Download
                 </a>
 
                 <!-- Button 2: Download Raw Strip -->
                 @if($hasFilter && $rawStripUrl)
                     <a href="{{ route('download.raw_strip', $token) }}" class="btn btn-secondary" id="btn-download-raw-strip" style="display: none;">
                         <svg class="icon icon-lg" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                        Download Photo Strip (Asli Tanpa Filter)
+                        Download
                     </a>
                 @endif
 
@@ -473,12 +485,12 @@
                 @if($videoUrl)
                     <a href="{{ route('download.video', $token) }}" class="btn btn-gold" id="btn-download-video" style="display: none;">
                         <svg class="icon icon-lg" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                        Download Motion Video (MP4)
+                        Download
                     </a>
                 @elseif($gifUrl)
                     <a href="{{ route('download.gif', $token) }}" class="btn btn-gold" id="btn-download-video" style="display: none;">
                         <svg class="icon icon-lg" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                        Download Motion GIF
+                        Download
                     </a>
                 @endif
             </div>
@@ -488,7 +500,7 @@
         @if($rawPhotos->isNotEmpty())
             <h3 class="section-title">
                 <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-                Foto Satuan (Original HD)
+                Foto Satuan
             </h3>
             <div class="photos-grid">
                 @foreach($rawPhotos as $idx => $p)
@@ -506,7 +518,7 @@
 
     <!-- Footer -->
     <footer class="footer">
-        <p>© {{ date('Y') }} Fakultas Kopi Photobooth</p>
+        <p>© {{ date('Y') }} SnapTechBooth</p>
         <p>Terima kasih telah berkunjung dan mengabadikan momen bersama kami.</p>
     </footer>
 </div>
@@ -538,11 +550,9 @@
         if (type === 'strip') {
             if (stripContainer) stripContainer.style.display = 'flex';
             if (btnStrip) btnStrip.style.display = 'flex';
-            if (tabs[0]) tabs[0].classList.add('active');
         } else if (type === 'raw_strip') {
             if (rawStripContainer) rawStripContainer.style.display = 'flex';
             if (btnRawStrip) btnRawStrip.style.display = 'flex';
-            if (tabs[1]) tabs[1].classList.add('active');
         } else if (type === 'video') {
             if (videoContainer) videoContainer.style.display = 'flex';
             if (btnVideo) btnVideo.style.display = 'flex';
@@ -550,11 +560,13 @@
                 videoElem.currentTime = 0;
                 videoElem.play().catch(() => {});
             }
-            // Find video tab
-            tabs.forEach(t => {
-                if (t.innerText.includes('Motion Video')) t.classList.add('active');
-            });
         }
+
+        tabs.forEach(t => {
+            if (t.getAttribute('data-tab') === type) {
+                t.classList.add('active');
+            }
+        });
     }
 </script>
 

@@ -247,14 +247,14 @@ class PricingConfig {
   final int defaultPrintCopies;
 
   const PricingConfig({
-    this.sessionPrice = 25000,
+    this.sessionPrice = 1000,
     this.currency = 'IDR',
     this.defaultPrintCopies = 2,
   });
 
   factory PricingConfig.fromJson(Map<String, dynamic> json) {
     return PricingConfig(
-      sessionPrice: json['session_price'] as int? ?? 25000,
+      sessionPrice: json['session_price'] as int? ?? 1000,
       currency: json['currency'] as String? ?? 'IDR',
       defaultPrintCopies: json['default_print_copies'] as int? ?? 2,
     );
