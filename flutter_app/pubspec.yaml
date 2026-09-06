@@ -52,6 +52,7 @@ dependencies:
   # Kiosk Windows — fullscreen & penguncian jendela.
   # SystemChrome.setEnabledSystemUIMode tidak berefek apa pun di Windows.
   window_manager: ^0.4.2
+  win32: ^5.15.0
 
   # Utilities
   intl: ^0.19.0
@@ -94,3 +95,38 @@ flutter:
     - assets/images/
     - assets/animations/
     - assets/mock/
+  # ── FONT BUNDEL — aktifkan setelah TTF ada di assets/fonts/ ──────────────
+  #
+  # Blok di bawah SENGAJA dinonaktifkan: Flutter menolak build kalau aset yang
+  # dideklarasikan tidak ada, dan ketujuh berkas ini belum diunduh.
+  #
+  # Langkahnya:
+  #   1. Unduh dari fonts.google.com/specimen/Bitter dan
+  #      fonts.google.com/specimen/Archivo+Narrow
+  #   2. Salin TTF dari folder `static/` ke assets/fonts/ dengan nama persis
+  #      seperti di bawah
+  #   3. Buang tanda pagar di blok ini
+  #   4. Ganti isi dua fungsi di lib/core/theme/app_fonts.dart (instruksinya
+  #      sudah ditulis sebagai komentar di berkas itu)
+  #
+  # Sampai langkah 4 selesai, aplikasi masih MENGUNDUH font saat runtime lewat
+  # paket google_fonts — dan di kiosk tanpa internet, tipografinya hilang.
+#   fonts:
+#     - family: Bitter
+#       fonts:
+#         - asset: assets/fonts/Bitter-Regular.ttf
+#           weight: 400
+#         - asset: assets/fonts/Bitter-SemiBold.ttf
+#           weight: 600
+#         - asset: assets/fonts/Bitter-Bold.ttf
+#           weight: 700
+#         - asset: assets/fonts/Bitter-ExtraBold.ttf
+#           weight: 800
+#     - family: ArchivoNarrow
+#       fonts:
+#         - asset: assets/fonts/ArchivoNarrow-Regular.ttf
+#           weight: 400
+#         - asset: assets/fonts/ArchivoNarrow-SemiBold.ttf
+#           weight: 600
+#         - asset: assets/fonts/ArchivoNarrow-Bold.ttf
+#           weight: 700

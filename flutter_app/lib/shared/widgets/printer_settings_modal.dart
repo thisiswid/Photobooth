@@ -3,10 +3,10 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../core/services/printer_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/theme/app_fonts.dart';
 
 /// Modal Pengaturan Printer — input IP langsung, tanpa dialog system Android.
 /// Android tidak mendukung listPrinters() — solusi: IPP over HTTP port 631.
@@ -187,7 +187,7 @@ class _PrinterSettingsModalState extends State<PrinterSettingsModal> {
                     children: [
                       Text(
                         'PENGATURAN PRINTER FOTO',
-                        style: GoogleFonts.cormorantGaramond(
+                        style: AppFonts.display(
                           color: AppColors.creamWhite,
                           fontSize: 18.sp,
                           fontWeight: FontWeight.w700,
@@ -246,7 +246,7 @@ class _PrinterSettingsModalState extends State<PrinterSettingsModal> {
                           _savedIp != null
                               ? 'Printer dikonfigurasi'
                               : 'Printer belum dikonfigurasi',
-                          style: GoogleFonts.montserrat(
+                          style: AppFonts.ui(
                             color: _savedIp != null
                                 ? Colors.greenAccent
                                 : Colors.orange,
@@ -279,14 +279,14 @@ class _PrinterSettingsModalState extends State<PrinterSettingsModal> {
               Text(
                 'Printer diambil dari daftar Windows. Ganti pilihan di '
                 'Hidden Settings > Printer.',
-                style: GoogleFonts.montserrat(
+                style: AppFonts.ui(
                   color: Colors.white54,
                   fontSize: 10.sp,
                 ),
               ),
             if (Platform.isAndroid) Text(
               'IP ADDRESS PRINTER',
-              style: GoogleFonts.montserrat(
+              style: AppFonts.ui(
                 color: AppColors.gold,
                 fontSize: 10.sp,
                 fontWeight: FontWeight.w700,
@@ -305,13 +305,13 @@ class _PrinterSettingsModalState extends State<PrinterSettingsModal> {
                     inputFormatters: [
                       FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
                     ],
-                    style: GoogleFonts.montserrat(
+                    style: AppFonts.ui(
                       color: AppColors.creamWhite,
                       fontSize: 14.sp,
                     ),
                     decoration: InputDecoration(
                       hintText: '192.168.1.14',
-                      hintStyle: GoogleFonts.montserrat(
+                      hintStyle: AppFonts.ui(
                         color: Colors.white30,
                         fontSize: 14.sp,
                       ),
@@ -336,7 +336,7 @@ class _PrinterSettingsModalState extends State<PrinterSettingsModal> {
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10.r),
-                        borderSide: BorderSide(
+                        borderSide: const BorderSide(
                           color: AppColors.gold,
                           width: 1.5,
                         ),
@@ -407,7 +407,7 @@ class _PrinterSettingsModalState extends State<PrinterSettingsModal> {
                 ),
                 child: Text(
                   _statusMessage!,
-                  style: GoogleFonts.montserrat(
+                  style: AppFonts.ui(
                     color: _statusIsSuccess
                         ? Colors.greenAccent
                         : Colors.redAccent,
@@ -439,7 +439,7 @@ class _PrinterSettingsModalState extends State<PrinterSettingsModal> {
                     icon: Icon(Icons.save_rounded, size: 18.r),
                     label: Text(
                       'Simpan IP',
-                      style: GoogleFonts.montserrat(
+                      style: AppFonts.ui(
                         fontSize: 13.sp,
                         fontWeight: FontWeight.w700,
                       ),
@@ -471,7 +471,7 @@ class _PrinterSettingsModalState extends State<PrinterSettingsModal> {
                         : Icon(Icons.print_rounded, size: 18.r),
                     label: Text(
                       _isTestingPrint ? 'Mencetak...' : 'Cetak Uji',
-                      style: GoogleFonts.montserrat(
+                      style: AppFonts.ui(
                         fontSize: 13.sp,
                         fontWeight: FontWeight.w700,
                       ),

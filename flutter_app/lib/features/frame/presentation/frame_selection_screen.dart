@@ -3,17 +3,17 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/services/error_logger.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_text_styles.dart';
+import '../../../core/theme/app_fonts.dart';
+import '../../../core/theme/app_geometry.dart';
 import '../../../features/session/providers/session_provider.dart';
-import '../../../shared/widgets/customer_header.dart';
-import '../../../shared/widgets/photobooth_layout.dart';
 import '../../../shared/widgets/photo_strip_widget.dart';
+import '../../../shared/widgets/photobooth_layout.dart';
+import '../../../shared/widgets/print_furniture.dart';
 import '../../../shared/widgets/responsive_button.dart';
 import '../../../shared/widgets/responsive_layout_builder.dart';
 import '../domain/models/frame_model.dart';
@@ -78,33 +78,68 @@ class _FrameSelectionScreenState extends ConsumerState<FrameSelectionScreen> {
     final framesAsync = ref.watch(frameListProvider(eventId));
 
     return PhotoboothLayout(
-      header: const CustomerHeader(),
       child: framesAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator(color: AppColors.darkBrown)),
-        error: (err, _) => Center(
+        loading: () => Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.error_outline, size: 48.sp, color: AppColors.brown),
-              SizedBox(height: 12.h),
-              Text('Gagal memuat frame', style: AppTextStyles.titleMedium),
-              SizedBox(height: 8.h),
-              Text(err.toString(), style: AppTextStyles.caption, textAlign: TextAlign.center),
+              const SizedBox(
+                width: 36,
+                height: 36,
+                child: CircularProgressIndicator(color: AppColors.ink, strokeWidth: 2.5),
+              ),
               SizedBox(height: 16.h),
-              ResponsiveButton(
-                label: 'Coba Lagi',
-                onPressed: () {
-                  ErrorLogger.instance.logRetryAttempt(
-                    action: 'Muat Ulang Frame',
-                    attempt: 1,
-                    reason: err.toString(),
-                  );
-                  ref.invalidate(frameListProvider(eventId));
-                },
-                width: 200.w,
-                height: 48.h,
+              Text(
+                'Memuat Koleksi Bingkai...',
+                style: AppFonts.display(fontSize: 18.sp, fontWeight: FontWeight.w700, color: AppColors.ink),
               ),
             ],
+          ),
+        ),
+        error: (err, _) => Center(
+          child: Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: AppColors.paperBright,
+              border: Border.all(color: AppColors.inkOxide, width: AppGeometry.hairline),
+            ),
+            child: Container(
+              padding: EdgeInsets.all(24.r),
+              decoration: BoxDecoration(
+                border: Border.all(color: AppColors.inkOxideLit, width: AppGeometry.hairline),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.error_outline_rounded, size: 40.sp, color: AppColors.inkOxide),
+                  SizedBox(height: 12.h),
+                  Text(
+                    'Gagal Memuat Bingkai',
+                    style: AppFonts.display(fontSize: 20.sp, fontWeight: FontWeight.w800, color: AppColors.ink),
+                  ),
+                  SizedBox(height: 6.h),
+                  Text(
+                    err.toString(),
+                    style: AppFonts.ui(fontSize: 11.sp, color: AppColors.ink70),
+                    textAlign: TextAlign.center,
+                  ),
+                  SizedBox(height: 16.h),
+                  ResponsiveButton(
+                    label: 'Coba Lagi',
+                    onPressed: () {
+                      ErrorLogger.instance.logRetryAttempt(
+                        action: 'Muat Ulang Frame',
+                        attempt: 1,
+                        reason: err.toString(),
+                      );
+                      ref.invalidate(frameListProvider(eventId));
+                    },
+                    width: 200.w,
+                    height: 48.h,
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
         data: (frames) {
@@ -117,94 +152,154 @@ class _FrameSelectionScreenState extends ConsumerState<FrameSelectionScreen> {
 
           final isMobile = context.isMobile;
           final isPortrait = context.isPortrait;
+          final isCompact = isMobile || isPortrait;
 
-          if (isMobile || isPortrait) {
+          if (isCompact) {
             // ── Mobile / Portrait Layout ────────────────────────────────────
-            return Padding(
-              padding: EdgeInsets.fromLTRB(14.w, 4.h, 14.w, 10.h),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+            return Column(
+              children: [
+                // Header
+                Padding(
+                  padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 8.h),
+                  child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Pilih Desain Bingkai', style: GoogleFonts.cormorantGaramond(fontSize: 22.sp, fontWeight: FontWeight.w800, color: AppColors.darkBrown)),
-                          Text('Sentuh frame yang kamu sukai', style: AppTextStyles.caption.copyWith(fontSize: 10.5.sp)),
+                          Text(
+                            'PILIH BINGKAI FOTO',
+                            style: AppFonts.display(
+                              fontSize: 18.sp,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.ink,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                          SizedBox(height: 2.h),
+                          Text(
+                            'Sentuh desain frame favoritmu',
+                            style: AppFonts.ui(fontSize: 11.sp, color: AppColors.ink70),
+                          ),
                         ],
+                      ),
+                      Container(
+                        padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
+                        decoration: BoxDecoration(
+                          color: AppColors.paperDeep,
+                          border: Border.all(color: AppColors.ink15, width: 1),
+                          borderRadius: BorderRadius.circular(4.r),
+                        ),
+                        child: Text(
+                          '${frames.length} OPSI',
+                          style: AppFonts.ui(
+                            fontSize: 10.sp,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.ink,
+                          ),
+                        ),
                       ),
                     ],
                   ),
-                  SizedBox(height: 8.h),
+                ),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16.w),
+                  child: Container(height: AppGeometry.hairline, color: AppColors.ink15),
+                ),
+                SizedBox(height: 8.h),
 
-                  // Grid Frame (2 kolom di mobile)
-                  Expanded(
-                    child: GridView.builder(
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: isMobile ? 2 : 3,
-                        crossAxisSpacing: 10.w,
-                        mainAxisSpacing: 10.h,
-                        childAspectRatio: 0.72,
+                // Grid Frame
+                Expanded(
+                  child: GridView.builder(
+                    padding: EdgeInsets.symmetric(horizontal: 14.w),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: isMobile ? 2 : 3,
+                      crossAxisSpacing: 10.w,
+                      mainAxisSpacing: 10.h,
+                      childAspectRatio: 0.68,
+                    ),
+                    itemCount: frames.length,
+                    itemBuilder: (_, i) {
+                      final frame = frames[i];
+                      final isSelected = _selectedFrame?.id == frame.id;
+                      return _FrameCard(
+                        frame: frame,
+                        isSelected: isSelected,
+                        onTap: () => setState(() => _selectedFrame = frame),
+                      ).animate().fadeIn(delay: (i * 25).ms);
+                    },
+                  ),
+                ),
+
+                // Bottom Action Bar
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 10.h),
+                  decoration: BoxDecoration(
+                    color: AppColors.paperBright,
+                    border: const Border(top: BorderSide(color: AppColors.ink15, width: 1)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.ink.withValues(alpha: 0.08),
+                        blurRadius: 10,
+                        offset: const Offset(0, -3),
                       ),
-                      itemCount: frames.length,
-                      itemBuilder: (_, i) {
-                        final frame = frames[i];
-                        final isSelected = _selectedFrame?.id == frame.id;
-                        return _FrameCard(
-                          frame: frame,
-                          isSelected: isSelected,
-                          onTap: () => setState(() => _selectedFrame = frame),
-                        ).animate().fadeIn(delay: (i * 30).ms);
-                      },
-                    ),
+                    ],
                   ),
-
-                  SizedBox(height: 8.h),
-
-                  // Bottom Action Bar
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
-                    decoration: BoxDecoration(
-                      color: AppColors.creamWhite,
-                      borderRadius: BorderRadius.circular(14.r),
-                      border: Border.all(color: AppColors.gold, width: 1.2),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.darkBrown.withValues(alpha: 0.08),
-                          blurRadius: 10,
-                          offset: const Offset(0, 3),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _selectedFrame?.name ?? 'Pilih Frame',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppFonts.display(
+                                fontSize: 14.sp,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.ink,
+                              ),
+                            ),
+                            if (_selectedFrame != null)
+                              Text(
+                                _selectedFrame!.slotCount > _selectedFrame!.poseCount
+                                    ? '${_selectedFrame!.poseCount} Pose • ${_selectedFrame!.slotCount} Slot'
+                                    : '${_selectedFrame!.poseCount} Pose',
+                                style: AppFonts.ui(
+                                  fontSize: 11.sp,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.spot,
+                                ),
+                              ),
+                          ],
                         ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        SizedBox(width: 12.w),
-                        SizedBox(
-                          width: 150.w,
-                          height: 44.h,
-                          child: ResponsiveButton(
-                            label: 'Mulai',
-                            onPressed: _selectedFrame != null ? _onContinue : null,
-                          ),
+                      ),
+                      SizedBox(width: 12.w),
+                      SizedBox(
+                        width: 130.w,
+                        child: ResponsiveButton(
+                          label: 'Mulai',
+                          icon: Icons.arrow_forward_rounded,
+                          onPressed: _selectedFrame != null ? _onContinue : null,
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             );
           }
 
           // ── Desktop & Tablet Landscape Layout ───────────────────────────
           return Row(
             children: [
-              // ── Kiri (Flex: 3): Grid Katalog Frame Vintage ─────────────────
+              // ── Kiri (Flex: 3): Grid Katalog Frame Cetak ───────────────────
               Expanded(
                 flex: 3,
                 child: Padding(
-                  padding: EdgeInsets.fromLTRB(20.w, 4.h, 12.w, 12.h),
+                  padding: EdgeInsets.fromLTRB(20.w, 12.h, 16.w, 16.h),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -215,27 +310,57 @@ class _FrameSelectionScreenState extends ConsumerState<FrameSelectionScreen> {
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Pilih Desain Bingkai', style: AppTextStyles.headlineLarge)
-                                  .animate().fadeIn(),
-                              SizedBox(height: 2.h),
-                              Text('Pilih frame favorit untuk sesi pemotretanmu',
-                                  style: AppTextStyles.caption.copyWith(color: AppColors.brown))
-                                  .animate().fadeIn(delay: 50.ms),
+                              Text(
+                                'PILIH BINGKAI FOTO',
+                                style: AppFonts.display(
+                                  fontSize: 22.sp,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.ink,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                              SizedBox(height: 3.h),
+                              Text(
+                                'Sentuh desain bingkai favoritmu untuk sesi ini',
+                                style: AppFonts.ui(
+                                  fontSize: 11.5.sp,
+                                  color: AppColors.ink70,
+                                ),
+                              ),
                             ],
+                          ),
+                          Container(
+                            padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
+                            decoration: BoxDecoration(
+                              color: AppColors.paperDeep,
+                              border: Border.all(color: AppColors.ink15, width: 1),
+                              borderRadius: BorderRadius.circular(4.r),
+                            ),
+                            child: Text(
+                              '${frames.length} PILIHAN',
+                              style: AppFonts.ui(
+                                fontSize: 10.sp,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.ink,
+                                letterSpacing: 1.0,
+                              ),
+                            ),
                           ),
                         ],
                       ),
 
+                      SizedBox(height: 10.h),
+                      Container(height: AppGeometry.hairline, color: AppColors.ink),
                       SizedBox(height: 12.h),
 
-                      // Grid Kartu Frame Vintage
+                      // Grid Kartu Frame
                       Expanded(
                         child: GridView.builder(
                           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: 3,
                             crossAxisSpacing: 12.w,
                             mainAxisSpacing: 12.h,
-                            childAspectRatio: 0.72,
+                            childAspectRatio: 0.68,
                           ),
                           itemCount: frames.length,
                           itemBuilder: (_, i) {
@@ -245,8 +370,7 @@ class _FrameSelectionScreenState extends ConsumerState<FrameSelectionScreen> {
                               frame: frame,
                               isSelected: isSelected,
                               onTap: () => setState(() => _selectedFrame = frame),
-                            ).animate().fadeIn(delay: (i * 40).ms)
-                             .scale(begin: const Offset(0.95, 0.95), delay: (i * 40).ms);
+                            ).animate().fadeIn(delay: (i * 35).ms);
                           },
                         ),
                       ),
@@ -255,64 +379,128 @@ class _FrameSelectionScreenState extends ConsumerState<FrameSelectionScreen> {
                 ),
               ),
 
-              // Garis Pemisah Vertikal Vintage
+              // Garis Pemisah Vertikal Hairline
               Container(
-                width: 1.2.w,
-                margin: EdgeInsets.symmetric(vertical: 12.h),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      AppColors.gold.withValues(alpha: 0.6),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
+                width: AppGeometry.hairline,
+                color: AppColors.ink15,
               ),
 
               // ── Kanan (Flex: 2): Live Preview Frame Terpilih & Tombol Mulai ──
               Expanded(
                 flex: 2,
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(16.w, 4.h, 20.w, 12.h),
+                child: Container(
+                  color: AppColors.paperDeep,
+                  padding: EdgeInsets.fromLTRB(16.w, 14.h, 20.w, 16.h),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      Center(
+                        child: Text(
+                          'PRATINJAU CETAK',
+                          style: AppFonts.ui(
+                            fontSize: 11.sp,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.ink40,
+                            letterSpacing: 2.2,
+                          ),
+                        ),
+                      ),
                       SizedBox(height: 8.h),
 
                       // Frame Preview Widget
                       Expanded(
                         child: Center(
-                          child: _selectedFrame != null
-                              ? PhotoStripWidget(
-                                  photos: const [],
-                                  frame: _selectedFrame,
-                                )
-                              : Container(
-                                  decoration: BoxDecoration(
-                                    color: AppColors.paper,
-                                    borderRadius: BorderRadius.circular(12.r),
-                                    border: Border.all(color: AppColors.borderWarm),
-                                  ),
-                                  child: Center(
-                                    child: Text('Pilih frame dari kiri',
-                                        style: AppTextStyles.caption),
-                                  ),
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: AppColors.paperBright,
+                              border: Border.all(color: AppColors.ink15, width: 1),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.ink.withValues(alpha: 0.08),
+                                  blurRadius: 14,
+                                  offset: const Offset(0, 6),
                                 ),
+                              ],
+                            ),
+                            child: _selectedFrame != null
+                                ? PhotoStripWidget(
+                                    photos: const [],
+                                    frame: _selectedFrame,
+                                  )
+                                : Center(
+                                    child: Text(
+                                      'Pilih bingkai di samping',
+                                      style: AppFonts.ui(color: AppColors.ink40),
+                                    ),
+                                  ),
+                          ),
                         ),
                       ),
 
                       SizedBox(height: 12.h),
 
+                      // Detail Frame Card
+                      if (_selectedFrame != null) ...[
+                        Container(
+                          padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
+                          decoration: BoxDecoration(
+                            color: AppColors.paperBright,
+                            border: Border.all(color: AppColors.ink15, width: 1),
+                            borderRadius: BorderRadius.circular(4.r),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _selectedFrame!.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppFonts.display(
+                                  fontSize: 14.sp,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.ink,
+                                ),
+                              ),
+                              SizedBox(height: 4.h),
+                              Row(
+                                children: [
+                                  Text(
+                                    'Format Foto',
+                                    style: AppFonts.ui(fontSize: 11.sp, color: AppColors.ink70),
+                                  ),
+                                  SizedBox(width: 6.w),
+                                  Expanded(
+                                    child: Padding(
+                                      padding: EdgeInsets.only(top: 4.h),
+                                      child: const DotLeader(color: AppColors.ink15),
+                                    ),
+                                  ),
+                                  SizedBox(width: 6.w),
+                                  Text(
+                                    _selectedFrame!.slotCount > _selectedFrame!.poseCount
+                                        ? '${_selectedFrame!.poseCount} Pose (${_selectedFrame!.slotCount} Slot)'
+                                        : '${_selectedFrame!.poseCount} Pose',
+                                    style: AppFonts.ui(
+                                      fontSize: 11.sp,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.spot,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        SizedBox(height: 12.h),
+                      ],
+
                       // Tombol Mulai
                       ResponsiveButton(
-                        label: 'Mulai',
+                        label: 'Mulai Pemotretan',
+                        icon: Icons.camera_alt_rounded,
                         onPressed: _selectedFrame != null ? _onContinue : null,
-                        width: double.infinity,
-                        height: 48.h,
-                      ).animate().fadeIn(delay: 200.ms),
+                      ),
                     ],
                   ),
                 ),
@@ -341,33 +529,38 @@ class _FrameCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+        duration: const Duration(milliseconds: 180),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.darkBrown.withValues(alpha: 0.04) : AppColors.creamWhite,
-          borderRadius: BorderRadius.circular(12.r),
+          color: AppColors.paperBright,
           border: Border.all(
-            color: isSelected ? AppColors.gold : AppColors.borderWarm,
-            width: isSelected ? 2.5 : 1,
+            color: isSelected ? AppColors.ink : AppColors.ink15,
+            width: isSelected ? 2.0 : AppGeometry.hairline,
           ),
           boxShadow: [
             BoxShadow(
               color: isSelected
-                  ? AppColors.gold.withValues(alpha: 0.2)
-                  : AppColors.darkBrown.withValues(alpha: 0.04),
-              blurRadius: isSelected ? 10 : 4,
-              offset: const Offset(0, 3),
+                  ? AppColors.ink.withValues(alpha: 0.12)
+                  : AppColors.ink.withValues(alpha: 0.03),
+              blurRadius: isSelected ? 10 : 3,
+              offset: isSelected ? const Offset(0, 4) : const Offset(0, 1),
             ),
           ],
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(10.r),
+        padding: const EdgeInsets.all(3),
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: isSelected ? AppColors.spot : Colors.transparent,
+              width: 1.0,
+            ),
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Image Thumbnail
+              // Image Thumbnail Area
               Expanded(
                 child: Container(
-                  color: AppColors.paper,
+                  color: AppColors.paperDeep,
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
@@ -376,31 +569,44 @@ class _FrameCard extends StatelessWidget {
                           imageUrl: _storageUrl(frame.assetUrl!),
                           fit: BoxFit.contain,
                           placeholder: (_, __) => const Center(
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.ink40),
                           ),
-                          errorWidget: (_, __, ___) => Center(
-                            child: Icon(Icons.broken_image,
-                                color: AppColors.lightBrown, size: 28.sp),
+                          errorWidget: (_, __, ___) => const Center(
+                            child: Icon(Icons.broken_image_outlined, color: AppColors.ink40, size: 28),
                           ),
                         )
                       else
-                        Center(
-                          child: Icon(Icons.photo_outlined,
-                              color: AppColors.lightBrown, size: 32.sp),
+                        const Center(
+                          child: Icon(Icons.photo_outlined, color: AppColors.ink40, size: 32),
                         ),
 
-                      // Selected Checkmark Badge
+                      // Selected Badge (Stamp Style)
                       if (isSelected)
                         Positioned(
                           top: 6.r,
                           right: 6.r,
                           child: Container(
-                            padding: EdgeInsets.all(3.r),
-                            decoration: const BoxDecoration(
-                              color: AppColors.gold,
-                              shape: BoxShape.circle,
+                            padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
+                            decoration: BoxDecoration(
+                              color: AppColors.spot,
+                              borderRadius: BorderRadius.circular(2.r),
                             ),
-                            child: Icon(Icons.check, size: 12.sp, color: AppColors.darkCoffee),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.check, size: 10.sp, color: AppColors.paperBright),
+                                SizedBox(width: 2.w),
+                                Text(
+                                  'PILIHAN',
+                                  style: AppFonts.ui(
+                                    fontSize: 8.sp,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.paperBright,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                     ],
@@ -411,16 +617,17 @@ class _FrameCard extends StatelessWidget {
               // Frame Name & Pose Info
               Container(
                 padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 6.h),
-                color: isSelected ? AppColors.darkBrown : AppColors.creamWhite,
+                color: isSelected ? AppColors.ink : AppColors.paperBright,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
                       frame.name,
-                      style: AppTextStyles.caption.copyWith(
+                      style: AppFonts.display(
+                        fontSize: 11.5.sp,
                         fontWeight: FontWeight.w700,
-                        color: isSelected ? AppColors.creamWhite : AppColors.darkBrown,
+                        color: isSelected ? AppColors.paperBright : AppColors.ink,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -428,13 +635,12 @@ class _FrameCard extends StatelessWidget {
                     SizedBox(height: 2.h),
                     Text(
                       frame.slotCount > frame.poseCount
-                          ? '${frame.poseCount} Pose • ${frame.slotCount} Slot'
+                          ? '${frame.poseCount} Pose · ${frame.slotCount} Slot'
                           : '${frame.poseCount} Pose',
-                      style: AppTextStyles.caption.copyWith(
-                        fontSize: 9.sp,
-                        color: isSelected
-                            ? AppColors.creamWhite.withValues(alpha: 0.8)
-                            : AppColors.brown.withValues(alpha: 0.7),
+                      style: AppFonts.ui(
+                        fontSize: 9.5.sp,
+                        fontWeight: FontWeight.w600,
+                        color: isSelected ? AppColors.paper : AppColors.ink70,
                       ),
                     ),
                   ],

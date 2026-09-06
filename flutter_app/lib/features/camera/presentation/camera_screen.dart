@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io' as dart_io;
+import 'dart:typed_data' show BytesBuilder;
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -7,7 +8,6 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:image/image.dart' as img;
 import 'package:uuid/uuid.dart';
 import '../../../core/router/app_router.dart';
@@ -17,10 +17,14 @@ import '../../../core/services/photo_upload_prep_service.dart';
 import '../../../core/services/photobooth_capture_service.dart';
 import '../../../core/services/uvc_camera_service.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_fonts.dart';
+import '../../../core/theme/app_geometry.dart';
+import '../../../core/theme/app_text_styles.dart';
+import '../../../core/theme/booth_material.dart';
+import '../../../shared/widgets/responsive_button.dart';
 import '../../../features/frame/domain/models/frame_model.dart';
 import '../../../features/session/domain/models/session_model.dart';
 import '../../../features/session/providers/session_provider.dart';
-import '../../../shared/widgets/customer_header.dart';
 import '../../../shared/widgets/photobooth_layout.dart';
 import '../../../shared/widgets/photo_strip_widget.dart';
 import '../../../shared/widgets/responsive_layout_builder.dart';
@@ -135,7 +139,17 @@ enum _CaptureStep {
 }
 
 const _uuid = Uuid();
-const _countdownSeconds = 7;
+const _countdownSeconds = 3;
+
+/// Lama aba-aba "lihat ke lensa" sebelum angka mulai turun.
+///
+/// Sebelumnya hitungan langsung mulai dari 7 dan tamu menatap satu angka
+/// besar selama tujuh detik tanpa tahu harus melihat ke mana. Studio
+/// sungguhan memberi aba-aba dulu, baru menghitung.
+const _cueDuration = Duration(milliseconds: 1600);
+
+/// Nilai penanda tahap aba-aba di dalam [_CameraScreenState._countdown].
+const _cueValue = -1;
 
 /// Tampilkan preview kamera KECIL di dalam strip bingkai kiri.
 ///
@@ -229,17 +243,18 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     // tersebut dihapus. Countdown punya timer sendiri (_countdownTimer).
   }
 
+  bool _isNavigating = false;
+
   @override
   void dispose() {
     _countdownTimer?.cancel();
     _countdown.dispose();
-    _cameraController?.dispose();
+    try {
+      _cameraController?.dispose();
+    } catch (e) {
+      debugPrint('⚠️ [CameraScreen] error in dispose: $e');
+    }
     _cameraController = null;
-    // Hanya lepaskan sesi PTP. Kamera UVC dikelola oleh UvcPreview — menutupnya
-    // di sini akan mematikan preview halaman berikutnya.
-    // Sesi PTP sengaja TIDAK diputus di sini. Membukanya lagi mengharuskan
-    // stream HDMI dihentikan sementara, jadi memutusnya tiap dispose berarti
-    // kedipan preview di setiap perpindahan layar.
     super.dispose();
   }
 
@@ -399,10 +414,18 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
           '(+${_perfWatch?.elapsedMilliseconds ?? 0} ms)');
     }
 
+    // Ketukan pertama: aba-aba. Layar meredup ke material kamar gelap di
+    // sini juga (lihat _material) — perhatian pindah ke lensa, dan tamu sudah
+    // dapat cahaya dari layar terang selagi merapikan diri.
     setState(() {
       _step = _CaptureStep.countdown;
-      _countdown.value = _countdownSeconds;
+      _countdown.value = _cueValue;
     });
+    await Future<void>.delayed(_cueDuration);
+    if (!mounted) return;
+
+    // Ketukan kedua: angka turun.
+    _countdown.value = _countdownSeconds;
 
     debugPrint('⏱️ [Perf] Timer hitungan mundur dimulai dari 7 '
         '(+${_perfWatch?.elapsedMilliseconds ?? 0} ms)');
@@ -429,7 +452,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
         // Kunci fokus satu hitungan sebelum jepret. AF butuh ~0,8 detik; kalau
         // baru dimulai saat hitungan habis, rana terasa telat sedetik.
         // Dijalankan tanpa ditunggu supaya hitungan mundur tetap presisi.
-        if (_countdown.value == 2) {
+        if (_countdown.value == _countdownSeconds - 1) {
           unawaited(PhotoboothCaptureService.instance.prefocus());
         }
       } else {
@@ -635,8 +658,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
         // `.first` hanya memberi potongan pertama, yang ukurannya tidak dijamin.
         final head = await file
             .openRead(0, 262144)
-            .fold<dart_io.BytesBuilder>(
-              dart_io.BytesBuilder(),
+            .fold<BytesBuilder>(
+              BytesBuilder(),
               (b, d) => b..add(d),
             );
         size = _readJpegSizeFromHeader(head.takeBytes());
@@ -706,7 +729,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     _startCountdown();
   }
 
-  void _onNext() {
+  Future<void> _onNext() async {
+    if (_isNavigating) return;
     _perfWatch = Stopwatch()..start();  // ganti penanda untuk pose berikutnya
     debugPrint('⏱️ [Perf] Lanjut ditekan');
     final notifier = ref.read(sessionNotifierProvider.notifier);
@@ -731,6 +755,33 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     });
 
     if (nextPoseIndex >= totalPoses) {
+      setState(() => _isNavigating = true);
+      _countdownTimer?.cancel();
+
+      // Gracefully release camera controller sebelum berpindah rute
+      // untuk mencegah crash DirectX / native surface di Windows desktop & Android
+      final cam = _cameraController;
+      _cameraController = null;
+      if (cam != null) {
+        try {
+          await cam.dispose();
+        } catch (e) {
+          debugPrint('⚠️ [CameraScreen] Cam dispose error during next: $e');
+        }
+      }
+
+      if (_showUvcView || _isUvcReady) {
+        if (mounted) {
+          setState(() {
+            _showUvcView = false;
+            _isUvcReady = false;
+            _isCameraReady = false;
+          });
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+
+      if (!mounted) return;
       context.go(AppRoutes.filter);
     } else {
       setState(() {
@@ -742,6 +793,17 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
 
   // ── Build ─────────────────────────────────────────────────────────────────
 
+  /// Kamera adalah SATU-SATUNYA layar yang berpindah material, dan alasannya
+  /// praktis bukan estetis: layar kiosk berfungsi sebagai lampu isi untuk
+  /// wajah tamu. Layar gelap sepanjang sesi berarti wajah hanya disinari
+  /// lampu kafe.
+  ///
+  ///   merapikan diri -> kertas (layar terang, jadi sumber cahaya)
+  ///   aba-aba dan seterusnya -> kamar gelap (perhatian pindah ke lensa)
+  BoothMaterial get _material => _step == _CaptureStep.initialPreview
+      ? BoothMaterial.paper
+      : BoothMaterial.bench;
+
   @override
   Widget build(BuildContext context) {
     final sessionState = ref.watch(sessionNotifierProvider);
@@ -751,8 +813,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     return PopScope(
       canPop: false,
       child: PhotoboothLayout(
-        showDecorations: true,
-        header: const CustomerHeader(),
+        material: _material,
         child: Padding(
           padding: EdgeInsets.fromLTRB(
             isMobile ? 10.w : 20.w,
@@ -835,7 +896,10 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
           showOverlay: true,
           opaqueOverlay: true,
           overlayChild: const Center(
-            child: CircularProgressIndicator(color: AppColors.gold, strokeWidth: 3),
+            child: CircularProgressIndicator(
+              color: AppColors.light60,
+              strokeWidth: 2,
+            ),
           ),
         );
 
@@ -851,7 +915,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   Widget _buildCapturedPhotoOverlay() {
     return Positioned.fill(
       child: Container(
-        color: AppColors.darkCoffee,
+        color: AppColors.bench,
         child: _lastCaptured != null
             ? Image.file(
                 // Berkas ini SUDAH ter-cermin bila memang perlu, jadi jangan
@@ -869,7 +933,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
                 child: Icon(
                   Icons.image_outlined,
                   size: 48.sp,
-                  color: AppColors.paper.withValues(alpha: 0.4),
+                  color: AppColors.light30,
                 ),
               ),
       ),
@@ -902,19 +966,17 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
       aspectRatio: _viewfinderAspectRatio,
       child: Container(
         decoration: BoxDecoration(
-          color: AppColors.darkCoffee,
-          borderRadius: BorderRadius.circular(16.r),
-          border: Border.all(color: AppColors.darkBrown, width: 2.0),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.darkBrown.withValues(alpha: 0.15),
-              blurRadius: 16,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          color: AppColors.bench,
+          // Jendela bidik adalah jendela, bukan kartu: radius cetak, garis
+          // rambut, nol bayangan.
+          borderRadius: BorderRadius.circular(AppGeometry.radiusPrint),
+          border: Border.all(
+            color: _material.rule,
+            width: AppGeometry.hairline,
+          ),
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(14.r),
+          borderRadius: BorderRadius.circular(AppGeometry.radiusPrint),
           child: Stack(
             fit: StackFit.expand,
             children: [
@@ -941,7 +1003,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
                 )
               else
                 Container(
-                  color: AppColors.darkCoffee,
+                  color: AppColors.bench,
                   child: Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -951,23 +1013,23 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
                             width: 28.r,
                             height: 28.r,
                             child: const CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              color: AppColors.gold,
+                              strokeWidth: 2,
+                              color: AppColors.light60,
                             ),
                           )
                         else
                           Icon(
                             Icons.photo_camera_rounded,
                             size: 42.sp,
-                            color: AppColors.paper.withValues(alpha: 0.35),
+                            color: AppColors.light30,
                           ),
                         if (_prepMessage != null) ...[
                           SizedBox(height: 10.h),
                           Text(
                             _prepMessage!,
-                            style: TextStyle(
-                              color: AppColors.paper.withValues(alpha: 0.75),
-                              fontSize: 11.sp,
+                            style: AppFonts.display(
+                              color: AppColors.light60,
+                              fontSize: 14.sp,
                             ),
                           ),
                         ],
@@ -986,26 +1048,45 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
                   // sebagai aplikasi yang menggantung. Saat hitungan mundur
                   // sebaliknya: preview justru harus tetap terlihat.
                   color: opaqueOverlay
-                      ? AppColors.darkCoffee
-                      : Colors.black.withValues(alpha: 0.55),
+                      ? AppColors.bench
+                      : AppColors.scrim,
                 ),
               if (overlayChild != null) overlayChild,
-              // Badge diagnostik jalur kamera (untuk operator)
+
+              // Tanda bidik — kurung sudut.
+              //
+              // Satu-satunya ornamen yang boleh ada di layar ini, dan dia
+              // punya tugas: menyatakan "ini bingkainya", persis seperti
+              // tanda bidik di jendela bidik kamera sungguhan.
+              const Positioned.fill(
+                child: IgnorePointer(child: _FramingMarks()),
+              ),
+
+              // Badge diagnostik jalur kamera — untuk operator, bukan tamu.
               Positioned(
-                top: 8.h,
-                left: 8.w,
+                top: AppGeometry.s8.h,
+                left: AppGeometry.s8.w,
                 child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: AppGeometry.s8.w,
+                    vertical: AppGeometry.s4.h,
+                  ),
                   decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.6),
-                    borderRadius: BorderRadius.circular(6.r),
+                    color: AppColors.bench,
+                    borderRadius:
+                        BorderRadius.circular(AppGeometry.radiusCell.r),
+                    border: Border.all(
+                      color: AppColors.benchLine,
+                      width: AppGeometry.hairline,
+                    ),
                   ),
                   child: Text(
                     PhotoboothCaptureService.describeMode(_captureMode),
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 9.sp,
-                      fontWeight: FontWeight.bold,
+                    style: AppFonts.ui(
+                      color: AppColors.light30,
+                      fontSize: 10.sp,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.4,
                     ),
                   ),
                 ),
@@ -1017,106 +1098,159 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     );
   }
 
+  /// Hamparan hitung mundur — dua ketukan.
+  ///
+  /// Ketukan 1 (`_cueValue`): aba-aba. Tamu diberi tahu harus melihat ke mana
+  /// sebelum angka mulai turun.
+  /// Ketukan 2: angka 3-2-1, DIPOTONG KERAS per detik.
+  ///
+  /// Versi sebelumnya memakai `scale(begin: 1.25)` pada tiap angka. Angka yang
+  /// membesar-mengecil membaca sebagai aplikasi; mesin tidak memantul. Cincin
+  /// progres melingkar juga dilepas — deret tanda di bawah angka menyampaikan
+  /// sisa hitungan lebih cepat daripada busur yang menyusut.
   Widget _buildCleanCountdownOverlay() {
     return Center(
-      child: SizedBox(
-        width: 140.r,
-        height: 140.r,
-        child: ValueListenableBuilder<int>(
-          valueListenable: _countdown,
-          builder: (context, value, _) => Stack(
-          alignment: Alignment.center,
-          children: [
-            SizedBox(
-              width: 140.r,
-              height: 140.r,
-              child: CircularProgressIndicator(
-                value: value / _countdownSeconds,
-                strokeWidth: 4.5,
-                backgroundColor: Colors.white24,
-                valueColor: const AlwaysStoppedAnimation<Color>(AppColors.gold),
-              ),
-            ),
-            Text(
-              '$value',
-              style: GoogleFonts.cormorantGaramond(
-                fontSize: 72.sp,
+      child: ValueListenableBuilder<int>(
+        valueListenable: _countdown,
+        builder: (context, value, _) {
+          if (value == _cueValue) {
+            return Text(
+              'LIHAT KE LENSA',
+              textAlign: TextAlign.center,
+              style: AppFonts.ui(
+                color: AppColors.light,
+                fontSize: 22.sp,
                 fontWeight: FontWeight.w700,
-                color: AppColors.creamWhite,
-                shadows: const [
-                  Shadow(color: Colors.black54, blurRadius: 16),
-                ],
+                letterSpacing: 5.0,
               ),
-            )
-                .animate(key: ValueKey(value))
-                .scale(begin: const Offset(1.25, 1.25), duration: 300.ms, curve: Curves.easeOut)
-                .fadeIn(duration: 150.ms),
-          ],
-          ),
-        ),
+            );
+          }
+
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('$value', style: AppTextStyles.countdownNumber),
+              SizedBox(height: AppGeometry.s16.h),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: List.generate(_countdownSeconds, (i) {
+                  final spent = i >= value;
+                  return Container(
+                    width: 26.w,
+                    height: 2,
+                    margin: EdgeInsets.symmetric(horizontal: AppGeometry.s4.w),
+                    color: spent ? AppColors.light30 : AppColors.light,
+                  );
+                }),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
-
-
-  // ── Bottom Action Controls ────────────────────────────────────────────────
+  // ── Kendali bawah ─────────────────────────────────────────────────────────
 
   Widget _buildBottomControls(bool isMobile) {
-    if (_step == _CaptureStep.initialPreview) {
-      // ── [Mirror/No Mirror 50%] [Mulai 50%] ───────────────────────────────
-      return Row(
-        children: [
-          // Toggle Mirror — 50% lebar
-          Expanded(
-            child: _MirrorToggleButton(
-              isMirrorEnabled: _isMirrorEnabled,
-              onTap: _toggleMirror,
-              isMobile: isMobile,
+    switch (_step) {
+      case _CaptureStep.initialPreview:
+        return Row(
+          children: [
+            Expanded(
+              child: ResponsiveButton(
+                label: _isMirrorEnabled ? 'Cermin aktif' : 'Cermin mati',
+                icon: _isMirrorEnabled ? Icons.flip : Icons.flip_outlined,
+                // Terisi saat aktif, bergaris saat mati: keadaannya terbaca
+                // dari bentuknya, bukan cuma dari kata. "Mirror" / "No Mirror"
+                // yang lama ambigu — menyebut keadaan sekarang, atau perintah?
+                variant: _isMirrorEnabled
+                    ? ButtonVariant.primary
+                    : ButtonVariant.outlined,
+                material: _material,
+                onPressed: _toggleMirror,
+              ),
             ),
-          ),
-          SizedBox(width: isMobile ? 8.w : 12.w),
-          // Mulai — 50% lebar
-          Expanded(
-            child: _PrimaryButton(
-              label: 'Mulai',
-              onTap: _startCountdown,
-              isMobile: isMobile,
+            SizedBox(width: AppGeometry.s12.w),
+            Expanded(
+              child: ResponsiveButton(
+                label: 'Mulai',
+                material: _material,
+                onPressed: _startCountdown,
+              ),
             ),
-          ),
-        ],
-      );
-    }
+          ],
+        );
 
-    if (_step == _CaptureStep.result) {
-      // ── [Retake 50%] [Lanjut 50%] ────────────────────────────────────────
-      return Row(
-        children: [
-          Expanded(
-            child: _SecondaryButton(
-              label: 'Retake',
-              onTap: _onRetake,
-              isMobile: isMobile,
+      case _CaptureStep.result:
+        return Row(
+          children: [
+            Expanded(
+              child: ResponsiveButton(
+                label: 'Ulangi',
+                variant: ButtonVariant.outlined,
+                material: _material,
+                onPressed: _onRetake,
+              ),
             ),
-          ),
-          SizedBox(width: isMobile ? 8.w : 12.w),
-          Expanded(
-            child: _PrimaryButton(
-              label: 'Lanjut',
-              onTap: _onNext,
-              isMobile: isMobile,
+            SizedBox(width: AppGeometry.s12.w),
+            Expanded(
+              child: ResponsiveButton(
+                label: 'Lanjut',
+                material: _material,
+                onPressed: _onNext,
+              ),
             ),
-          ),
-        ],
-      );
-    }
+          ],
+        );
 
-    // During countdown & capturing: spacer to keep layout stable
-    return SizedBox(height: isMobile ? 40.h : 46.h);
+      case _CaptureStep.countdown:
+      case _CaptureStep.capturing:
+        // Ruang tetap supaya jendela bidik tidak melompat ukurannya saat
+        // tombol menghilang.
+        return SizedBox(height: AppGeometry.touchTarget.h);
+    }
   }
 }
 
-// ── Left Sidebar: Photo Strip Preview (tanpa card) ────────────────────────────
+/// Tanda bidik — kurung sudut di dalam jendela bidik.
+class _FramingMarks extends StatelessWidget {
+  const _FramingMarks();
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(painter: _FramingMarksPainter());
+  }
+}
+
+class _FramingMarksPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = AppColors.light.withValues(alpha: 0.55)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.square;
+
+    final inset = size.shortestSide * 0.045;
+    final arm = size.shortestSide * 0.07;
+    final l = inset, t = inset;
+    final r = size.width - inset, b = size.height - inset;
+
+    for (final (x, y, dx, dy) in [
+      (l, t, 1.0, 1.0),
+      (r, t, -1.0, 1.0),
+      (l, b, 1.0, -1.0),
+      (r, b, -1.0, -1.0),
+    ]) {
+      canvas.drawLine(Offset(x, y), Offset(x + arm * dx, y), paint);
+      canvas.drawLine(Offset(x, y), Offset(x, y + arm * dy), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
 
 class _FrameStripPreview extends StatelessWidget {
   const _FrameStripPreview({
@@ -1159,127 +1293,3 @@ class _FrameStripPreview extends StatelessWidget {
 // ── Clean Buttons ─────────────────────────────────────────────────────────────
 
 /// 1 tombol toggle Mirror ↔ No Mirror
-class _MirrorToggleButton extends StatelessWidget {
-  const _MirrorToggleButton({
-    required this.isMirrorEnabled,
-    required this.onTap,
-    required this.isMobile,
-  });
-
-  final bool isMirrorEnabled;
-  final VoidCallback onTap;
-  final bool isMobile;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: isMobile ? 40.h : 46.h,
-      child: OutlinedButton(
-        onPressed: onTap,
-        style: OutlinedButton.styleFrom(
-          backgroundColor: isMirrorEnabled
-              ? AppColors.darkBrown.withValues(alpha: 0.08)
-              : AppColors.creamWhite,
-          foregroundColor: AppColors.darkBrown,
-          side: BorderSide(
-            color: AppColors.darkBrown.withValues(alpha: 0.6),
-            width: 1.2,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10.r),
-          ),
-          padding: EdgeInsets.symmetric(horizontal: isMobile ? 8.w : 12.w),
-        ),
-        child: Text(
-          isMirrorEnabled ? 'Mirror' : 'No Mirror',
-          style: GoogleFonts.montserrat(
-            fontSize: isMobile ? 12.sp : 13.sp,
-            fontWeight: isMirrorEnabled ? FontWeight.w700 : FontWeight.w500,
-            color: AppColors.darkBrown,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PrimaryButton extends StatelessWidget {
-  const _PrimaryButton({
-    required this.label,
-    required this.onTap,
-    required this.isMobile,
-  });
-
-  final String label;
-  final VoidCallback onTap;
-  final bool isMobile;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: isMobile ? 40.h : 46.h,
-      child: ElevatedButton(
-        onPressed: onTap,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.buttonBrown,
-          foregroundColor: AppColors.creamWhite,
-          elevation: 3,
-          shadowColor: AppColors.darkBrown.withValues(alpha: 0.3),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10.r),
-            side: const BorderSide(color: AppColors.gold, width: 1.0),
-          ),
-          padding: EdgeInsets.symmetric(horizontal: isMobile ? 8.w : 12.w),
-        ),
-        child: Text(
-          label,
-          style: GoogleFonts.montserrat(
-            fontSize: isMobile ? 13.sp : 14.5.sp,
-            fontWeight: FontWeight.w700,
-            color: AppColors.creamWhite,
-            letterSpacing: 0.3,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SecondaryButton extends StatelessWidget {
-  const _SecondaryButton({
-    required this.label,
-    required this.onTap,
-    required this.isMobile,
-  });
-
-  final String label;
-  final VoidCallback onTap;
-  final bool isMobile;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: isMobile ? 40.h : 46.h,
-      child: OutlinedButton(
-        onPressed: onTap,
-        style: OutlinedButton.styleFrom(
-          backgroundColor: AppColors.creamWhite,
-          foregroundColor: AppColors.darkBrown,
-          side: const BorderSide(color: AppColors.darkBrown, width: 1.4),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10.r),
-          ),
-          padding: EdgeInsets.symmetric(horizontal: isMobile ? 8.w : 12.w),
-        ),
-        child: Text(
-          label,
-          style: GoogleFonts.montserrat(
-            fontSize: isMobile ? 12.5.sp : 14.sp,
-            fontWeight: FontWeight.w600,
-            color: AppColors.darkBrown,
-          ),
-        ),
-      ),
-    );
-  }
-}

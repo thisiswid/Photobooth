@@ -1,14 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:google_fonts/google_fonts.dart';
-import '../../../core/theme/app_colors.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_fonts.dart';
+import '../../core/theme/app_geometry.dart';
+import '../../core/theme/booth_material.dart';
 
-/// Primary action button — vintage pill style with tactile feel.
+/// Dua ragam tombol, dan tidak ada yang ketiga.
 ///
-/// Primary:  dark espresso fill + subtle gold rim + cream text
-/// Outlined: parchment fill + dark brown border + dark espresso text
+///   primary  — isian tinta penuh. Satu per layar.
+///   outlined — permukaan polos + garis rambut tinta.
 enum ButtonVariant { primary, outlined }
 
+/// Tombol aksi Sistem Kamar Gelap.
+///
+/// Perubahan dari versi sebelumnya:
+///   - radius 30 (pil) -> 4 (kartu). Pil hanya untuk timer sesi.
+///   - bayangan dihapus. Kedalaman datang dari garis, bukan blur.
+///   - rim emas dihapus.
+///   - tinggi bawaan 56 -> 64, target sentuh minimum yang selama ini
+///     dideklarasikan di AppConstants tapi tidak pernah ditegakkan.
+///   - label jadi kapital condensed, seragam dari sini — bukan diketik
+///     kapital satu per satu di tiap layar.
 class ResponsiveButton extends StatelessWidget {
   const ResponsiveButton({
     super.key,
@@ -16,6 +28,7 @@ class ResponsiveButton extends StatelessWidget {
     required this.onPressed,
     this.icon,
     this.variant = ButtonVariant.primary,
+    this.material = BoothMaterial.paper,
     this.width,
     this.height,
     this.isLoading = false,
@@ -25,95 +38,86 @@ class ResponsiveButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final IconData? icon;
   final ButtonVariant variant;
+  final BoothMaterial material;
   final double? width;
   final double? height;
   final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
-    final h = height ?? 56.h;
     final isPrimary = variant == ButtonVariant.primary;
-    final isDisabled = onPressed == null;
+    final disabled = onPressed == null || isLoading;
 
-    final bgColor = isPrimary
-        ? (isDisabled ? AppColors.brown.withValues(alpha: 0.45) : AppColors.buttonBrown)
-        : (isDisabled ? AppColors.paper.withValues(alpha: 0.5) : AppColors.creamWhite);
+    // Isian tinta di atas kertas; isian cahaya di atas meja gelap.
+    final fill = material.isDark ? AppColors.light : AppColors.ink;
+    final onFill = material.isDark ? AppColors.bench : AppColors.paperBright;
 
-    final borderColor = isPrimary
-        ? (isDisabled ? Colors.transparent : AppColors.gold.withValues(alpha: 0.8))
-        : (isDisabled ? AppColors.borderLight : AppColors.darkBrown);
+    final Color bg;
+    final Color fg;
+    final Color border;
+    final double borderWidth;
 
-    final textColor = isPrimary
-        ? (isDisabled ? AppColors.creamWhite.withValues(alpha: 0.7) : AppColors.creamWhite)
-        : (isDisabled ? AppColors.textMuted : AppColors.darkBrown);
+    if (isPrimary) {
+      bg = disabled ? material.rule : fill;
+      fg = disabled ? material.onSurfaceFaint : onFill;
+      border = bg;
+      borderWidth = AppGeometry.hairline;
+    } else {
+      bg = material.raised;
+      fg = disabled ? material.onSurfaceFaint : material.onSurface;
+      border = disabled ? material.rule : material.ruleStrong;
+      borderWidth = AppGeometry.hairline;
+    }
 
     return SizedBox(
       width: width,
-      height: h,
+      height: height ?? AppGeometry.touchTarget.h,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: isLoading ? null : onPressed,
-          borderRadius: BorderRadius.circular(30.r),
-          splashColor: isPrimary
-              ? AppColors.gold.withValues(alpha: 0.3)
-              : AppColors.darkBrown.withValues(alpha: 0.15),
-          highlightColor: isPrimary
-              ? AppColors.darkCoffee
-              : AppColors.paper,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
+          onTap: disabled ? null : onPressed,
+          borderRadius: BorderRadius.circular(AppGeometry.radiusCard.r),
+          // Ketukan berubah seketika — tanpa animasi, seperti mesin.
+          splashFactory: NoSplash.splashFactory,
+          highlightColor: fg.withValues(alpha: 0.10),
+          child: Container(
             decoration: BoxDecoration(
-              color: bgColor,
-              borderRadius: BorderRadius.circular(30.r),
-              border: Border.all(color: borderColor, width: isPrimary ? 1.2 : 1.5),
-              boxShadow: !isDisabled
-                  ? [
-                      BoxShadow(
-                        color: AppColors.darkBrown.withValues(alpha: isPrimary ? 0.28 : 0.08),
-                        blurRadius: isPrimary ? 8 : 4,
-                        offset: const Offset(0, 3),
-                      ),
-                    ]
-                  : null,
+              color: bg,
+              borderRadius: BorderRadius.circular(AppGeometry.radiusCard.r),
+              border: Border.all(color: border, width: borderWidth),
             ),
+            padding: EdgeInsets.symmetric(horizontal: AppGeometry.s16.w),
             child: Center(
               child: isLoading
                   ? SizedBox(
-                      width: 22.r,
-                      height: 22.r,
+                      width: 18.r,
+                      height: 18.r,
                       child: CircularProgressIndicator(
-                        strokeWidth: 2.2,
-                        color: textColor,
+                        strokeWidth: 2,
+                        color: fg,
                       ),
                     )
-                  : Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 12.w),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          if (icon != null) ...[
-                            Icon(icon, size: 17.sp, color: isPrimary && !isDisabled ? AppColors.gold : textColor),
-                            SizedBox(width: 6.w),
-                          ],
-                          Flexible(
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Text(
-                                label,
-                                style: GoogleFonts.montserrat(
-                                  fontSize: 13.5.sp,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.6,
-                                  color: textColor,
-                                ),
-                                maxLines: 1,
-                              ),
+                  : Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (icon != null) ...[
+                          Icon(icon, size: 18.sp, color: fg),
+                          SizedBox(width: AppGeometry.s8.w),
+                        ],
+                        Flexible(
+                          child: Text(
+                            label.toUpperCase(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppFonts.ui(
+                              fontSize: 14.sp,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.8,
+                              color: fg,
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
             ),
           ),

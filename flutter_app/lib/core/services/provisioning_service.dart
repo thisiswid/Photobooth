@@ -18,17 +18,30 @@ class ProvisioningService {
   static const _keyTenantConfig = 'provisioning_tenant_config_cache';
   static const _keyCustomBaseUrl = 'provisioning_custom_base_url';
 
+  String? _cachedDeviceKey;
   TenantConfig? _cachedConfig;
+
+  /// Warm up storage cache pada startup sebelum router mengevaluasi rute
+  Future<void> warmUp() async {
+    await getDeviceKey();
+    await getCachedConfig();
+  }
 
   // ─── Getters ───────────────────────────────────────────────────────────────
 
   Future<String?> getDeviceKey() async {
+    if (_cachedDeviceKey != null && _cachedDeviceKey!.isNotEmpty) {
+      return _cachedDeviceKey;
+    }
     try {
-      return await _storage.read(key: _keyDeviceKey);
+      _cachedDeviceKey = await _storage.read(key: _keyDeviceKey);
+      return _cachedDeviceKey;
     } catch (_) {
       return null;
     }
   }
+
+  bool get isProvisionedSync => _cachedDeviceKey != null && _cachedDeviceKey!.trim().isNotEmpty;
 
   Future<String?> getCustomBaseUrl() async {
     try {
@@ -133,6 +146,7 @@ class ProvisioningService {
       final config = TenantConfig.fromJson(rawConfig);
 
       // 3. Simpan ke Secure Storage
+      _cachedDeviceKey = cleanKey;
       await _storage.write(key: _keyDeviceKey, value: cleanKey);
       if (config.device?.id != null) {
         await _storage.write(key: _keyDeviceId, value: config.device!.id.toString());
@@ -183,6 +197,7 @@ class ProvisioningService {
 
   Future<void> unpairDevice() async {
     _cachedConfig = null;
+    _cachedDeviceKey = null;
     try {
       await _storage.delete(key: _keyDeviceKey);
       await _storage.delete(key: _keyDeviceId);

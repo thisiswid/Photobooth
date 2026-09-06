@@ -1,76 +1,160 @@
 import 'package:flutter/material.dart';
 
-/// SnapTechBooth default color palette — Authentic Vintage Coffee & Heritage Stationery.
-/// Warm aged cream, roasted espresso brown, antique brass gold, and vintage stamp accents.
+/// Palet Sistem Kamar Gelap.
+///
+/// Setiap piksel di aplikasi ini adalah salah satu dari DUA material, dan
+/// tidak ada material ketiga:
+///
+///   Kertas       — layar tempat tamu MEMILIH.
+///                  Tiket, Bayar, Pilih bingkai, Pilih filter.
+///
+///   Kamar gelap  — layar tempat GAMBAR jadi subjeknya.
+///                  Sambutan, jendela bidik saat pengambilan, Hasil.
+///
+/// Terang adalah bawaan. Gelap hanya kalau gambar yang jadi subjeknya.
+///
+/// Warnanya sendiri cuma tiga kelompok: satu tinta dengan empat kekuatan
+/// tetap, satu warna spot (jatah tenant), dan tiga tinta semantik. Kalau kamu
+/// sedang mengetik nilai opacity untuk mendapatkan tingkat abu-abu, kamu
+/// sedang keluar dari sistem — pakai kekuatan tinta yang sudah ada.
 abstract final class AppColors {
-  // ── Primary Brand Palette (Vintage Coffeehouse) ───────────────────────────
-  static const Color cream        = Color(0xFFF5EDE0); // Warm aged parchment
-  static const Color paper        = Color(0xFFEADBC5); // Classic craft paper
-  static const Color darkBrown    = Color(0xFF2E1A11); // Deep roasted espresso
-  static const Color brown        = Color(0xFF5A3622); // Warm vintage coffee
-  static const Color lightBrown   = Color(0xFFB58F63); // Roasted hazelnut / brass
-  static const Color buttonBrown  = Color(0xFF422314); // Rich espresso button
-  static const Color creamWhite   = Color(0xFFFFFDF8); // Clean vintage milk white
-  static const Color gold         = Color(0xFFC9974C); // Antique gold / warm brass
+  // ══ MATERIAL 01 — KERTAS ═════════════════════════════════════════════════
 
-  // ── Vintage Accent Tones ──────────────────────────────────────────────────
-  static const Color vintageRust      = Color(0xFFA63D2F); // Vintage stamp red/rust
-  static const Color vintageSage      = Color(0xFF58705B); // Antique sage green
-  static const Color vintageSepia     = Color(0xFF704D36); // Classic sepia photo tone
-  static const Color vintageNavy      = Color(0xFF1E2E3D); // Deep vintage blueprint
-  static const Color antiqueBrass     = Color(0xFFD4AF37); // Bright antique brass
+  /// Kertas cetak. Permukaan baca utama di layar terang.
+  static const Color paper = Color(0xFFEDE4D6);
 
-  // ── Legacy aliases (maintained for backwards compatibility) ───────────────
-  static const Color primary            = darkBrown;
-  static const Color coffeeBrown        = darkBrown;
-  static const Color darkCoffee         = Color(0xFF201009);
-  static const Color white              = Color(0xFFFFFFFF);
-  static const Color goldAccent         = gold;
-  static const Color parchment          = cream;
-  static const Color parchmentLight     = creamWhite;
-  static const Color parchmentDark      = paper;
-  static const Color cardBg             = creamWhite;
-  static const Color coffeeLight        = brown;
-  static const Color warmBeige          = Color(0xFFEDE4D3);
-  static const Color backgroundParchment = cream;
-  static const Color backgroundDark     = darkBrown;
-  static const Color backgroundMedium   = brown;
-  static const Color backgroundLight    = cream;
-  static const Color surfaceCard        = creamWhite;
-  static const Color surfaceModal       = creamWhite;
+  /// Kertas foto — permukaan cetakan, lebih terang dari kertas biasa.
+  static const Color paperBright = Color(0xFFF8F3EA);
 
-  // ── Text Colors ───────────────────────────────────────────────────────────
-  static const Color textPrimary    = darkBrown;
-  static const Color textSecondary  = brown;
-  static const Color textMuted      = Color(0xFF8C6D53);
-  static const Color textOnDark     = creamWhite;
-  static const Color textOnLight    = darkBrown;
+  /// Cerukan dan sumur di dalam kertas. Menggantikan bayangan.
+  static const Color paperDeep = Color(0xFFDCD0BD);
 
-  // ── Border Colors ─────────────────────────────────────────────────────────
-  static const Color borderLight  = Color(0xFFDECFC0);
-  static const Color borderWarm   = Color(0xFFD4C1AC);
-  static const Color borderGold   = gold;
-  static const Color borderCream  = Color(0xFFEADBCE);
-  static const Color borderDark   = darkBrown;
+  // ══ MATERIAL 02 — KAMAR GELAP ════════════════════════════════════════════
 
-  // ── Semantic Colors ───────────────────────────────────────────────────────
-  static const Color success      = Color(0xFF2E7D32);
-  static const Color successLight = Color(0xFF4CAF50);
-  static const Color error        = Color(0xFFB72B2B);
-  static const Color errorLight   = Color(0xFFE57373);
-  static const Color warning      = Color(0xFFD97706);
-  static const Color warningLight = Color(0xFFFBBF24);
-  static const Color info         = Color(0xFF2563EB);
-  static const Color infoLight    = Color(0xFF60A5FA);
+  /// Meja kamar gelap. Gelap-hangat, bukan hitam dingin — kamar gelap
+  /// disinari lampu pengaman, dan semua di dalamnya condong ke cokelat.
+  static const Color bench = Color(0xFF17120F);
 
-  // ── Overlay ───────────────────────────────────────────────────────────────
-  static const Color overlayDark   = Color(0xCC000000);
-  static const Color overlayMedium = Color(0x99000000);
-  static const Color overlayLight  = Color(0x44000000);
+  /// Panel yang terangkat di atas meja.
+  static const Color benchRaised = Color(0xFF211A15);
 
-  // ── Gradient stops ────────────────────────────────────────────────────────
-  static const List<Color> coffeeGradient    = [darkCoffee, darkBrown, buttonBrown];
-  static const List<Color> goldGradient      = [Color(0xFFA17430), gold, Color(0xFFE2C285)];
-  static const List<Color> parchmentGradient = [creamWhite, cream, paper];
-  static const List<Color> vintageCardGradient = [Color(0xFFFFFDF8), Color(0xFFF6EDE0)];
+  /// Garis rambut di atas meja.
+  static const Color benchLine = Color(0xFF3A2E26);
+
+  // ══ TINTA — di atas kertas ═══════════════════════════════════════════════
+  //
+  // Empat kekuatan tetap. Hierarki datang dari sini, BUKAN dari nilai alpha
+  // yang dikarang per widget.
+
+  /// Teks utama.
+  static const Color ink = Color(0xFF2A211A);
+
+  /// Teks sekunder, keterangan.
+  static const Color ink70 = Color(0xFF5E4E41);
+
+  /// Garis rambut, label kecil.
+  static const Color ink40 = Color(0xFF9A8874);
+
+  /// Pemisah, keadaan nonaktif.
+  static const Color ink15 = Color(0xFFD3C6B3);
+
+  // ══ CAHAYA — di atas kamar gelap ═════════════════════════════════════════
+
+  static const Color light = Color(0xFFE8DFD2);
+  static const Color light60 = Color(0xFF9C9082);
+  static const Color light30 = Color(0xFF6A5D51);
+
+  // ══ WARNA SPOT — jatah tenant ════════════════════════════════════════════
+  //
+  // Satu warna spot untuk seluruh aplikasi, dan tenant boleh menggantinya
+  // lewat `cafe.theme.primaryColor`. Bawaannya merah stempel.
+  //
+  // Emas TURUN PANGKAT: dari border di 9 komponen berbeda, jadi tidak dipakai
+  // sama sekali. Emas di mana-mana membaca sebagai kasino, bukan heritage.
+
+  static const Color spot = Color(0xFFA8432F);
+
+  /// Tingkatan yang terbaca di atas meja gelap.
+  static const Color spotLit = Color(0xFFCE6E4A);
+
+  /// Garis dan bingkai redup di atas meja gelap.
+  static const Color spotDim = Color(0xFF6B2C1E);
+
+  // ══ TINTA SEMANTIK ═══════════════════════════════════════════════════════
+  //
+  // Dibuat sebagai tinta cetak, bukan lampu peringatan.
+  //
+  // PENTING: karena warna spot milik tenant bisa saja merah, warna TIDAK
+  // BOLEH jadi satu-satunya penanda status. Setiap status wajib membawa label
+  // tercetak — BERHASIL / GAGAL — dalam kapital condensed. Itu kebetulan juga
+  // jawaban aksesibilitas yang benar.
+
+  static const Color inkGreen = Color(0xFF3F5B41);
+  static const Color inkGreenLit = Color(0xFF7A9B7C);
+  static const Color inkOxide = Color(0xFF8C2E1E);
+  static const Color inkOxideLit = Color(0xFFC4705E);
+
+  // ══ LAIN-LAIN ════════════════════════════════════════════════════════════
+
+  /// Selubung di belakang dialog dan overlay.
+  static const Color scrim = Color(0xE617120F);
+
+  /// Putih sungguhan. HANYA untuk latar kode QR — pemindai butuh putih
+  /// murni, bukan kertas hangat.
+  static const Color white = Color(0xFFFFFFFF);
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // PETA SEMENTARA — nama lama menunjuk ke token baru
+  // ══════════════════════════════════════════════════════════════════════════
+  //
+  // Nama-nama di bawah ini adalah palet lama. Semuanya dipertahankan supaya
+  // aplikasi tetap ter-kompilasi dan LANGSUNG berubah tampilan tanpa harus
+  // menyunting 30 berkas layar sekaligus.
+  //
+  // Yang paling menentukan: `gold` dipakai 170 kali, hampir semuanya sebagai
+  // border hiasan. Sekarang dia menunjuk ke tinta 40 — garis rambut cetak.
+  // Satu perubahan ini yang membuang kesan "emas di mana-mana" sekaligus.
+  //
+  // Beberapa tempat memang butuh aksen sungguhan (keadaan terpilih, indikator
+  // langsung, tanda pencetak). Setelah perubahan ini, tempat-tempat itu akan
+  // terlihat terlalu sunyi — dan itu memang cara menemukannya. Ganti yang
+  // seperti itu ke `spot` satu per satu saat layarnya dikerjakan.
+  //
+  // Anotasi @Deprecated sengaja BELUM dipasang: dengan 400+ pemakaian, keluaran
+  // `flutter analyze` jadi tidak terbaca, padahal justru sedang dipakai untuk
+  // memverifikasi perubahan ini. Pasang setelah build hijau.
+  //
+  // Hapus seluruh blok ini kalau sudah tidak ada yang menunjuk ke sini.
+
+  static const Color gold = ink40;                 // 170x — border hiasan
+  static const Color darkBrown = ink;              // 135x
+  static const Color creamWhite = paperBright;     // 103x
+  static const Color coffeeBrown = ink;            //  36x
+  static const Color borderWarm = ink15;           //  23x
+  static const Color textPrimary = ink;            //  20x
+  static const Color brown = ink70;                //  20x
+  static const Color textSecondary = ink70;        //  15x
+  static const Color error = inkOxide;             //  11x
+  static const Color darkCoffee = bench;           //  11x
+  static const Color buttonBrown = ink;            //   9x
+  static const Color parchmentLight = paperBright; //   8x
+  static const Color parchmentDark = paperDeep;    //   8x
+  static const Color goldAccent = ink40;           //   7x
+  static const Color parchment = paper;            //   6x
+  static const Color textMuted = ink40;            //   5x
+  static const Color lightBrown = ink40;           //   4x
+  static const Color surfaceModal = paperBright;   //   3x
+  static const Color success = inkGreen;           //   3x
+  static const Color cream = paper;                //   3x
+  static const Color backgroundParchment = paper;  //   3x
+  static const Color surfaceCard = paperBright;    //   2x
+  static const Color overlayDark = scrim;          //   2x
+  static const Color errorLight = inkOxideLit;     //   2x
+  static const Color antiqueBrass = ink40;         //   2x
+  static const Color warningLight = spotLit;       //   1x
+  static const Color warning = spot;               //   1x
+  static const Color vintageRust = spot;           //   1x
+  static const Color coffeeLight = ink70;          //   1x
+  static const Color borderLight = ink15;          //   1x
+  static const Color borderGold = ink40;           //   1x
 }

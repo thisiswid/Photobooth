@@ -21,6 +21,9 @@ analyzer:
     # palsu karena mengimpor package-nya sendiri lewat path relatif yang sudah
     # tidak berlaku setelah plugin di-vendor.
     - packages/_unused/**
+    # Berkas yang sudah tidak dipakai tapi belum bisa dihapus dari sesi
+    # ini (izin hapus dicabut). Silakan buang foldernya secara manual.
+    - _to_delete/**
 include: package:flutter_lints/flutter.yaml
 
 linter:

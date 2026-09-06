@@ -2,12 +2,12 @@ import 'dart:io' as dart_io;
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/services/camera_service.dart';
 import '../../../../core/services/sony_ptp_camera_service.dart';
 import '../../../../core/services/uvc_camera_service.dart';
 import '../../../../shared/widgets/uvc_preview.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_fonts.dart';
 
 class CameraSettingsTab extends StatefulWidget {
   const CameraSettingsTab({super.key});
@@ -279,7 +279,7 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
           children: [
             Text(
               '${_cameras.length + (_sonyStatus?.isDetected == true ? 1 : 0)} Sumber Kamera Terdeteksi',
-              style: GoogleFonts.montserrat(color: Colors.white70, fontSize: 12.sp),
+              style: AppFonts.ui(color: Colors.white70, fontSize: 12.sp),
             ),
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
@@ -290,7 +290,7 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
               icon: Icon(Icons.refresh_rounded, size: 16.r),
               label: Text(
                 'Refresh',
-                style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, fontSize: 11.sp),
+                style: AppFonts.ui(fontWeight: FontWeight.bold, fontSize: 11.sp),
               ),
             ),
           ],
@@ -312,7 +312,7 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
             ),
             child: Text(
               _errorMessage ?? 'Tidak ada kamera terdeteksi. Pastikan kamera terhubung dan coba Refresh.',
-              style: GoogleFonts.montserrat(color: Colors.amberAccent, fontSize: 12.sp),
+              style: AppFonts.ui(color: Colors.amberAccent, fontSize: 12.sp),
             ),
           )
         else
@@ -364,7 +364,7 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
                   padding: EdgeInsets.symmetric(vertical: 20.h),
                   child: Text(
                     'Preview tidak tersedia.',
-                    style: GoogleFonts.montserrat(color: Colors.white54, fontSize: 12.sp),
+                    style: AppFonts.ui(color: Colors.white54, fontSize: 12.sp),
                   ),
                 ),
               
@@ -375,7 +375,7 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
                     : (_previewController != null && _previewController!.value.isInitialized
                         ? 'Camera ID: ${_previewController!.description.name}\nResolusi: High'
                         : 'Kamera Standar'),
-                style: GoogleFonts.montserrat(color: _isUvcActive ? Colors.greenAccent : AppColors.creamWhite, fontSize: 11.sp, fontWeight: FontWeight.bold),
+                style: AppFonts.ui(color: _isUvcActive ? Colors.greenAccent : AppColors.creamWhite, fontSize: 11.sp, fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
               ),
               
@@ -394,7 +394,7 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
                         : Icon(Icons.camera_rounded, size: 18.r),
                     label: Text(
                       'Test Capture',
-                      style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, fontSize: 11.sp),
+                      style: AppFonts.ui(fontWeight: FontWeight.bold, fontSize: 11.sp),
                     ),
                   ),
                   if (_testResult != null)
@@ -407,7 +407,7 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
                       icon: Icon(Icons.delete_rounded, size: 18.r),
                       label: Text(
                         'Hapus Hasil Test',
-                        style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, fontSize: 11.sp),
+                        style: AppFonts.ui(fontWeight: FontWeight.bold, fontSize: 11.sp),
                       ),
                     ),
                 ],
@@ -417,7 +417,7 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
                 SizedBox(height: 16.h),
                 Text(
                   'Hasil Test:',
-                  style: GoogleFonts.montserrat(color: AppColors.creamWhite, fontSize: 12.sp, fontWeight: FontWeight.bold),
+                  style: AppFonts.ui(color: AppColors.creamWhite, fontSize: 12.sp, fontWeight: FontWeight.bold),
                 ),
                 SizedBox(height: 8.h),
                 ClipRRect(
@@ -467,7 +467,7 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
                   },
                   child: Text(
                     'Reset',
-                    style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, fontSize: 11.sp),
+                    style: AppFonts.ui(fontWeight: FontWeight.bold, fontSize: 11.sp),
                   ),
                 ),
               ),
@@ -524,7 +524,7 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
                   SizedBox(width: 8.w),
                   Text(
                     status?.productName ?? (isUvc ? 'USB Video (HDMI Capture Card)' : 'Sony ZV-E10'),
-                    style: GoogleFonts.montserrat(color: AppColors.creamWhite, fontWeight: FontWeight.bold, fontSize: 12.sp),
+                    style: AppFonts.ui(color: AppColors.creamWhite, fontWeight: FontWeight.bold, fontSize: 12.sp),
                   ),
                 ],
               ),
@@ -558,14 +558,14 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
                 '0x${(status?.vendorId ?? 0).toRadixString(16).toUpperCase().padLeft(4, '0')} : '
                 '0x${(status?.productId ?? 0).toRadixString(16).toUpperCase().padLeft(4, '0')} '
                 '${isUvc ? '(MacroSilicon HDMI Capture)' : ((status?.vendorId == 0x054C) ? '(Sony Corp)' : '(Detected)')}',
-                style: GoogleFonts.montserrat(color: AppColors.gold, fontSize: 11.sp),
+                style: AppFonts.ui(color: AppColors.gold, fontSize: 11.sp),
               ),
             ),
             _buildSettingRow(
               label: 'Node Path (USB)',
               child: Text(
                 status?.devicePath ?? '-',
-                style: GoogleFonts.montserrat(color: Colors.white70, fontSize: 11.sp, fontWeight: FontWeight.bold),
+                style: AppFonts.ui(color: Colors.white70, fontSize: 11.sp, fontWeight: FontWeight.bold),
               ),
             ),
             if (isUvc) ...[
@@ -585,7 +585,7 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
                     Expanded(
                       child: Text(
                         'Kamera terhubung via Kabel HDMI Capture Card (${status?.devicePath}). Stream video HDMI otomatis aktif di bagian Live Preview Test di atas.',
-                        style: GoogleFonts.montserrat(color: Colors.greenAccent, fontSize: 10.5.sp, height: 1.3),
+                        style: AppFonts.ui(color: Colors.greenAccent, fontSize: 10.5.sp, height: 1.3),
                       ),
                     ),
                   ],
@@ -610,7 +610,7 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
                   Expanded(
                     child: Text(
                       'Jika kamera sudah dicolok:\n1. Buka Pengaturan Tablet → USB Preferences: ubah "USB controlled by" ke "This device" (Mode Host).\n2. Atau hubungkan kamera lewat USB Type-C Hub / OTG Adapter.',
-                      style: GoogleFonts.montserrat(color: Colors.amberAccent, fontSize: 10.5.sp, height: 1.4),
+                      style: AppFonts.ui(color: Colors.amberAccent, fontSize: 10.5.sp, height: 1.4),
                     ),
                   ),
                 ],
@@ -688,7 +688,7 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
                 _isSonyCapturing
                     ? 'Memicu Shutter Sony & Mentransfer Foto...'
                     : (isUvc ? 'Test Capture Stream HDMI (USB Video)' : 'Test Shutter Capture (PTP Direct)'),
-                style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, fontSize: 12.sp),
+                style: AppFonts.ui(fontWeight: FontWeight.bold, fontSize: 12.sp),
               ),
             ),
           ),
@@ -708,7 +708,7 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
             SizedBox(height: 12.h),
             Text(
               'Hasil Foto Sony ZV-E10 (Full Resolution):',
-              style: GoogleFonts.montserrat(color: AppColors.creamWhite, fontSize: 11.sp, fontWeight: FontWeight.bold),
+              style: AppFonts.ui(color: AppColors.creamWhite, fontSize: 11.sp, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 6.h),
             ClipRRect(
@@ -756,11 +756,11 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
                   children: [
                     Text(
                       'Kamera Eksternal HDMI / Sony ZV-E10',
-                      style: GoogleFonts.montserrat(color: AppColors.creamWhite, fontWeight: FontWeight.bold, fontSize: 13.sp),
+                      style: AppFonts.ui(color: AppColors.creamWhite, fontWeight: FontWeight.bold, fontSize: 13.sp),
                     ),
                     Text(
                       'USB Video (${_sonyStatus?.devicePath ?? "/dev/bus/usb/002/012"})',
-                      style: GoogleFonts.montserrat(color: Colors.greenAccent, fontSize: 11.sp, fontWeight: FontWeight.w600),
+                      style: AppFonts.ui(color: Colors.greenAccent, fontSize: 11.sp, fontWeight: FontWeight.w600),
                     ),
                   ],
                 ),
@@ -782,7 +782,7 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
                     ),
                     child: Text(
                       isSelected ? '● Kamera Aktif (POV Sony)' : '📷 HDMI Terhubung',
-                      style: GoogleFonts.montserrat(
+                      style: AppFonts.ui(
                         color: isSelected ? Colors.greenAccent : Colors.amberAccent,
                         fontSize: 10.sp,
                         fontWeight: FontWeight.bold,
@@ -801,7 +801,7 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
                 onPressed: isSelected ? null : _selectUvcCamera,
                 child: Text(
                   isSelected ? 'Sedang Dipakai' : 'Gunakan Kamera Ini',
-                  style: GoogleFonts.montserrat(fontSize: 11.sp, fontWeight: FontWeight.bold),
+                  style: AppFonts.ui(fontSize: 11.sp, fontWeight: FontWeight.bold),
                 ),
               ),
             ],
@@ -848,11 +848,11 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
                   children: [
                     Text(
                       'Camera ${cam.name} — ${isExternal ? "Kamera Eksternal HDMI / UVC" : (cam.lensDirection == CameraLensDirection.front ? "Kamera Depan" : "Kamera Belakang")}',
-                      style: GoogleFonts.montserrat(color: AppColors.creamWhite, fontWeight: FontWeight.bold, fontSize: 13.sp),
+                      style: AppFonts.ui(color: AppColors.creamWhite, fontWeight: FontWeight.bold, fontSize: 13.sp),
                     ),
                     Text(
                       typeLabel,
-                      style: GoogleFonts.montserrat(color: isExternal ? Colors.greenAccent : Colors.white70, fontSize: 11.sp),
+                      style: AppFonts.ui(color: isExternal ? Colors.greenAccent : Colors.white70, fontSize: 11.sp),
                     ),
                   ],
                 ),
@@ -875,7 +875,7 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
                       ),
                       child: Text(
                         '● Kamera Aktif',
-                        style: GoogleFonts.montserrat(color: Colors.greenAccent, fontSize: 10.sp, fontWeight: FontWeight.bold),
+                        style: AppFonts.ui(color: Colors.greenAccent, fontSize: 10.sp, fontWeight: FontWeight.bold),
                       ),
                     ),
                   if (isSelected && isExternal) SizedBox(width: 8.w),
@@ -889,7 +889,7 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
                       ),
                       child: Text(
                         '📷 Eksternal',
-                        style: GoogleFonts.montserrat(color: Colors.amberAccent, fontSize: 10.sp, fontWeight: FontWeight.bold),
+                        style: AppFonts.ui(color: Colors.amberAccent, fontSize: 10.sp, fontWeight: FontWeight.bold),
                       ),
                     ),
                 ],
@@ -904,7 +904,7 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
                 onPressed: isSelected ? null : () => _selectCamera(cam),
                 child: Text(
                   'Pilih Kamera Ini',
-                  style: GoogleFonts.montserrat(fontSize: 11.sp, fontWeight: FontWeight.bold),
+                  style: AppFonts.ui(fontSize: 11.sp, fontWeight: FontWeight.bold),
                 ),
               ),
             ],
@@ -917,7 +917,7 @@ class _CameraSettingsTabState extends State<CameraSettingsTab> {
   Widget _buildSectionHeader(String title) {
     return Text(
       title,
-      style: GoogleFonts.montserrat(
+      style: AppFonts.ui(
         color: AppColors.gold,
         fontSize: 11.sp,
         fontWeight: FontWeight.bold,

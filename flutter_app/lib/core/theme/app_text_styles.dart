@@ -1,237 +1,217 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
+import 'app_fonts.dart';
 
-/// Centralized text style definitions — Premium Vintage Coffee aesthetic.
+/// Skala tipografi Sistem Kamar Gelap.
 ///
-/// Headings: Cormorant Garamond (elegant serif)
-/// UI / Body: Montserrat (clean sans-serif)
-/// Fallback:  Playfair Display (existing Google Font)
+/// Enam langkah, dan berhenti di situ:
+///
+///   44  nameplate / hero
+///   31  judul halaman
+///   22  subjudul
+///   16  teks baca
+///   14  teks kecil
+///   12  label kapital
+///
+/// Tidak ada lagi 11.5sp, 13.5sp, 9.5sp, atau 8.5sp yang dipilih per widget.
+/// Kalau sebuah teks tidak cocok dengan salah satu dari enam ini, ukurannya
+/// bukan yang salah — perannya yang belum jelas.
+///
+/// Pembagian typeface:
+///   AppFonts.display (slab)      -> judul, teks baca, angka besar
+///   AppFonts.ui      (condensed) -> label kapital, tombol, angka tabular
 abstract final class AppTextStyles {
-  // ── Display / Hero (Cormorant Garamond) ───────────────────────────────────
-  static TextStyle get displayLarge => GoogleFonts.cormorantGaramond(
-        fontSize: 72.sp,
-        fontWeight: FontWeight.w700,
-        color: AppColors.darkBrown,
-        letterSpacing: -1.0,
-        height: 1.1,
-      );
+  // ── Nameplate ────────────────────────────────────────────────────────────
 
-  static TextStyle get displayMedium => GoogleFonts.cormorantGaramond(
-        fontSize: 56.sp,
-        fontWeight: FontWeight.w700,
-        color: AppColors.darkBrown,
-        letterSpacing: -0.5,
-        height: 1.15,
-      );
-
-  static TextStyle get displaySmall => GoogleFonts.cormorantGaramond(
+  static TextStyle get displayLarge => AppFonts.display(
         fontSize: 44.sp,
-        fontWeight: FontWeight.w600,
-        color: AppColors.darkBrown,
-        height: 1.2,
+        fontWeight: FontWeight.w800,
+        color: AppColors.ink,
+        letterSpacing: -0.5,
+        height: 1.06,
       );
 
-  // ── Headlines (Cormorant Garamond) ────────────────────────────────────────
-  static TextStyle get headlineLarge => GoogleFonts.cormorantGaramond(
-        fontSize: 36.sp,
+  static TextStyle get displayMedium => AppFonts.display(
+        fontSize: 31.sp,
         fontWeight: FontWeight.w700,
-        color: AppColors.darkBrown,
+        color: AppColors.ink,
+        height: 1.18,
+      );
+
+  static TextStyle get displaySmall => AppFonts.display(
+        fontSize: 22.sp,
+        fontWeight: FontWeight.w700,
+        color: AppColors.ink,
         height: 1.25,
       );
 
-  static TextStyle get headlineMedium => GoogleFonts.cormorantGaramond(
-        fontSize: 28.sp,
-        fontWeight: FontWeight.w600,
-        color: AppColors.darkBrown,
-        height: 1.3,
+  // ── Judul ────────────────────────────────────────────────────────────────
+
+  static TextStyle get headlineLarge => AppFonts.display(
+        fontSize: 31.sp,
+        fontWeight: FontWeight.w700,
+        color: AppColors.ink,
+        height: 1.18,
       );
 
-  static TextStyle get headlineSmall => GoogleFonts.cormorantGaramond(
+  static TextStyle get headlineMedium => AppFonts.display(
         fontSize: 22.sp,
+        fontWeight: FontWeight.w700,
+        color: AppColors.ink,
+        height: 1.25,
+      );
+
+  static TextStyle get headlineSmall => AppFonts.display(
+        fontSize: 16.sp,
         fontWeight: FontWeight.w600,
-        color: AppColors.darkBrown,
+        color: AppColors.ink,
         height: 1.35,
       );
 
-  // ── Brand Name (Cormorant Garamond — large welcome) ───────────────────────
-  static TextStyle get brandNameLarge => GoogleFonts.cormorantGaramond(
-        fontSize: 32.sp,
+  // ── Judul kecil — condensed ──────────────────────────────────────────────
+
+  static TextStyle get titleLarge => AppFonts.ui(
+        fontSize: 16.sp,
         fontWeight: FontWeight.w700,
-        color: AppColors.darkBrown,
-        letterSpacing: 3.0,
-        height: 1.1,
+        color: AppColors.ink,
+        letterSpacing: 0.04,
+        height: 1.35,
       );
 
-  static TextStyle get brandSubtitle => GoogleFonts.montserrat(
-        fontSize: 11.sp,
-        fontWeight: FontWeight.w500,
-        color: AppColors.brown,
-        letterSpacing: 4.0,
-        height: 1.2,
-      );
-
-  // ── Header brand (internal pages, small left) ─────────────────────────────
-  static TextStyle get headerBrandName => GoogleFonts.cormorantGaramond(
-        fontSize: 18.sp,
+  static TextStyle get titleMedium => AppFonts.ui(
+        fontSize: 14.sp,
         fontWeight: FontWeight.w700,
-        color: AppColors.darkBrown,
-        letterSpacing: 1.2,
-        height: 1.1,
-      );
-
-  static TextStyle get headerBrandSub => GoogleFonts.montserrat(
-        fontSize: 8.sp,
-        fontWeight: FontWeight.w500,
-        color: AppColors.brown,
-        letterSpacing: 3.0,
-        height: 1.2,
-      );
-
-  // ── Titles (Montserrat) ───────────────────────────────────────────────────
-  static TextStyle get titleLarge => GoogleFonts.montserrat(
-        fontSize: 20.sp,
-        fontWeight: FontWeight.w600,
-        color: AppColors.darkBrown,
+        color: AppColors.ink,
+        letterSpacing: 0.04,
         height: 1.4,
       );
 
-  static TextStyle get titleMedium => GoogleFonts.montserrat(
-        fontSize: 16.sp,
-        fontWeight: FontWeight.w600,
-        color: AppColors.darkBrown,
-        letterSpacing: 0.15,
+  static TextStyle get titleSmall => AppFonts.ui(
+        fontSize: 12.sp,
+        fontWeight: FontWeight.w700,
+        color: AppColors.ink70,
+        letterSpacing: 0.06,
         height: 1.4,
       );
 
-  static TextStyle get titleSmall => GoogleFonts.montserrat(
-        fontSize: 14.sp,
-        fontWeight: FontWeight.w500,
-        color: AppColors.darkBrown,
-        letterSpacing: 0.1,
-        height: 1.4,
-      );
+  // ── Teks baca — slab ─────────────────────────────────────────────────────
 
-  // ── Body (Montserrat) ─────────────────────────────────────────────────────
-  static TextStyle get bodyLarge => GoogleFonts.montserrat(
+  static TextStyle get bodyLarge => AppFonts.display(
         fontSize: 16.sp,
         fontWeight: FontWeight.w400,
-        color: AppColors.textPrimary,
+        color: AppColors.ink,
+        height: 1.6,
+      );
+
+  static TextStyle get bodyMedium => AppFonts.display(
+        fontSize: 14.sp,
+        fontWeight: FontWeight.w400,
+        color: AppColors.ink,
+        height: 1.55,
+      );
+
+  static TextStyle get bodySmall => AppFonts.display(
+        fontSize: 12.sp,
+        fontWeight: FontWeight.w400,
+        color: AppColors.ink70,
         height: 1.5,
       );
 
-  static TextStyle get bodyMedium => GoogleFonts.montserrat(
+  /// Keterangan di bawah sesuatu. Dipakai 20x di seluruh aplikasi.
+  static TextStyle get caption => AppFonts.display(
         fontSize: 14.sp,
         fontWeight: FontWeight.w400,
-        color: AppColors.textPrimary,
+        color: AppColors.ink70,
         height: 1.5,
       );
 
-  static TextStyle get bodySmall => GoogleFonts.montserrat(
-        fontSize: 12.sp,
-        fontWeight: FontWeight.w400,
-        color: AppColors.textSecondary,
-        height: 1.5,
-      );
+  // ── Label kapital — condensed ────────────────────────────────────────────
+  //
+  // Kapital HANYA untuk label dan tombol. Tidak pernah untuk kalimat.
 
-  // ── Labels ────────────────────────────────────────────────────────────────
-  static TextStyle get labelLarge => GoogleFonts.montserrat(
+  static TextStyle get labelLarge => AppFonts.ui(
         fontSize: 14.sp,
-        fontWeight: FontWeight.w600,
-        color: AppColors.textPrimary,
-        letterSpacing: 0.1,
+        fontWeight: FontWeight.w700,
+        color: AppColors.ink,
+        letterSpacing: 0.13 * 14,
       );
 
-  static TextStyle get labelMedium => GoogleFonts.montserrat(
+  static TextStyle get labelMedium => AppFonts.ui(
         fontSize: 12.sp,
-        fontWeight: FontWeight.w500,
-        color: AppColors.textSecondary,
-        letterSpacing: 0.5,
-      );
-
-  static TextStyle get labelSmall => GoogleFonts.montserrat(
-        fontSize: 10.sp,
-        fontWeight: FontWeight.w500,
-        color: AppColors.textMuted,
-        letterSpacing: 0.5,
-      );
-
-  // ── Special Purpose ───────────────────────────────────────────────────────
-  static TextStyle get buttonText => GoogleFonts.montserrat(
-        fontSize: 16.sp,
-        fontWeight: FontWeight.w600,
-        color: AppColors.creamWhite,
-        letterSpacing: 0.5,
-      );
-
-  static TextStyle get buttonTextLight => GoogleFonts.montserrat(
-        fontSize: 16.sp,
-        fontWeight: FontWeight.w600,
-        color: AppColors.darkBrown,
-        letterSpacing: 0.5,
-      );
-
-  static TextStyle get countdownNumber => GoogleFonts.cormorantGaramond(
-        fontSize: 120.sp,
         fontWeight: FontWeight.w700,
-        color: AppColors.darkBrown,
-        height: 1.0,
+        color: AppColors.ink70,
+        letterSpacing: 0.14 * 12,
       );
 
-  static TextStyle get timerText => GoogleFonts.montserrat(
-        fontSize: 16.sp,
-        fontWeight: FontWeight.w700,
-        color: AppColors.darkBrown,
-        fontFeatures: [const FontFeature.tabularFigures()],
-      );
-
-  static TextStyle get timerTextWarning => GoogleFonts.montserrat(
-        fontSize: 16.sp,
-        fontWeight: FontWeight.w700,
-        color: AppColors.error,
-        fontFeatures: [const FontFeature.tabularFigures()],
-      );
-
-  static TextStyle get priceText => GoogleFonts.cormorantGaramond(
-        fontSize: 36.sp,
-        fontWeight: FontWeight.w700,
-        color: AppColors.darkBrown,
-      );
-
-  static TextStyle get sessionCode => GoogleFonts.montserrat(
-        fontSize: 20.sp,
-        fontWeight: FontWeight.w700,
-        color: AppColors.darkBrown,
-        letterSpacing: 4.0,
-        fontFeatures: [const FontFeature.tabularFigures()],
-      );
-
-  // ── Vintage Special & Kiosk Badges ─────────────────────────────────────────
-  static TextStyle get vintageStamp => GoogleFonts.cormorantGaramond(
-        fontSize: 13.sp,
-        fontWeight: FontWeight.w700,
-        color: AppColors.vintageRust,
-        letterSpacing: 2.0,
-      );
-
-  static TextStyle get vintageStepNumber => GoogleFonts.cormorantGaramond(
-        fontSize: 18.sp,
-        fontWeight: FontWeight.w700,
-        color: AppColors.creamWhite,
-      );
-
-  static TextStyle get vintagePoseCounter => GoogleFonts.montserrat(
+  static TextStyle get labelSmall => AppFonts.ui(
         fontSize: 12.sp,
+        fontWeight: FontWeight.w600,
+        color: AppColors.ink40,
+        letterSpacing: 0.16 * 12,
+      );
+
+  // ── Peran khusus ─────────────────────────────────────────────────────────
+
+  /// Teks tombol. Kapital, condensed, berjarak.
+  static TextStyle get buttonText => AppFonts.ui(
+        fontSize: 14.sp,
+        fontWeight: FontWeight.w700,
+        color: AppColors.paperBright,
+        letterSpacing: 0.13 * 14,
+      );
+
+  /// Angka hitung mundur. Slab besar — penghitung studio, bukan angka aplikasi.
+  ///
+  /// Dipotong keras per detik. TANPA scale-bounce: angka yang
+  /// membesar-mengecil membaca sebagai aplikasi, bukan mesin.
+  static TextStyle get countdownNumber => AppFonts.display(
+        fontSize: 96.sp,
         fontWeight: FontWeight.w800,
-        color: AppColors.creamWhite,
-        letterSpacing: 1.5,
+        color: AppColors.light,
+        height: 1.0,
+        fontFeatures: const [FontFeature.tabularFigures()],
       );
 
-  static TextStyle get caption => GoogleFonts.cormorantGaramond(
-        fontSize: 13.sp,
-        fontWeight: FontWeight.w500,
-        color: AppColors.textMuted,
-        fontStyle: FontStyle.italic,
+  /// Harga sesi.
+  static TextStyle get priceText => AppFonts.display(
+        fontSize: 31.sp,
+        fontWeight: FontWeight.w800,
+        color: AppColors.ink,
+        fontFeatures: const [FontFeature.tabularFigures()],
+      );
+
+  /// Timer sesi. Tabular, jadi lebarnya tidak bergeser tiap detik.
+  static TextStyle get timerText => AppFonts.ui(
+        fontSize: 14.sp,
+        fontWeight: FontWeight.w700,
+        color: AppColors.ink,
+        letterSpacing: 0.06 * 14,
+      );
+
+  static TextStyle get timerTextWarning => AppFonts.ui(
+        fontSize: 14.sp,
+        fontWeight: FontWeight.w700,
+        color: AppColors.inkOxide,
+        letterSpacing: 0.06 * 14,
+      );
+
+  /// Kode sesi.
+  static TextStyle get sessionCode => AppFonts.ui(
+        fontSize: 22.sp,
+        fontWeight: FontWeight.w700,
+        color: AppColors.ink,
+        letterSpacing: 0.18 * 22,
+      );
+
+  /// Label status tercetak — BERHASIL / GAGAL / MENCETAK.
+  ///
+  /// WAJIB menyertai setiap status. Warna spot milik tenant bisa saja merah,
+  /// jadi warna tidak boleh jadi satu-satunya penanda.
+  static TextStyle get stampLabel => AppFonts.ui(
+        fontSize: 12.sp,
+        fontWeight: FontWeight.w700,
+        color: AppColors.ink,
+        letterSpacing: 0.16 * 12,
       );
 }

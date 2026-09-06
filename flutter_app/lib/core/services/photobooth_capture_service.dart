@@ -525,7 +525,7 @@ class PhotoboothCaptureService {
           CaptureMode.windowsCamera,
           'kamera Sony tidak terjangkau: ${helper.lastError}',
         );
-        return CaptureOutcome(
+        return const CaptureOutcome(
           success: false,
           source: CaptureSource.sonyRemote,
           message: 'Kamera utama terputus. Sesi dilanjutkan dengan kualitas '
@@ -536,7 +536,7 @@ class PhotoboothCaptureService {
       if (cameraGone && !_uvcReady) {
         // Tidak ada apa pun untuk didegradasikan: capture card tidak terpasang.
         // Katakan apa adanya, jangan berpura-pura sesi masih bisa berfoto.
-        return CaptureOutcome(
+        return const CaptureOutcome(
           success: false,
           source: CaptureSource.sonyRemote,
           message: 'Kamera tidak terhubung. Periksa kabel USB kamera, lalu '

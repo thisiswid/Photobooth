@@ -196,7 +196,7 @@ class IppClient {
 
     try {
       final scheme = useTls ? 'https' : 'http';
-      final uri = Uri.parse('\$scheme://\$ip:\$port\$path');
+      final uri = Uri.parse('$scheme://$ip:$port$path');
       final req = await client.postUrl(uri).timeout(timeout);
 
       req.headers.set(HttpHeaders.contentTypeHeader, 'application/ipp');

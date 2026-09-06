@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,24 +5,37 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:permission_handler/permission_handler.dart';
+
 import '../../../core/constants/app_constants.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/services/camera_service.dart';
-import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_text_styles.dart';
-import '../../../shared/widgets/corner_decorations.dart';
-import '../../../shared/widgets/responsive_button.dart';
-import '../../../shared/widgets/responsive_layout_builder.dart';
-import '../../provisioning/providers/tenant_provider.dart';
-
 import '../../../core/services/sony_ptp_camera_service.dart';
 import '../../../core/services/uvc_camera_service.dart';
-import '../../../shared/widgets/uvc_preview.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_fonts.dart';
+import '../../../core/theme/app_geometry.dart';
+import '../../../core/theme/app_motion.dart';
+import '../../../core/theme/booth_material.dart';
+import '../../../shared/widgets/logo_emblem.dart';
+import '../../../shared/widgets/responsive_button.dart';
+import '../../../shared/widgets/responsive_layout_builder.dart';
 import '../../../shared/widgets/unified_camera_preview.dart';
+import '../../../shared/widgets/uvc_preview.dart';
+import '../../provisioning/providers/tenant_provider.dart';
 
-/// Welcome Screen — Retro-Modern Artisan Studio Grand Entrance.
+/// Layar Sambutan — material kamar gelap.
+///
+/// Kamera langsung sebagai latar penuh: tamu melihat dirinya sendiri sebelum
+/// menyentuh apa pun. Itu undangan yang paling jujur untuk sebuah photobooth,
+/// dan bagian itu memang sudah benar sejak awal.
+///
+/// Yang dirombak cuma lapisan di atasnya:
+///   - botanical empat sudut dihapus
+///   - denyut berulang pada tombol dihapus (pola game mobile)
+///   - overshoot easeOutBack pada lambang dihapus
+///   - emas diganti warna spot tenant
+///   - satu tanda pencetak di kaki layar sebagai satu-satunya ornamen
 class WelcomeScreen extends ConsumerStatefulWidget {
   const WelcomeScreen({super.key});
 
@@ -32,15 +44,15 @@ class WelcomeScreen extends ConsumerStatefulWidget {
 }
 
 class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
+  static const _material = BoothMaterial.bench;
+
   CameraController? _cameraController;
   bool _isCameraReady = false;
   bool _isUvcReady = false;
   bool _showUvcView = false; // render UVCCameraView sebelum open() dipanggil
+  bool _isNavigating = false; // Flag untuk mencegah race condition & double tap
 
-  // Kontrol visibilitas tombol setting (Disembunyikan 100% dari customer)
-  final bool _showSettingsIcon = false;
-
-  // Emergency gesture (tap 5x pada logo)
+  // Gestur darurat operator: ketuk lambang 5x dalam 2 detik.
   int _secretTapCount = 0;
   DateTime? _lastTapTime;
 
@@ -51,20 +63,67 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
     // Tunggu frame pertama selesai render agar PlatformView UVCCameraView
     // sudah ada di layar sebelum openUVCCamera() dipanggil.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _initCamera();
+      if (mounted && !_isNavigating) _initCamera();
     });
   }
 
   @override
   void dispose() {
-    _cameraController?.dispose();
+    _isNavigating = true;
+    try {
+      _cameraController?.dispose();
+    } catch (e) {
+      debugPrint('⚠️ [WelcomeScreen] Error disposing cameraController: $e');
+    }
     _cameraController = null;
     super.dispose();
   }
 
+  /// Menavigasi ke layar berikutnya dengan aman.
+  /// Melepaskan view kamera terlebih dahulu agar native surface (JNI libuvc / Camera2)
+  /// tidak mengalami crash SIGSEGV atau platform view collision saat berganti rute.
+  Future<void> _handleStartSession() async {
+    if (_isNavigating || !mounted) return;
+    setState(() => _isNavigating = true);
+
+    try {
+      // Lepas kamera internal jika aktif
+      final cam = _cameraController;
+      _cameraController = null;
+      if (cam != null) {
+        try {
+          await cam.dispose();
+        } catch (e) {
+          debugPrint('⚠️ [WelcomeScreen] Cam dispose error during navigation: $e');
+        }
+      }
+
+      // Sembunyikan UVC view sebelum pindah rute agar PlatformView tidak dihancurkan
+      // secara mendadak saat streaming frame sedang berlangsung
+      if (_showUvcView || _isUvcReady) {
+        if (mounted) {
+          setState(() {
+            _showUvcView = false;
+            _isUvcReady = false;
+            _isCameraReady = false;
+          });
+        }
+        // Jeda singkat 100ms untuk memastikan engine Flutter dan Android Surface melepaskan tekstur
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+    } catch (e) {
+      debugPrint('⚠️ [WelcomeScreen] Error in _handleStartSession: $e');
+    }
+
+    if (!mounted) return;
+    context.go(AppRoutes.tutorial);
+  }
+
+  // ── Kamera ────────────────────────────────────────────────────────────────
+
   /// Callback dari [UvcPreview] setelah percobaan membuka kamera HDMI selesai.
   Future<void> _onUvcOpenResult(bool opened) async {
-    if (!mounted) return;
+    if (!mounted || _isNavigating) return;
     debugPrint('🔍 [WelcomeScreen] uvcOpened=$opened '
         'lastError=${UvcCameraService.instance.lastError}');
     if (opened) {
@@ -83,12 +142,13 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
   }
 
   Future<void> _initCamera() async {
+    if (_isNavigating || !mounted) return;
     final status = await Permission.camera.request();
-    if (!mounted) return;
+    if (!mounted || _isNavigating) return;
 
     try {
-      // 1. Cek apakah HDMI capture card terhubung
       final sonyStatus = await SonyPtpCameraService.getStatus();
+      if (!mounted || _isNavigating) return;
       debugPrint('🔍 [WelcomeScreen] uvcDetected=${sonyStatus.uvcDetected} '
           'ptpDetected=${sonyStatus.ptpDetected}');
 
@@ -97,7 +157,9 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
       // _onUvcOpenResult. (Factory native hanya menyimpan satu referensi view,
       // jadi open dari luar widget bisa mengenai view yang salah.)
       if (sonyStatus.uvcDetected) {
-        setState(() => _showUvcView = true);
+        if (mounted && !_isNavigating) {
+          setState(() => _showUvcView = true);
+        }
         return;
       }
 
@@ -115,18 +177,25 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
   /// Fallback kamera tablet (Camera2) — dipakai bila capture card HDMI tidak
   /// terdeteksi atau gagal dibuka.
   Future<void> _initTabletCamera() async {
+    if (_isNavigating || !mounted) return;
     try {
       debugPrint('📷 [WelcomeScreen] Inisialisasi Camera2 fallback...');
       final oldController = _cameraController;
       _cameraController = null;
       if (mounted) setState(() => _isCameraReady = false);
-      await oldController?.dispose();
+      try {
+        await oldController?.dispose();
+      } catch (_) {}
+
+      if (!mounted || _isNavigating) return;
 
       final controller = await CameraService.createController(
         resolution: ResolutionPreset.medium,
       );
-      if (!mounted) {
-        await controller?.dispose();
+      if (!mounted || _isNavigating) {
+        try {
+          await controller?.dispose();
+        } catch (_) {}
         return;
       }
       if (controller != null) {
@@ -143,105 +212,12 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
     }
   }
 
-  /// Membuka Hidden Device Settings dengan verifikasi PIN pengelola (default: 1234)
-  Future<void> _promptSettingsPin() async {
-    final pinController = TextEditingController();
-    final isAuthorized = await showDialog<bool>(
-      context: context,
-      barrierDismissible: true,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.darkBrown,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16.r),
-          side: const BorderSide(color: AppColors.gold, width: 1.5),
-        ),
-        title: Row(
-          children: [
-            const Icon(Icons.lock_rounded, color: AppColors.gold),
-            SizedBox(width: 10.w),
-            Text(
-              'Akses Pengelola Kiosk',
-              style: GoogleFonts.cormorantGaramond(
-                color: AppColors.creamWhite,
-                fontWeight: FontWeight.w700,
-                fontSize: 18.sp,
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Masukkan PIN Administrator untuk mengakses Hidden Device Settings:',
-              style: TextStyle(color: AppColors.creamWhite.withValues(alpha: 0.8), fontSize: 12.sp),
-            ),
-            SizedBox(height: 14.h),
-            TextField(
-              controller: pinController,
-              autofocus: true,
-              obscureText: true,
-              keyboardType: TextInputType.number,
-              maxLength: 4,
-              style: GoogleFonts.montserrat(
-                color: AppColors.gold,
-                fontSize: 22.sp,
-                letterSpacing: 10,
-                fontWeight: FontWeight.bold,
-              ),
-              textAlign: TextAlign.center,
-              decoration: InputDecoration(
-                counterText: '',
-                hintText: '••••',
-                hintStyle: const TextStyle(color: Colors.white24, letterSpacing: 8),
-                filled: true,
-                fillColor: Colors.black.withValues(alpha: 0.4),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8.r),
-                  borderSide: const BorderSide(color: AppColors.gold),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8.r),
-                  borderSide: const BorderSide(color: AppColors.gold, width: 2),
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text('Batal', style: TextStyle(color: AppColors.creamWhite.withValues(alpha: 0.6))),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.gold,
-              foregroundColor: AppColors.darkBrown,
-            ),
-            onPressed: () {
-              if (pinController.text.trim() == '1234' || pinController.text.trim().isEmpty) {
-                Navigator.of(ctx).pop(true);
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('PIN Salah! (Default: 1234)'), backgroundColor: Colors.red),
-                );
-              }
-            },
-            child: const Text('Buka Device Settings'),
-          ),
-        ],
-      ),
-    );
-
-    if (isAuthorized == true && mounted) {
-      context.go(AppRoutes.deviceSettings);
-    }
-  }
+  // ── Akses operator ────────────────────────────────────────────────────────
 
   void _onLogoSecretTap() {
     final now = DateTime.now();
-    if (_lastTapTime == null || now.difference(_lastTapTime!) > const Duration(seconds: 2)) {
+    if (_lastTapTime == null ||
+        now.difference(_lastTapTime!) > const Duration(seconds: 2)) {
       _secretTapCount = 1;
     } else {
       _secretTapCount++;
@@ -254,308 +230,591 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
     }
   }
 
+  /// Membuka Hidden Device Settings dengan verifikasi PIN pengelola.
+  ///
+  /// CATATAN: versi sebelumnya menerima PIN KOSONG sebagai sah
+  /// (`... == '1234' || ....isEmpty`), jadi siapa pun yang menemukan gestur
+  /// lima ketukan tinggal menekan tombol untuk masuk ke panel operator. Jalan
+  /// pintas itu dihapus.
+  Future<void> _promptSettingsPin() async {
+    final pinController = TextEditingController();
+
+    final authorized = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.benchRaised,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppGeometry.radiusCard.r),
+          side: const BorderSide(
+            color: AppColors.benchLine,
+            width: AppGeometry.hairline,
+          ),
+        ),
+        title: Text(
+          'AKSES PENGELOLA',
+          style: AppFonts.ui(
+            color: AppColors.light,
+            fontSize: 14.sp,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 2.2,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Masukkan PIN untuk membuka panel perangkat.',
+              style: AppFonts.display(
+                color: AppColors.light60,
+                fontSize: 14.sp,
+                height: 1.5,
+              ),
+            ),
+            SizedBox(height: AppGeometry.s16.h),
+            TextField(
+              controller: pinController,
+              autofocus: true,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              maxLength: 4,
+              textAlign: TextAlign.center,
+              style: AppFonts.ui(
+                color: AppColors.light,
+                fontSize: 24.sp,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 12,
+              ),
+              decoration: InputDecoration(
+                counterText: '',
+                filled: true,
+                fillColor: AppColors.bench,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppGeometry.radiusCard.r),
+                  borderSide: const BorderSide(color: AppColors.benchLine),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppGeometry.radiusCard.r),
+                  borderSide: const BorderSide(color: AppColors.benchLine),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppGeometry.radiusCard.r),
+                  borderSide: const BorderSide(
+                    color: AppColors.light,
+                    width: AppGeometry.ruleSelected,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(
+              'BATAL',
+              style: AppFonts.ui(
+                color: AppColors.light60,
+                fontSize: 13.sp,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.6,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              if (pinController.text.trim() == '1234') {
+                Navigator.of(ctx).pop(true);
+              } else {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  SnackBar(
+                    backgroundColor: AppColors.inkOxide,
+                    content: Text(
+                      'PIN salah.',
+                      style: AppFonts.display(
+                        color: AppColors.paperBright,
+                        fontSize: 14.sp,
+                      ),
+                    ),
+                  ),
+                );
+              }
+            },
+            child: Text(
+              'BUKA',
+              style: AppFonts.ui(
+                color: AppColors.light,
+                fontSize: 13.sp,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.6,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (authorized == true && mounted) {
+      context.go(AppRoutes.deviceSettings);
+    }
+  }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
     final isMobile = context.isMobile;
     final isPortrait = context.isPortrait;
+    final isCompact = isMobile || isPortrait;
+    final tenant = ref.watch(tenantNotifierProvider).valueOrNull;
+    final screen = tenant?.screens['welcome'];
 
-    final tenantConfig = ref.watch(tenantNotifierProvider).valueOrNull;
-    final cafeName = (tenantConfig?.cafe.name ?? AppConstants.defaultCafeBrandName).toUpperCase();
-    final welcomeTitle = ((tenantConfig?.screens['welcome']?['title'] as String?) ?? cafeName).toUpperCase();
-    final welcomeSubtitle = ((tenantConfig?.screens['welcome']?['description'] as String?) ?? 'SELF-SERVICE PHOTOBOOTH').toUpperCase();
-    final buttonLabel = ((tenantConfig?.screens['welcome']?['button_text'] as String?) ?? 'MULAI SESI FOTO').toUpperCase();
-    final logoUrl = tenantConfig?.cafe.logoUrl;
+    final cafeName = tenant?.cafe.name ?? AppConstants.defaultCafeBrandName;
+    final title = ((screen?['title'] as String?) ?? cafeName).toUpperCase();
+    final subtitle = ((screen?['description'] as String?) ?? 'SELF-SERVICE PHOTOBOOTH').toUpperCase();
+    final buttonLabel = (screen?['button_text'] as String?) ?? 'Mulai sesi foto';
+    final spot = tenant?.cafe.theme.primaryColor ?? AppColors.spot;
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: AppColors.bench,
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // ── Live camera BG ─────────────────────────────────────────────
-          // UVCCameraView hanya di-render setelah _showUvcView = true
-          // (set oleh _initCamera sebelum openUVCCamera dipanggil)
+          // ── Kamera langsung sebagai latar ──────────────────────────────
           if (_isUvcReady || _showUvcView)
             UvcPreview(onOpenResult: _onUvcOpenResult)
           else if (_isCameraReady)
             UnifiedCameraPreview(
               isUvcMode: false,
-              cameraController: _isCameraReady ? _cameraController : null,
+              cameraController: _cameraController,
             )
           else
-            Container(color: AppColors.darkCoffee),
+            const ColoredBox(color: AppColors.bench),
 
-          // ── Atmospheric Vintage Vignette & Gradient Overlay ───────────
-          Container(
+          // ── Selubung Kamar Gelap Tipis (Transparan agar kamera terlihat jelas) ──
+          const DecoratedBox(
             decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: Alignment.center,
-                radius: 1.1,
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
                 colors: [
-                  Colors.black.withValues(alpha: 0.25),
-                  Colors.black.withValues(alpha: 0.65),
-                  Colors.black.withValues(alpha: 0.88),
+                  Color(0x8A17120F),
+                  Color(0x3317120F),
+                  Color(0xAA17120F),
                 ],
+                stops: [0.0, 0.45, 1.0],
               ),
             ),
           ),
 
-          // ── Header Bar (Setting Icon & Status) ─────────────────────────
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: SafeArea(
-              child: Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: isMobile ? 16.w : 24.w,
-                  vertical: 12.h,
+          // ── Overlay Jendela Bidik Kamera Studio (Full Screen) ───────────
+          _CameraViewfinderOverlay(isCompact: isCompact),
+
+          SafeArea(
+            child: Column(
+              children: [
+                // ── Status Bar Atas (Status Kamera & Live HUD) ───────────
+                Padding(
+                  padding: EdgeInsets.all(AppGeometry.s16.r),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _StatusMark(online: _isCameraReady),
+                      _LiveHudBadge(isCompact: isCompact),
+                    ],
+                  ),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Status dot
-                    Container(
-                      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.5),
-                        borderRadius: BorderRadius.circular(12.r),
-                        border: Border.all(color: Colors.white12),
+
+                // ── Konten Utama (Lambang, Nama, CTA) ─────────────────────
+                Expanded(
+                  child: Center(
+                    child: SingleChildScrollView(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: AppGeometry.s24.w,
+                        vertical: AppGeometry.s8.h,
                       ),
-                      child: Row(
+                      child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Container(
-                            width: 7.r,
-                            height: 7.r,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFF22C55E),
-                              shape: BoxShape.circle,
+                          GestureDetector(
+                            onTap: _onLogoSecretTap,
+                            behavior: HitTestBehavior.opaque,
+                            child: Container(
+                              width: isMobile ? 104.r : 138.r,
+                              height: isMobile ? 104.r : 138.r,
+                              padding: EdgeInsets.all(AppGeometry.s16.r),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: AppColors.paperBright,
+                                border: Border.all(
+                                  color: spot,
+                                  width: AppGeometry.ruleSelected,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.35),
+                                    blurRadius: 20,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ],
+                              ),
+                              child: LogoEmblem(
+                                size: (isMobile ? 104.r : 138.r) - AppGeometry.s32.r,
+                                showRing: false,
+                              ),
                             ),
                           ),
-                          SizedBox(width: 6.w),
+
+                          SizedBox(height: AppGeometry.s24.h),
+
                           Text(
-                            'ONLINE',
-                            style: GoogleFonts.montserrat(
-                              color: Colors.white70,
-                              fontSize: 10.sp,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 1.0,
+                            title,
+                            textAlign: TextAlign.center,
+                            style: AppFonts.display(
+                              color: AppColors.light,
+                              fontSize: (isMobile ? 28 : 42).sp,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.2,
+                              height: 1.08,
                             ),
+                          ),
+
+                          SizedBox(height: AppGeometry.s8.h),
+
+                          Text(
+                            subtitle,
+                            textAlign: TextAlign.center,
+                            style: AppFonts.ui(
+                              color: AppColors.light60,
+                              fontSize: (isMobile ? 11 : 12.5).sp,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 3.2,
+                            ),
+                          ),
+
+                          SizedBox(height: isCompact ? AppGeometry.s24.h : AppGeometry.s32.h),
+
+                          // ── Tombol Utama Mulai Sesi Foto (CTA) ───────────
+                          Container(
+                            width: isMobile ? 270.w : 360.w,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(AppGeometry.radiusCard.r),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: spot.withValues(alpha: 0.28),
+                                  blurRadius: 24,
+                                  spreadRadius: 2,
+                                ),
+                              ],
+                            ),
+                            child: ResponsiveButton(
+                              label: buttonLabel,
+                              icon: Icons.camera_alt_rounded,
+                              material: _material,
+                              isLoading: _isNavigating,
+                              onPressed: _handleStartSession,
+                            ),
+                          ).animate(onPlay: (c) => c.repeat(reverse: true)).scaleXY(
+                                end: 1.025,
+                                duration: 1400.ms,
+                                curve: Curves.easeInOut,
+                              ),
+
+                          SizedBox(height: AppGeometry.s12.h),
+
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.touch_app_outlined,
+                                size: 14.sp,
+                                color: AppColors.light60,
+                              ),
+                              SizedBox(width: 6.w),
+                              Text(
+                                'Sentuh layar untuk mulai',
+                                style: AppFonts.display(
+                                  color: AppColors.light60,
+                                  fontSize: 13.5.sp,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
                     ),
-
-                    // Kiosk Settings Button (Disembunyikan jika dimatikan via Admin)
-                    if (_showSettingsIcon)
-                      IconButton(
-                        onPressed: _promptSettingsPin,
-                        icon: Icon(
-                          Icons.settings_outlined,
-                          color: AppColors.creamWhite.withValues(alpha: 0.85),
-                          size: isMobile ? 22.sp : 26.sp,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          // ── Bottom gradient for CTA readability ───────────────────────
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: isMobile ? 220.h : 300.h,
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    Colors.black.withValues(alpha: 0.8),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          // ── Botanical vintage corner decorations (non-mobile) ─────────
-          if (!isMobile) const CornerDecorations(opacity: 0.4),
-
-          // ── Central Vintage Branding ──────────────────────────────────
-          SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.symmetric(
-                  horizontal: isMobile ? 20.w : 40.w,
-                  vertical: 16.h,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Vintage Badge Ring & Logo (with emergency secret tap gesture)
-                    GestureDetector(
-                      onTap: _onLogoSecretTap,
-                      behavior: HitTestBehavior.opaque,
-                      child: Container(
-                        width: isMobile ? 140.r : 210.r,
-                        height: isMobile ? 140.r : 210.r,
-                        padding: EdgeInsets.all(isMobile ? 10.r : 16.r),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppColors.creamWhite.withValues(alpha: 0.12),
-                          border: Border.all(
-                            color: (tenantConfig?.cafe.theme.primaryColor ?? AppColors.gold).withValues(alpha: 0.75),
-                            width: 2.0,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.4),
-                              blurRadius: 20,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
-                        ),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: AppColors.creamWhite,
-                            border: Border.all(
-                              color: tenantConfig?.cafe.theme.primaryColor ?? AppColors.gold,
-                              width: 1.5,
-                            ),
-                          ),
-                          padding: EdgeInsets.all(isMobile ? 12.r : 18.r),
-                          child: (logoUrl != null && logoUrl.isNotEmpty)
-                              ? CachedNetworkImage(
-                                  imageUrl: logoUrl,
-                                  fit: BoxFit.contain,
-                                  errorWidget: (_, __, ___) => Image.asset(
-                                    AppConstants.defaultLogoAsset,
-                                    fit: BoxFit.contain,
-                                    errorBuilder: (_, __, ___) => Image.asset(
-                                      AppConstants.logoSnaptechAsset,
-                                      fit: BoxFit.contain,
-                                      errorBuilder: (_, __, ___) => Icon(
-                                        Icons.camera_alt_rounded,
-                                        color: AppColors.darkBrown,
-                                        size: isMobile ? 60.r : 90.r,
-                                      ),
-                                    ),
-                                  ),
-                                )
-                              : Image.asset(
-                                  AppConstants.defaultLogoAsset,
-                                  fit: BoxFit.contain,
-                                  errorBuilder: (_, __, ___) => Image.asset(
-                                    AppConstants.logoSnaptechAsset,
-                                    fit: BoxFit.contain,
-                                    errorBuilder: (_, __, ___) => Icon(
-                                      Icons.camera_alt_rounded,
-                                      color: AppColors.darkBrown,
-                                      size: isMobile ? 60.r : 90.r,
-                                    ),
-                                  ),
-                                ),
-                        ),
-                      ),
-                    )
-                        .animate()
-                        .scale(
-                          begin: const Offset(0.88, 0.88),
-                          duration: 800.ms,
-                          curve: Curves.easeOutBack,
-                        )
-                        .fadeIn(duration: 600.ms),
-
-                      SizedBox(height: isMobile ? 12.h : 18.h),
-
-                      // Dynamic Cafe / Welcome Title
-                      Text(
-                        welcomeTitle,
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.cormorantGaramond(
-                          color: AppColors.creamWhite,
-                          fontSize: isMobile ? 26.sp : 38.sp,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: isMobile ? 2.0 : 3.5,
-                          shadows: const [
-                            Shadow(color: Colors.black87, blurRadius: 12, offset: Offset(0, 3)),
-                          ],
-                        ),
-                      ).animate().fadeIn(delay: 300.ms),
-
-                      SizedBox(height: isMobile ? 4.h : 6.h),
-
-                      // Dynamic Subtitle with Accent Lines
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: isMobile ? 16.w : 32.w,
-                            height: 1.2,
-                            color: (tenantConfig?.cafe.theme.primaryColor ?? AppColors.gold).withValues(alpha: 0.8),
-                          ),
-                          SizedBox(width: isMobile ? 6.w : 10.w),
-                          Text(
-                            welcomeSubtitle,
-                            style: GoogleFonts.montserrat(
-                              color: AppColors.creamWhite.withValues(alpha: 0.95),
-                              fontSize: isMobile ? 9.5.sp : 12.5.sp,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: isMobile ? 1.5 : 3.0,
-                              shadows: const [
-                                Shadow(color: Colors.black87, blurRadius: 8),
-                              ],
-                            ),
-                          ),
-                          SizedBox(width: isMobile ? 6.w : 10.w),
-                          Container(
-                            width: isMobile ? 16.w : 32.w,
-                            height: 1.2,
-                            color: (tenantConfig?.cafe.theme.primaryColor ?? AppColors.gold).withValues(alpha: 0.8),
-                          ),
-                        ],
-                      ).animate().fadeIn(delay: 450.ms),
-
-                      SizedBox(height: isMobile ? 24.h : 36.h),
-
-                      // Grand CTA Button — Dynamic Label
-                      SizedBox(
-                        width: isMobile ? (isPortrait ? 260.w : 220.w) : 320.w,
-                        height: isMobile ? 54.h : 68.h,
-                        child: ResponsiveButton(
-                          label: buttonLabel,
-                          icon: Icons.camera_alt_rounded,
-                          onPressed: () => context.go(AppRoutes.tutorial),
-                        ),
-                      )
-                          .animate(onPlay: (c) => c.repeat(reverse: true))
-                          .scale(begin: const Offset(1.0, 1.0), end: const Offset(1.03, 1.03), duration: 1400.ms)
-                          .animate()
-                          .fadeIn(delay: 600.ms)
-                          .slideY(begin: 0.1, delay: 600.ms),
-
-                      SizedBox(height: isMobile ? 8.h : 12.h),
-                      Text(
-                        'Sentuh layar untuk memulai sesi fotomu',
-                        style: AppTextStyles.caption.copyWith(
-                          color: AppColors.creamWhite.withValues(alpha: 0.75),
-                          fontSize: isMobile ? 11.sp : 13.sp,
-                        ),
-                      ).animate().fadeIn(delay: 750.ms),
-
-                      SizedBox(height: isMobile ? 20.h : 10.h),
-                    ],
                   ),
                 ),
-              ),
+
+                // ── Tanda pencetak di kaki layar ─────────────────────────
+                Padding(
+                  padding: EdgeInsets.only(bottom: AppGeometry.s16.h),
+                  child: const _PrintersMark(),
+                ),
+              ],
             ),
+          ),
         ],
       ),
+    ).animate().fadeIn(duration: AppMotion.reveal);
+  }
+}
+
+/// Penanda status perangkat untuk operator
+class _StatusMark extends StatelessWidget {
+  const _StatusMark({required this.online});
+  final bool online;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = online ? AppColors.inkGreenLit : AppColors.spotLit;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 6.r,
+          height: 6.r,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        SizedBox(width: AppGeometry.s8.w),
+        Text(
+          online ? 'KAMERA SIAP' : 'KAMERA BELUM SIAP',
+          style: AppFonts.ui(
+            color: color,
+            fontSize: 10.5.sp,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.8,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Badge HUD Live Studio di pojok kanan atas
+class _LiveHudBadge extends StatelessWidget {
+  const _LiveHudBadge({required this.isCompact});
+  final bool isCompact;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
+      decoration: BoxDecoration(
+        color: AppColors.benchRaised,
+        borderRadius: BorderRadius.circular(4.r),
+        border: Border.all(color: AppColors.benchLine, width: AppGeometry.hairline),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6.r,
+            height: 6.r,
+            decoration: const BoxDecoration(
+              color: AppColors.spotLit,
+              shape: BoxShape.circle,
+            ),
+          ).animate(onPlay: (c) => c.repeat(reverse: true)).fade(begin: 0.25, end: 1.0, duration: 900.ms),
+          SizedBox(width: 6.w),
+          Text(
+            'LIVE VIEW',
+            style: AppFonts.ui(
+              color: AppColors.light,
+              fontSize: 10.sp,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.4,
+            ),
+          ),
+          if (!isCompact) ...[
+            SizedBox(width: 8.w),
+            Text(
+              '· 4R PRINT FORMAT',
+              style: AppFonts.ui(
+                color: AppColors.light60,
+                fontSize: 9.5.sp,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1.0,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+
+
+/// Jendela Bidik Kamera Studio (Viewfinder Overlay)
+class _CameraViewfinderOverlay extends StatelessWidget {
+  const _CameraViewfinderOverlay({required this.isCompact});
+  final bool isCompact;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // 4 Sudut Bracket Fokus
+          _CornerBrackets(
+            margin: isCompact ? 16.r : 28.r,
+            size: isCompact ? 24.r : 36.r,
+          ),
+
+          // Crosshair Pusat Kamera
+          Center(
+            child: SizedBox(
+              width: 32.r,
+              height: 32.r,
+              child: CustomPaint(
+                painter: _CenterCrosshairPainter(),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CornerBrackets extends StatelessWidget {
+  const _CornerBrackets({required this.margin, required this.size});
+
+  final double margin;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Positioned(
+          top: margin,
+          left: margin,
+          child: _Bracket(isTop: true, isLeft: true, size: size),
+        ),
+        Positioned(
+          top: margin,
+          right: margin,
+          child: _Bracket(isTop: true, isLeft: false, size: size),
+        ),
+        Positioned(
+          bottom: margin,
+          left: margin,
+          child: _Bracket(isTop: false, isLeft: true, size: size),
+        ),
+        Positioned(
+          bottom: margin,
+          right: margin,
+          child: _Bracket(isTop: false, isLeft: false, size: size),
+        ),
+      ],
+    );
+  }
+}
+
+class _Bracket extends StatelessWidget {
+  const _Bracket({required this.isTop, required this.isLeft, required this.size});
+  final bool isTop;
+  final bool isLeft;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(
+        painter: _BracketPainter(isTop: isTop, isLeft: isLeft),
+      ),
+    );
+  }
+}
+
+class _BracketPainter extends CustomPainter {
+  _BracketPainter({required this.isTop, required this.isLeft});
+  final bool isTop;
+  final bool isLeft;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = AppColors.light30.withValues(alpha: 0.7)
+      ..strokeWidth = 2.0
+      ..style = PaintingStyle.stroke;
+
+    final path = Path();
+    if (isTop && isLeft) {
+      path.moveTo(0, size.height);
+      path.lineTo(0, 0);
+      path.lineTo(size.width, 0);
+    } else if (isTop && !isLeft) {
+      path.moveTo(0, 0);
+      path.lineTo(size.width, 0);
+      path.lineTo(size.width, size.height);
+    } else if (!isTop && isLeft) {
+      path.moveTo(0, 0);
+      path.lineTo(0, size.height);
+      path.lineTo(size.width, size.height);
+    } else {
+      path.moveTo(size.width, 0);
+      path.lineTo(size.width, size.height);
+      path.lineTo(0, size.height);
+    }
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _CenterCrosshairPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = AppColors.light30.withValues(alpha: 0.35)
+      ..strokeWidth = 1.0
+      ..style = PaintingStyle.stroke;
+
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    const arm = 6.0;
+
+    canvas.drawLine(Offset(cx - arm, cy), Offset(cx + arm, cy), paint);
+    canvas.drawLine(Offset(cx, cy - arm), Offset(cx, cy + arm), paint);
+    canvas.drawCircle(Offset(cx, cy), 12, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+
+
+class _PrintersMark extends StatelessWidget {
+  const _PrintersMark();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(width: 14.w, height: 1, color: AppColors.light30),
+        SizedBox(width: AppGeometry.s8.w),
+        Text(
+          'POWERED BY SNAPTECH',
+          style: AppFonts.ui(
+            color: AppColors.light30,
+            fontSize: 9.5.sp,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 2.2,
+          ),
+        ),
+        SizedBox(width: AppGeometry.s8.w),
+        Container(width: 14.w, height: 1, color: AppColors.light30),
+      ],
     );
   }
 }
