@@ -3,7 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\PhotoSession;
-use App\Models\PrintJob;
+use App\Models\PrintJob as PrintJobModel;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -16,14 +16,14 @@ use Illuminate\Support\Facades\Log;
  * Phase 1: mock with sleep delays.
  * Phase 2: replace inner logic with real CUPS / printer SDK calls.
  */
-class PrintJob extends ShouldQueue
+class PrintJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries = 2;
     public int $timeout = 90;
 
-    public function __construct(private readonly PrintJob $printJob) {}
+    public function __construct(private readonly PrintJobModel $printJob) {}
 
     public function handle(): void
     {
