@@ -76,7 +76,8 @@ GoRouter appRouter(AppRouterRef ref) {
       final session = ref.read(sessionNotifierProvider);
 
       if (!session.hasActiveSession || !session.isPaid) return AppRoutes.welcome;
-      if (session.isExpired) return AppRoutes.welcome;
+      // Layar Hasil (/result) mengelola auto-reset dan penutupan sesinya sendiri secara aman
+      if (session.isExpired && location != AppRoutes.result) return AppRoutes.welcome;
 
       // Require frame selection before camera/filter/result.
       const requiresFrame = {
