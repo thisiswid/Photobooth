@@ -1131,11 +1131,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
           children: [
             Expanded(
               child: ResponsiveButton(
-                label: 'Mirror',
-                icon: _isMirrorEnabled ? Icons.flip : Icons.flip_outlined,
-                // Terisi saat aktif, bergaris saat mati: keadaannya terbaca
-                // dari bentuknya, bukan cuma dari kata. "Mirror" / "No Mirror"
-                // yang lama ambigu — menyebut keadaan sekarang, atau perintah?
+                label: _isMirrorEnabled ? 'Mirror' : 'No Mirror',
+                icon: null,
                 variant: _isMirrorEnabled
                     ? ButtonVariant.primary
                     : ButtonVariant.outlined,

@@ -5,7 +5,7 @@ abstract final class AppConstants {
   static const String appName = 'SnapTechBooth';
   static const String appVersion = '1.0.0';
   static const String brandName = 'SNAPTECH BOOTH';
-  static const String defaultCafeBrandName = 'SNAPTECHBOOTH';
+  static const String defaultCafeBrandName = 'Fakultas Kopi';
   static const String tagline = 'Capture Your Best Moment';
   static const String logoSnaptechAsset = 'assets/images/logo-snaptech.jpg';
   static const String defaultLogoAsset = 'assets/images/logo.png';

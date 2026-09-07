@@ -190,7 +190,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
       if (!mounted || _isNavigating) return;
 
       final controller = await CameraService.createController(
-        resolution: ResolutionPreset.medium,
+        resolution: ResolutionPreset.high,
       );
       if (!mounted || _isNavigating) {
         try {

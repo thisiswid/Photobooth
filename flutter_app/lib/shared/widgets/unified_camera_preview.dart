@@ -29,12 +29,17 @@ class UnifiedCameraPreview extends StatelessWidget {
       // UvcCameraService dan membuka kamera untuk view-nya sendiri.
       child = const UvcPreview();
     } else if (cameraController != null && cameraController!.value.isInitialized) {
-      final size = cameraController!.value.previewSize;
-      final aspectRatio = size != null ? size.width / size.height : 16 / 9;
+      final previewSize = cameraController!.value.previewSize;
+      final double width = previewSize?.width ?? 1920;
+      final double height = previewSize?.height ?? 1080;
       child = Center(
-        child: AspectRatio(
-          aspectRatio: aspectRatio,
-          child: CameraPreview(cameraController!),
+        child: FittedBox(
+          fit: BoxFit.cover,
+          child: SizedBox(
+            width: width,
+            height: height,
+            child: CameraPreview(cameraController!),
+          ),
         ),
       );
     } else if (isInitializing) {
