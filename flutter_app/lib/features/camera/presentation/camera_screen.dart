@@ -795,16 +795,9 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
 
   // ── Build ─────────────────────────────────────────────────────────────────
 
-  /// Kamera adalah SATU-SATUNYA layar yang berpindah material, dan alasannya
-  /// praktis bukan estetis: layar kiosk berfungsi sebagai lampu isi untuk
-  /// wajah tamu. Layar gelap sepanjang sesi berarti wajah hanya disinari
-  /// lampu kafe.
-  ///
-  ///   merapikan diri -> kertas (layar terang, jadi sumber cahaya)
-  ///   aba-aba dan seterusnya -> kamar gelap (perhatian pindah ke lensa)
-  BoothMaterial get _material => _step == _CaptureStep.initialPreview
-      ? BoothMaterial.paper
-      : BoothMaterial.bench;
+  /// Halaman tetap menggunakan tema terang (kertas) sepanjang sesi foto agar
+  /// tampilan tetap terang, cerah, dan layar berfungsi sebagai sumber cahaya (fill light).
+  BoothMaterial get _material => BoothMaterial.paper;
 
   @override
   Widget build(BuildContext context) {
@@ -968,7 +961,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
       aspectRatio: _viewfinderAspectRatio,
       child: Container(
         decoration: BoxDecoration(
-          color: AppColors.bench,
+          color: AppColors.paperBright,
           // Jendela bidik adalah jendela, bukan kartu: radius cetak, garis
           // rambut, nol bayangan.
           borderRadius: BorderRadius.circular(AppGeometry.radiusPrint),
@@ -1042,16 +1035,12 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
 
               if (showOverlay)
                 Container(
-                  // Saat menjepret, preview ditutup RAPAT.
-                  //
-                  // Lapisan 55% transparan membuat preview hidup masih terlihat
-                  // bergerak setelah rana berbunyi — tamu melihat dirinya
-                  // bergerak padahal fotonya sudah diambil, dan itu terbaca
-                  // sebagai aplikasi yang menggantung. Saat hitungan mundur
-                  // sebaliknya: preview justru harus tetap terlihat.
+                  // Saat menjepret, preview ditutup sementara dengan flash / gelap.
+                  // Saat hitungan mundur: preview tetap terlihat terang dan jelas,
+                  // hanya diberi lapisan tipis (18% hitam) agar angka countdown tetap terbaca jelas.
                   color: opaqueOverlay
                       ? AppColors.bench
-                      : AppColors.scrim,
+                      : Colors.black.withValues(alpha: 0.18),
                 ),
               if (overlayChild != null) overlayChild,
 
