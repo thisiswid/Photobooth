@@ -66,9 +66,19 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
       if (mounted) setState(() => _qrWaitExpired = true);
     });
 
+    final sessionState = ref.read(sessionNotifierProvider);
+    final remainingSec = sessionState.remainingSeconds;
     final tenant = ref.read(tenantNotifierProvider).valueOrNull;
-    final resultTimeout = tenant?.timers.resultScreenTimeoutSeconds ?? 60;
-    _autoResetTimer = Timer(Duration(seconds: resultTimeout), () {
+    final minGraceSec = tenant?.timers.resultScreenTimeoutSeconds ?? 60;
+
+    // Menyatukan timer: gunakan sisa waktu sesi foto yang sesungguhnya.
+    // Jika sisa waktu sesi foto masih banyak (misal masih ada beberapa menit),
+    // layar hasil tetap terbuka menemani customer download QR sampai waktu sesi benar-benar habis.
+    // Jika sisa waktu sesi sudah habis / mepet, berikan batas minimal (minGraceSec)
+    // agar customer tetap punya waktu scan QR.
+    final effectiveTimeoutSec = remainingSec > minGraceSec ? remainingSec : minGraceSec;
+
+    _autoResetTimer = Timer(Duration(seconds: effectiveTimeoutSec), () {
       if (mounted) _finishSession();
     });
   }
