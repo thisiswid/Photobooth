@@ -88,7 +88,7 @@ class TimerSettingResource extends Resource
                         ->required(),
                     TextInput::make('result_screen_timeout_seconds')
                         ->label('Auto-Reset Layar Hasil (Download QR)')
-                        ->helperText('Batas waktu tampil hasil sebelum otomatis kembali ke layar awal (Default: 60 detik)')
+                        ->helperText('Batas minimal waktu layar hasil jika sisa sesi foto sudah habis (Default: 60 detik). Jika sesi foto masih ada sisa waktu, layar hasil otomatis mengikuti sisa waktu sesi tersebut.')
                         ->numeric()
                         ->minValue(10)
                         ->maxValue(600)
