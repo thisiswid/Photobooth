@@ -479,28 +479,27 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                             onTap: _onLogoSecretTap,
                             behavior: HitTestBehavior.opaque,
                             child: Container(
-                              width: isMobile ? 190.r : 240.r,
-                              height: isMobile ? 190.r : 240.r,
+                              width: isMobile ? 104.r : 138.r,
+                              height: isMobile ? 104.r : 138.r,
                               padding: EdgeInsets.all(AppGeometry.s16.r),
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 color: AppColors.paperBright,
                                 border: Border.all(
-                                  color: AppColors.ink,
-                                  width: 3.5.r,
+                                  color: spot,
+                                  width: AppGeometry.ruleSelected,
                                 ),
                                 boxShadow: [
                                   BoxShadow(
                                     color: Colors.black.withValues(alpha: 0.35),
-                                    blurRadius: 28,
-                                    offset: const Offset(0, 10),
+                                    blurRadius: 20,
+                                    offset: const Offset(0, 6),
                                   ),
                                 ],
                               ),
                               child: LogoEmblem(
-                                size: (isMobile ? 190.r : 240.r) - AppGeometry.s32.r,
+                                size: (isMobile ? 104.r : 138.r) - AppGeometry.s32.r,
                                 showRing: false,
-                                padding: EdgeInsets.all(AppGeometry.s8.r),
                               ),
                             ),
                           ),
