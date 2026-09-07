@@ -64,6 +64,7 @@ di Device Manager beserta drivernya, lalu colok ulang.
 ## 3. Pasang aplikasi
 
 Jalankan `SnapTechBooth-Setup-<versi>.exe` sebagai Administrator.
+*(Installer ini dapat diunduh langsung dari [GitHub Releases / CI/CD](ci-cd-windows.md) atau di-build otomatis).*
 
 Yang dipasang: aplikasi ke `Program Files`, `sony_camera_helper.exe` **di folder
 yang sama** (aplikasi mencarinya di situ), VC++ Redistributable, dan pintasan

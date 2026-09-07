@@ -72,6 +72,8 @@ Screen content lifecycle: `Draft → Preview → Publish → Active`
 
 ## Migrasi ke Windows (2026-09)
 - [Indeks Dokumen Migrasi](windows-migration/README.md)
+- [Pemasangan Unit Kiosk Windows](deployment-windows.md)
+- [Otomasi CI/CD Windows (GitHub Actions)](ci-cd-windows.md)
 - [PRD Migrasi Android → Windows](windows-migration/00-prd.md)
 - [Matriks Paritas Fitur](windows-migration/01-feature-parity-matrix.md)
 - [Arsitektur Target Kiosk Windows](windows-migration/02-target-architecture.md)

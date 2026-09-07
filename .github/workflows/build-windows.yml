@@ -1,0 +1,91 @@
+name: Build & Release Windows Kiosk
+
+on:
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Publish as GitHub Release?'
+        required: true
+        type: boolean
+        default: false
+      release_tag:
+        description: 'Release tag (e.g. v1.0.1 - required if Publish is true)'
+        required: false
+        type: string
+        default: ''
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Build Windows App & Installer
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Enable Windows Desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Install Dependencies
+        working-directory: flutter_app
+        run: flutter pub get
+
+      - name: Analyze Code
+        working-directory: flutter_app
+        run: flutter analyze
+
+      - name: Build Sony Camera Helper (C++)
+        run: |
+          cmake -S tools/sony_camera_helper -B tools/sony_camera_helper/build -A x64
+          cmake --build tools/sony_camera_helper/build --config Release
+
+      - name: Build Flutter Windows (Release)
+        working-directory: flutter_app
+        run: flutter build windows --release
+
+      - name: Download VC++ Redistributable
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path installer/redist
+          Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile "installer/redist/vc_redist.x64.exe"
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress
+
+      - name: Compile Inno Setup Installer
+        shell: pwsh
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer/snaptechbooth.iss
+
+      - name: Upload Installer Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SnapTechBooth-Windows-Installer
+          path: installer/output/*.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.create_release == true)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || inputs.release_tag }}
+          name: SnapTechBooth Release ${{ github.ref_type == 'tag' && github.ref_name || inputs.release_tag }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: installer/output/*.exe

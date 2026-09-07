@@ -66,9 +66,19 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
       if (mounted) setState(() => _qrWaitExpired = true);
     });
 
+    final sessionState = ref.read(sessionNotifierProvider);
+    final remainingSec = sessionState.remainingSeconds;
     final tenant = ref.read(tenantNotifierProvider).valueOrNull;
-    final resultTimeout = tenant?.timers.resultScreenTimeoutSeconds ?? 60;
-    _autoResetTimer = Timer(Duration(seconds: resultTimeout), () {
+    final minGraceSec = tenant?.timers.resultScreenTimeoutSeconds ?? 60;
+
+    // Menyatukan timer: gunakan sisa waktu sesi foto yang sesungguhnya.
+    // Jika sisa waktu sesi foto masih banyak (misal masih ada beberapa menit),
+    // layar hasil tetap terbuka menemani customer download QR sampai waktu sesi benar-benar habis.
+    // Jika sisa waktu sesi sudah habis / mepet, berikan batas minimal (minGraceSec)
+    // agar customer tetap punya waktu scan QR.
+    final effectiveTimeoutSec = remainingSec > minGraceSec ? remainingSec : minGraceSec;
+
+    _autoResetTimer = Timer(Duration(seconds: effectiveTimeoutSec), () {
       if (mounted) _finishSession();
     });
   }
@@ -99,7 +109,7 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
 
     setState(() {
       _printStatus = PrintUiStatus.preparing;
-      _printStatusMessage = 'Menyiapkan master cetak resolusi tinggi...';
+      _printStatusMessage = '';
     });
 
     String? generatedFinalUrl;
@@ -391,7 +401,7 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
                           onTap: () => setState(() => _showMotionPreview = false),
                         ),
                         _SegmentTab(
-                          icon: Icons.movie_creation_outlined,
+                          icon: Icons.gif_box_outlined,
                           isSelected: _showMotionPreview,
                           onTap: () => setState(() => _showMotionPreview = true),
                         ),
@@ -541,7 +551,7 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
                     onTap: () => setState(() => _showMotionPreview = false),
                   ),
                   _SegmentTab(
-                    icon: Icons.movie_creation_outlined,
+                    icon: Icons.gif_box_outlined,
                     isSelected: _showMotionPreview,
                     isCompact: true,
                     onTap: () => setState(() => _showMotionPreview = true),
@@ -634,8 +644,8 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
     final unlocked = hasQr || _qrWaitExpired;
 
     return ResponsiveButton(
-      label: unlocked ? '' : 'Menyiapkan...',
-      icon: unlocked ? Icons.check_rounded : null,
+      label: unlocked ? 'Selesai' : 'Menyiapkan...',
+      icon: null,
       isLoading: !unlocked,
       width: double.infinity,
       onPressed: unlocked ? _finishSession : null,
@@ -647,6 +657,7 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
   Widget _buildPrintStatusWidget(BuildContext context) {
     switch (_printStatus) {
       case PrintUiStatus.preparing:
+        return const SizedBox.shrink();
       case PrintUiStatus.printing:
         return Container(
           padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
@@ -668,7 +679,7 @@ class _FinalResultScreenState extends ConsumerState<FinalResultScreen> {
               SizedBox(width: 10.w),
               Expanded(
                 child: Text(
-                  _printStatusMessage.isNotEmpty ? _printStatusMessage : 'Sedang memproses master cetak...',
+                  _printStatusMessage.isNotEmpty ? _printStatusMessage : 'Mengirim data ke printer...',
                   style: AppFonts.ui(
                     fontSize: 11.sp,
                     fontWeight: FontWeight.w600,

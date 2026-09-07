@@ -24,8 +24,12 @@ class CustomerHeader extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isMobile = context.isMobile;
-    final cafeName = ref.watch(tenantNotifierProvider).valueOrNull?.cafe.name ??
+    final rawCafeName = ref.watch(tenantNotifierProvider).valueOrNull?.cafe.name ??
         AppConstants.defaultCafeBrandName;
+    var displayName = rawCafeName.replaceAll(RegExp(r'\s*photobooth\s*', caseSensitive: false), '').trim();
+    if (displayName.isEmpty) {
+      displayName = 'Fakultas Kopi';
+    }
 
     return Padding(
       padding: EdgeInsets.symmetric(
@@ -36,17 +40,17 @@ class CustomerHeader extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: isLeftAligned ? MainAxisAlignment.start : MainAxisAlignment.center,
         children: [
-          LogoEmblem(size: isMobile ? 26.r : 32.r, showRing: false),
-          SizedBox(width: AppGeometry.s8.w),
+          LogoEmblem(size: isMobile ? 30.r : 36.r, showRing: false),
+          SizedBox(width: AppGeometry.s12.w),
           Flexible(
             child: Text(
-              '$cafeName Photobooth',
+              displayName,
               textAlign: isLeftAligned ? TextAlign.start : TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppFonts.display(
-                fontSize: (isMobile ? 15 : 18).sp,
-                fontWeight: FontWeight.w700,
+                fontSize: (isMobile ? 18 : 22).sp,
+                fontWeight: FontWeight.w800,
                 color: material.onSurface,
                 height: 1.1,
               ),
