@@ -14,7 +14,9 @@ return Application::configure(basePath: dirname(__DIR__))
         apiPrefix: 'api',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        // Laravel 11+ tidak lagi memasang throttle:api sendiri. Tanpa baris ini
+        // seluruh route API — termasuk /api/admin/login — terbuka tanpa batas.
+        $middleware->throttleApi();
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

@@ -29,7 +29,8 @@ class HeartbeatService {
     _timer = Timer.periodic(interval, (_) {
       sendHeartbeat();
     });
-    debugPrint('💓 HeartbeatService started (interval: ${interval.inSeconds}s)');
+    debugPrint(
+        '💓 HeartbeatService started (interval: ${interval.inSeconds}s)');
   }
 
   /// Menghentikan pengiriman heartbeat
@@ -54,6 +55,8 @@ class HeartbeatService {
         // Belum di-pair, lewati
         return;
       }
+      final installationId =
+          await ProvisioningService.instance.getInstallationId();
 
       // Cek status hardware terkini
       // Status printer sesungguhnya. Di Windows ini membedakan kertas habis,
@@ -91,17 +94,20 @@ class HeartbeatService {
           ApiEndpoints.deviceHeartbeat,
           data: {
             'device_key': deviceKey.trim(),
+            'installation_id': installationId,
             'printer_status': printerStatus,
             'camera_status': cameraStatus,
             'app_version': AppConstants.appVersion,
             'capture_mode': captureMode,
             'capture_degraded': capture.isDegraded,
-            if (capture.isDegraded) 'capture_degraded_reason': capture.degradedReason,
+            if (capture.isDegraded)
+              'capture_degraded_reason': capture.degradedReason,
           },
         ),
       );
 
-      debugPrint('💓 [Perf] heartbeat — POST ${sw.elapsedMilliseconds - tPost} ms, '
+      debugPrint(
+          '💓 [Perf] heartbeat — POST ${sw.elapsedMilliseconds - tPost} ms, '
           'total ${sw.elapsedMilliseconds} ms');
       debugPrint('💓 Heartbeat sent: Key=$deviceKey, Printer=$printerStatus, '
           'Camera=$cameraStatus, Capture=$captureMode');

@@ -40,6 +40,7 @@ class SuperAdminPanelProvider extends PanelProvider
             ->discoverWidgets(in: app_path('Filament/SuperAdmin/Widgets'), for: 'App\\Filament\\SuperAdmin\\Widgets')
             ->widgets([
                 GlobalStatsOverviewWidget::class,
+                \App\Filament\SuperAdmin\Widgets\ServerHealthWidget::class,
                 CafePerformanceWidget::class,
                 \App\Filament\SuperAdmin\Widgets\GlobalLatestErrorLogsWidget::class,
             ])

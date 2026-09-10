@@ -11,6 +11,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/services/error_logger.dart';
+import '../../../core/services/provisioning_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_fonts.dart';
 import '../../../core/theme/app_geometry.dart';
@@ -98,11 +99,13 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     });
 
     final tenantConfig = ref.read(tenantNotifierProvider).valueOrNull;
+    final deviceKey = await ProvisioningService.instance.getDeviceKey();
+    final installationId =
+        await ProvisioningService.instance.getInstallationId();
     final payload = <String, dynamic>{
-      'amount': _totalAmount,
+      'device_key': deviceKey,
+      'installation_id': installationId,
       if (tenantConfig?.event?.id != null) 'event_id': tenantConfig!.event!.id,
-      if (tenantConfig?.cafe.id != null) 'cafe_id': tenantConfig!.cafe.id,
-      if (tenantConfig?.device?.id != null) 'device_id': tenantConfig!.device!.id,
     };
 
     try {
@@ -115,7 +118,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           _sessionId = data['session_id'];
           _qrString = data['qr_string'];
           _orderId = data['order_id'] ?? data['external_id'];
-          _totalAmount = (data['total_payment'] ?? data['amount'] ?? _totalAmount) as int;
+          _totalAmount =
+              (data['total_payment'] ?? data['amount'] ?? _totalAmount) as int;
           _isLoading = false;
         });
 
@@ -130,7 +134,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       setState(() {
         _isLoading = false;
         _orderId = 'MOCK-${DateTime.now().millisecondsSinceEpoch}';
-        _qrString = "00020101021226610016ID.CO.SHOPEE.WWW01189360091800216005230208216005230303UME51440014ID.CO.QRIS.WWW0215ID10243228429300303UME5204792953033605409$_totalAmount.005802ID5913SnapTechBooth6007Jakarta61051234562230519MOCK${_totalAmount}6304A079";
+        _qrString =
+            "00020101021226610016ID.CO.SHOPEE.WWW01189360091800216005230208216005230303UME51440014ID.CO.QRIS.WWW0215ID10243228429300303UME5204792953033605409$_totalAmount.005802ID5913SnapTechBooth6007Jakarta61051234562230519MOCK${_totalAmount}6304A079";
         _paymentId = 1;
         _sessionId = 1;
       });
@@ -143,14 +148,16 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     _pollTimer?.cancel();
     if (_paymentId == null) return;
 
-    _pollTimer = Timer.periodic(const Duration(milliseconds: 2500), (timer) async {
+    _pollTimer =
+        Timer.periodic(const Duration(milliseconds: 2500), (timer) async {
       if (!mounted || _isSuccess) {
         timer.cancel();
         return;
       }
 
       try {
-        final res = await DioClient.instance.dio.get('/payments/$_paymentId/status');
+        final res =
+            await DioClient.instance.dio.get('/payments/$_paymentId/status');
         if (res.data['success'] == true && res.data['data'] != null) {
           final status = res.data['data']['status'];
           if (status == 'paid') {
@@ -206,7 +213,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       case 'success':
         if (_paymentId != null) {
           try {
-            await DioClient.instance.dio.post('/payments/$_paymentId/simulate-paid');
+            await DioClient.instance.dio
+                .post('/payments/$_paymentId/simulate-paid');
           } catch (e) {
             debugPrint('Simulate paid call failed: $e');
           }
@@ -263,7 +271,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     final isPortrait = context.isPortrait;
     final isCompact = isMobile || isPortrait;
     final tenant = ref.watch(tenantNotifierProvider).valueOrNull;
-    final cafeName = (tenant?.cafe.name ?? AppConstants.defaultCafeBrandName).toUpperCase();
+    final cafeName =
+        (tenant?.cafe.name ?? AppConstants.defaultCafeBrandName).toUpperCase();
 
     if (_isSuccess) {
       return PhotoboothLayout(
@@ -274,11 +283,13 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             _PaymentBackground(isCompact: isCompact),
             Center(
               child: Container(
-                constraints: BoxConstraints(maxWidth: isCompact ? 360.w : 440.w),
+                constraints:
+                    BoxConstraints(maxWidth: isCompact ? 360.w : 440.w),
                 padding: const EdgeInsets.all(3),
                 decoration: BoxDecoration(
                   color: AppColors.paperBright,
-                  border: Border.all(color: AppColors.ink, width: AppGeometry.hairline),
+                  border: Border.all(
+                      color: AppColors.ink, width: AppGeometry.hairline),
                 ),
                 child: Container(
                   padding: EdgeInsets.symmetric(
@@ -286,7 +297,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                     vertical: isCompact ? 28.h : 36.h,
                   ),
                   decoration: BoxDecoration(
-                    border: Border.all(color: AppColors.ink40, width: AppGeometry.hairline),
+                    border: Border.all(
+                        color: AppColors.ink40, width: AppGeometry.hairline),
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -295,9 +307,11 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                       Transform.rotate(
                         angle: -0.12,
                         child: Container(
-                          padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 10.h),
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 20.w, vertical: 10.h),
                           decoration: BoxDecoration(
-                            border: Border.all(color: AppColors.inkGreen, width: 2.5),
+                            border: Border.all(
+                                color: AppColors.inkGreen, width: 2.5),
                             borderRadius: BorderRadius.circular(6.r),
                           ),
                           child: Column(
@@ -324,7 +338,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                             ],
                           ),
                         ),
-                      ).animate().scale(duration: 400.ms, curve: Curves.easeOutBack),
+                      )
+                          .animate()
+                          .scale(duration: 400.ms, curve: Curves.easeOutBack),
                       SizedBox(height: 24.h),
                       Text(
                         'Pembayaran Berhasil!',
@@ -362,16 +378,19 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             _PaymentBackground(isCompact: isCompact),
             Center(
               child: Container(
-                constraints: BoxConstraints(maxWidth: isCompact ? 320.w : 380.w),
+                constraints:
+                    BoxConstraints(maxWidth: isCompact ? 320.w : 380.w),
                 padding: const EdgeInsets.all(3),
                 decoration: BoxDecoration(
                   color: AppColors.paperBright,
-                  border: Border.all(color: AppColors.ink, width: AppGeometry.hairline),
+                  border: Border.all(
+                      color: AppColors.ink, width: AppGeometry.hairline),
                 ),
                 child: Container(
                   padding: EdgeInsets.all(AppGeometry.s24.r),
                   decoration: BoxDecoration(
-                    border: Border.all(color: AppColors.ink40, width: AppGeometry.hairline),
+                    border: Border.all(
+                        color: AppColors.ink40, width: AppGeometry.hairline),
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -598,7 +617,8 @@ class _QrisMainCard extends StatelessWidget {
                           )
                         : Center(
                             child: IconButton(
-                              icon: const Icon(Icons.refresh, color: AppColors.ink, size: 36),
+                              icon: const Icon(Icons.refresh,
+                                  color: AppColors.ink, size: 36),
                               onPressed: onRefresh,
                             ),
                           ),
@@ -651,7 +671,8 @@ class _QrisMainCard extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.tune_rounded, size: 13.sp, color: AppColors.ink70),
+                    Icon(Icons.tune_rounded,
+                        size: 13.sp, color: AppColors.ink70),
                     SizedBox(width: 6.w),
                     Text(
                       'SIMULASI PEMBAYARAN (TESTING)',
@@ -693,10 +714,6 @@ class _QrisMainCard extends StatelessWidget {
     );
   }
 }
-
-
-
-
 
 // ── Simulator Sheet (Darkroom Paper Style) ───────────────────────────────────
 
@@ -783,7 +800,8 @@ class _SimulatorSheet extends StatelessWidget {
 }
 
 class _SimBtn extends StatelessWidget {
-  const _SimBtn({required this.label, required this.color, required this.onTap});
+  const _SimBtn(
+      {required this.label, required this.color, required this.onTap});
   final String label;
   final Color color;
   final VoidCallback onTap;
@@ -1004,7 +1022,8 @@ class _RegistrationMarkPainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
     canvas.drawCircle(center, size.width / 2 - 2, paint);
     canvas.drawLine(Offset(0, center.dy), Offset(size.width, center.dy), paint);
-    canvas.drawLine(Offset(center.dx, 0), Offset(center.dx, size.height), paint);
+    canvas.drawLine(
+        Offset(center.dx, 0), Offset(center.dx, size.height), paint);
   }
 
   @override

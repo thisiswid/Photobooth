@@ -37,12 +37,8 @@ class GlobalPaymentResource extends Resource
                 TextEntry::make('session.device.name')->label('Mesin Booth')->placeholder('-'),
                 TextEntry::make('amount')->label('Nominal Transaksi')->money('IDR', locale: 'id'),
                 TextEntry::make('platform_share')
-                    ->label('Estimasi Fee Platform')
-                    ->state(function (Payment $record): string {
-                        $percentage = $record->session?->cafe?->revenue_share_percentage ?? 10;
-                        $share = ($record->amount * $percentage) / 100;
-                        return 'Rp ' . number_format($share, 0, ',', '.') . " ({$percentage}%)";
-                    })
+                    ->label('Potongan Platform')
+                    ->state('Rp 0 (dinonaktifkan)')
                     ->badge()
                     ->color('success'),
                 TextEntry::make('status')->label('Status')->badge()
@@ -100,12 +96,8 @@ class GlobalPaymentResource extends Resource
                     ->money('IDR', locale: 'id')
                     ->sortable(),
                 TextColumn::make('platform_share')
-                    ->label('Estimasi Fee Platform')
-                    ->state(function (Payment $record): string {
-                        $percentage = $record->session?->cafe?->revenue_share_percentage ?? 10;
-                        $share = ($record->amount * $percentage) / 100;
-                        return 'Rp ' . number_format($share, 0, ',', '.') . " ({$percentage}%)";
-                    })
+                    ->label('Potongan Platform')
+                    ->state('Rp 0')
                     ->badge()
                     ->color('success'),
                 TextColumn::make('status')

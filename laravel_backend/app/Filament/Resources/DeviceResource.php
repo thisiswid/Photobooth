@@ -10,6 +10,7 @@ use Filament\Schemas\Schema;
 use Filament\Resources\Resource;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
+use Filament\Actions\Action;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -24,6 +25,11 @@ class DeviceResource extends Resource
     public static function getNavigationSort(): int { return 1; }
     public static function getModelLabel(): string { return 'Perangkat / Mesin'; }
     public static function getPluralModelLabel(): string { return 'Perangkat / Mesin Kiosk'; }
+    public static function getNavigationBadge(): ?string
+    {
+        $cafe = auth()->user()?->cafe;
+        return $cafe ? $cafe->devices()->whereNotNull('installation_id')->count() . '/' . max(1, $cafe->device_limit) : null;
+    }
 
     public static function form(Schema $schema): Schema
     {
@@ -98,12 +104,29 @@ class DeviceResource extends Resource
                     ->since()
                     ->placeholder('Belum pernah')
                     ->sortable(),
+                TextColumn::make('activated_at')
+                    ->label('Aktivasi App')
+                    ->dateTime('d M Y H:i')
+                    ->placeholder('Slot belum dipakai')
+                    ->sortable(),
             ])
             ->filters([
                 SelectFilter::make('status')->options(['active' => 'Active', 'inactive' => 'Inactive']),
                 SelectFilter::make('platform')->options(['android' => 'Android', 'windows' => 'Windows']),
             ])
             ->actions([
+                Action::make('resetActivation')
+                    ->label('Reset Aktivasi App')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->visible(fn (Device $record) => filled($record->installation_id))
+                    ->action(fn (Device $record) => $record->update([
+                        'installation_id' => null,
+                        'activated_at' => null,
+                        'last_seen_at' => null,
+                        'status' => 'inactive',
+                    ])),
                 EditAction::make(),
                 DeleteAction::make(),
             ]);

@@ -92,11 +92,20 @@ class CafeResource extends Resource
                         ->label('Masa Aktif Langganan / Lisensi')
                         ->helperText('Biarkan kosong jika sistem beli putus / seumur hidup'),
                     TextInput::make('revenue_share_percentage')
-                        ->label('Platform Fee / Revenue Share (%)')
+                        ->label('Platform Fee (Dinonaktifkan)')
                         ->numeric()
-                        ->default(10.00)
+                        ->default(0)
                         ->suffix('%')
-                        ->helperText('Persentase bagi hasil platform dari omset transaksi booth'),
+                        ->disabled()
+                        ->dehydrated(false)
+                        ->helperText('Seluruh omzet bersih menjadi saldo cafe. Potongan persentase sedang tidak digunakan.'),
+                    TextInput::make('device_limit')
+                        ->label('Batas Aktivasi Mesin / App')
+                        ->numeric()
+                        ->minValue(1)
+                        ->default(1)
+                        ->required()
+                        ->helperText('Satu instalasi aplikasi aktif memakai satu slot lisensi.'),
                     FileUpload::make('logo_path')
                         ->label('Logo Cafe')
                         ->image()
@@ -136,7 +145,9 @@ class CafeResource extends Resource
 
             Section::make('Langganan & Bagi Hasil (Revenue Share)')->schema([
                 TextEntry::make('subscription_end_at')->label('Masa Aktif Lisensi')->dateTime('d M Y')->placeholder('Seumur Hidup / Permanen'),
-                TextEntry::make('revenue_share_percentage')->label('Platform Fee / Revenue Share')->suffix('%'),
+                TextEntry::make('platform_fee')->label('Potongan Platform')->money('IDR')->helperText('Dinonaktifkan'),
+                TextEntry::make('device_usage_label')->label('Pemakaian Lisensi Mesin')->badge()
+                    ->color(fn ($record) => $record->devices()->whereNotNull('installation_id')->count() >= $record->device_limit ? 'warning' : 'success'),
                 ImageEntry::make('logo_path')->label('Logo Cafe')->disk('public')->placeholder('Belum ada logo'),
                 TextEntry::make('notes')->label('Catatan Internal')->default('-')->columnSpanFull(),
             ])->columns(2),
@@ -161,14 +172,22 @@ class CafeResource extends Resource
                     ->badge()
                     ->color('info')
                     ->sortable(),
+                TextColumn::make('device_limit')
+                    ->label('Limit Lisensi')
+                    ->formatStateUsing(fn ($state, Cafe $record) => $record->devices()->whereNotNull('installation_id')->count() . ' / ' . $state)
+                    ->badge()
+                    ->color(fn ($state, Cafe $record) => $record->devices()->whereNotNull('installation_id')->count() >= $state ? 'warning' : 'success')
+                    ->sortable(),
                 TextColumn::make('session_price')
                     ->label('Harga Sesi')
                     ->money('IDR', locale: 'id_ID')
                     ->sortable(),
-                TextColumn::make('revenue_share_percentage')
-                    ->label('Bagi Hasil')
-                    ->suffix('%')
-                    ->sortable(),
+                TextColumn::make('platform_fee')
+                    ->label('Potongan')
+                    ->money('IDR')
+                    ->state(0)
+                    ->badge()
+                    ->color('success'),
                 TextColumn::make('status')
                     ->label('Status')
                     ->badge()

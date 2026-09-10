@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class TimerSetting extends Model
 {
+    use \App\Traits\LogsActivity;
+
     protected $fillable = [
         'cafe_id',
         'event_id',

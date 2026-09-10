@@ -45,7 +45,7 @@ class FrameResource extends Resource
                     ->relationship(
                         name: 'event',
                         titleAttribute: 'name',
-                        modifyQueryUsing: fn ($query) => auth()->user()?->cafe_id ? $query->where('cafe_id', auth()->user()->cafe_id)->orWhereNull('cafe_id') : $query
+                        modifyQueryUsing: fn ($query) => auth()->user()?->cafe_id ? $query->where('cafe_id', auth()->user()->cafe_id) : $query
                     )
                     ->searchable()
                     ->preload(),
@@ -233,6 +233,19 @@ class FrameResource extends Resource
                     DeleteBulkAction::make(),
                 ]),
             ]);
+    }
+
+    /**
+     * Frame tidak punya kolom cafe_id sendiri; tenant-nya lewat event.
+     * Tanpa scoping ini setiap cafe melihat dan menyunting frame semua cafe.
+     */
+    public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
+    {
+        $query = parent::getEloquentQuery();
+        if ($cafeId = auth()->user()?->cafe_id) {
+            $query->whereHas('event', fn ($q) => $q->where('cafe_id', $cafeId));
+        }
+        return $query;
     }
 
     public static function getPages(): array

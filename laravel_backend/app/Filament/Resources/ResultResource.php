@@ -159,11 +159,10 @@ class ResultResource extends Resource
         $query = parent::getEloquentQuery();
         if ($cafeId = auth()->user()?->cafe_id) {
             $query->where(function ($q) use ($cafeId) {
-                $q->whereHas('session', fn ($sq) => 
+                $q->whereHas('session', fn ($sq) =>
                     $sq->where('cafe_id', $cafeId)
                        ->orWhereHas('event', fn ($eq) => $eq->where('cafe_id', $cafeId))
-                       ->orWhereNull('cafe_id')
-                )->orDoesntHave('session');
+                );
             });
         }
         return $query;

@@ -11,25 +11,12 @@ class FrameController extends Controller
 {
     public function index(Event $event): JsonResponse
     {
-        if ($event->id == 1) {
-            $frames = Frame::where('active', true)
-                ->with('event:id,name')
-                ->latest()
-                ->get(['id', 'event_id', 'name', 'asset_url', 'pose_count', 'layout_config']);
-        } else {
-            $frames = $event->frames()
-                ->where('active', true)
-                ->with('event:id,name')
-                ->latest()
-                ->get(['id', 'event_id', 'name', 'asset_url', 'pose_count', 'layout_config']);
-
-            if ($frames->isEmpty()) {
-                $frames = Frame::where('active', true)
-                    ->with('event:id,name')
-                    ->latest()
-                    ->get(['id', 'event_id', 'name', 'asset_url', 'pose_count', 'layout_config']);
-            }
-        }
+        // Jangan pernah fallback ke frame global: event adalah batas tenant.
+        $frames = $event->frames()
+            ->where('active', true)
+            ->with('event:id,name')
+            ->latest()
+            ->get(['id', 'event_id', 'name', 'asset_url', 'pose_count', 'layout_config']);
 
         // Flatten layout_config fields to top-level for Flutter client
         $data = $frames->map(function (Frame $frame) {

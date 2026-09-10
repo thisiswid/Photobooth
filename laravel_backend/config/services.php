@@ -35,14 +35,9 @@ return [
         ],
     ],
 
-    'xendit' => [
-        'secret_key'    => env('XENDIT_SECRET_KEY'),
-        'webhook_token' => env('XENDIT_WEBHOOK_TOKEN'),
-    ],
-
     'pakasir' => [
-        'slug'    => env('PAKASIR_SLUG', 'snaptechbooth'),
-        'api_key' => env('PAKASIR_API_KEY', 'UNDovg8HAySBJSyOUiC3DcyNvwmkC8x1'),
+        'slug'    => env('PAKASIR_SLUG'),
+        'api_key' => env('PAKASIR_API_KEY'),
     ],
 
     'openagentic' => [

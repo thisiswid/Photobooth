@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\Route;
 // ── Kiosk Device Provisioning & Telemetry ─────────────────────────────────────
 Route::post('/devices/activate', [DeviceProvisioningController::class, 'activate']);
 Route::get('/devices/{device_key}/config', [DeviceProvisioningController::class, 'config']);
-Route::post('/devices/heartbeat', [DeviceProvisioningController::class, 'heartbeat']);
+Route::post('/devices/heartbeat', [DeviceProvisioningController::class, 'heartbeat'])->middleware('throttle:30,1');
 
 // ── Customer & Client Telemetry ───────────────────────────────────────────────
 Route::get('/events/{event}/screen-content', [ScreenContentController::class, 'show']);
@@ -31,11 +31,13 @@ Route::get('/events/{event}/timers', [\App\Http\Controllers\Api\TimerController:
 Route::get('/timers/active', [\App\Http\Controllers\Api\TimerController::class, 'active']);
 
 // ── Client Error Logging & Diagnostics ─────────────────────────────────────────
-Route::post('/logs', [ErrorLogController::class, 'store']);
+Route::post('/logs', [ErrorLogController::class, 'store'])->middleware('throttle:30,1');
 
 Route::post('/payments', [PaymentController::class, 'store']);
 Route::get('/payments/{payment}/status', [PaymentController::class, 'status']);
-Route::post('/payments/{payment}/simulate-paid', [PaymentController::class, 'simulatePaid']);
+// Hanya hidup di luar produksi; controllernya menolak saat APP_ENV=production.
+Route::post('/payments/{payment}/simulate-paid', [PaymentController::class, 'simulatePaid'])
+    ->middleware('throttle:10,1');
 
 Route::post('/sessions', [SessionController::class, 'store']);
 Route::post('/sessions/{session}/frame', [SessionController::class, 'setFrame']);
@@ -47,11 +49,10 @@ Route::get('/results/{token}', [ResultController::class, 'show']);
 
 // ── Payment Webhooks ──────────────────────────────────────────────────────────
 Route::post('/webhooks/pakasir', [WebhookController::class, 'pakasir']);
-Route::post('/webhooks/xendit/payment', [WebhookController::class, 'xendit']);
 
 // ── Admin REST API (Sanctum) ───────────────────────────────────────────────────
 Route::prefix('admin')->group(function () {
-    Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:6,1');
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/logout', [AuthController::class, 'logout']);
