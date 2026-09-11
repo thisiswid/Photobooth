@@ -11,7 +11,9 @@
         if (is_array($imageVal)) {
             $imageVal = reset($imageVal);
         }
-        if (is_string($imageVal)) {
+        if ($imageVal instanceof \Livewire\Features\SupportFileUploads\TemporaryUploadedFile) {
+            $initialImageUrl = $imageVal->temporaryUrl();
+        } elseif (is_string($imageVal)) {
             if (str_starts_with($imageVal, 'http://') || str_starts_with($imageVal, 'https://') || str_starts_with($imageVal, 'blob:')) {
                 $initialImageUrl = $imageVal;
             } elseif (!str_starts_with($imageVal, 'livewire-file:') && !str_starts_with($imageVal, 'livewire-tmp/')) {
@@ -45,6 +47,8 @@
         state: $wire.entangle('{{ $statePath }}'),
         initialConfig: @js($initialState),
         imageUrl: @js($initialImageUrl),
+        layoutType: $wire.entangle('data.layout_type'),
+        rightKey: $wire.entangle('data.right_column_order'),
     })"
     x-init="initEditor()"
     class="fpe-container"
@@ -137,7 +141,7 @@
         <div
             class="fpe-canvas-wrapper"
             @dragover.prevent
-            @drop.prevent="handleDrop($event)"
+            @drop.prevent="chooseUpload()"
         >
             <!-- HTML5 Interactive Canvas (visible when image loaded) -->
             <canvas
@@ -152,7 +156,7 @@
             <!-- Placeholder if image is not loaded yet -->
             <div
                 x-show="!hasImageLoaded"
-                @click="$refs.localFileInput.click()"
+                @click="chooseUpload()"
                 class="fpe-upload-placeholder"
             >
                 <svg style="width: 42px; height: 42px; color: #94a3b8; margin-bottom: 12px;" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
@@ -210,6 +214,11 @@
     function framePencilEditor(params) {
         return {
             state: params.state,
+            layoutType: params.layoutType,
+            rightKey: params.rightKey,
+            colorOperations: [],
+            loadVersion: 0,
+            cleanupListeners: [],
             imageUrl: params.imageUrl,
             currentBlobUrl: null,
             canvasW: 600,
@@ -241,59 +250,26 @@
                         this.loadImage(this.imageUrl);
                     }
 
-                    // 1. Delegated change listener on document (captures all file inputs)
-                    document.addEventListener('change', (e) => {
-                        if (e.target && e.target.type === 'file' && e.target.files && e.target.files[0]) {
-                            this.handleSelectedFile(e.target.files[0]);
-                        }
-                    }, true);
-
-                    // 2. FilePond global event listener (fires when file is added/picked)
-                    window.addEventListener('FilePond:addfile', (e) => {
-                        if (e.detail && e.detail.file && e.detail.file.file) {
-                            this.handleSelectedFile(e.detail.file.file);
-                        }
-                    });
-
-                    // 3. FilePond file removal listener (fires when file is cleared)
-                    window.addEventListener('FilePond:removefile', (e) => {
-                        setTimeout(() => {
-                            const pondWrapper = document.querySelector('.filepond--root');
-                            const hasFiles = pondWrapper && pondWrapper.querySelector('.filepond--item');
-                            if (!hasFiles) {
-                                this.clearCanvas();
-                            }
-                        }, 100);
-                    });
-
-                    // 4. Watch for Livewire / FilePond DOM image preview injection fallback
-                    const observer = new MutationObserver(() => {
-                        if (this.hasImageLoaded) return;
-                        const filepondImg = document.querySelector('.filepond--image-preview-wrapper img, .filepond--item-preview img');
-                        if (filepondImg && filepondImg.src && filepondImg.src.startsWith('blob:') && filepondImg.src !== this.imageUrl) {
-                            this.imageUrl = filepondImg.src;
-                            this.loadImage(filepondImg.src);
-                        }
-                    });
-                    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
-
-                    // 5. Watch for layout_type / right_column_order select dropdown changes
-                    document.addEventListener('change', (e) => {
-                        if (e.target && (e.target.name === 'right_column_order' || (e.target.getAttribute && e.target.getAttribute('wire:model')?.includes('right_column_order')))) {
-                            this.updateSlotPoseIndices();
-                        }
-                    });
+                    const form = this.$el.closest('form');
+                    const added = (e) => {
+                        if (e.detail?.error || !form?.contains(e.target)) return;
+                        if (e.detail?.file?.origin === 3 && this.hasImageLoaded) return;
+                        if (e.detail?.file?.file) this.handleSelectedFile(e.detail.file.file);
+                    };
+                    const removed = (e) => {
+                        if (form?.contains(e.target) && !e.target.querySelector('.filepond--item')) this.clearCanvas();
+                    };
+                    document.addEventListener('FilePond:addfile', added);
+                    document.addEventListener('FilePond:removefile', removed);
+                    this.cleanupListeners.push(() => document.removeEventListener('FilePond:addfile', added));
+                    this.cleanupListeners.push(() => document.removeEventListener('FilePond:removefile', removed));
+                    this.$watch('layoutType', () => this.detectHolesFromCanvas());
+                    this.$watch('rightKey', () => this.detectHolesFromCanvas());
                 });
             },
 
             getRightColumnOrder(count) {
-                let key = (params.initialConfig && params.initialConfig.right_column_order_key) || 'scrambled_1';
-                try {
-                    const selectEl = document.querySelector('select[name*="right_column_order"]') || document.querySelector('[wire\\:model*="right_column_order"]');
-                    if (selectEl && selectEl.value) {
-                        key = selectEl.value;
-                    }
-                } catch (e) {}
+                const key = this.rightKey || 'scrambled_1';
 
                 if (count === 4) {
                     switch (key) {
@@ -330,17 +306,31 @@
                 this.onStateChange();
             },
 
+            destroy() {
+                this.cleanupListeners.forEach(remove => remove());
+                if (this.currentBlobUrl) URL.revokeObjectURL(this.currentBlobUrl);
+                this.loadVersion++;
+            },
+
+            chooseUpload() {
+                this.$el.closest('form')?.querySelector('.filepond--browser')?.click();
+            },
+
             handleSelectedFile(file) {
                 if (!file || !(file instanceof Blob)) return;
                 if (this.currentBlobUrl) {
                     URL.revokeObjectURL(this.currentBlobUrl);
                 }
+                this.colorOperations = [];
+                this.slots = [];
                 this.currentBlobUrl = URL.createObjectURL(file);
                 this.imageUrl = this.currentBlobUrl;
                 this.loadImage(this.currentBlobUrl);
             },
 
             clearCanvas() {
+                this.loadVersion++;
+                this.colorOperations = [];
                 this.hasImageLoaded = false;
                 this.imageUrl = null;
                 this.slots = [];
@@ -393,9 +383,16 @@
 
             loadImage(src) {
                 if (!src) return;
+                const version = ++this.loadVersion;
                 const img = new Image();
                 img.crossOrigin = 'anonymous';
                 img.onload = () => {
+                    if (version !== this.loadVersion) return;
+                    if (img.naturalWidth * img.naturalHeight > 16000000) {
+                        this.clearCanvas();
+                        alert('Ukuran desain maksimal 16 megapiksel.');
+                        return;
+                    }
                     this.originalImageObj = img;
                     this.canvasW = img.naturalWidth;
                     this.canvasH = img.naturalHeight;
@@ -417,6 +414,8 @@
                     });
                 };
                 img.onerror = (err) => {
+                    if (version !== this.loadVersion) return;
+                    this.clearCanvas();
                     console.warn('FramePencilEditor: Gagal memuat gambar dari URL:', src, err);
                 };
                 img.src = src;
@@ -432,8 +431,8 @@
                 this.hoverDispX = mouseX;
                 this.hoverDispY = mouseY;
 
-                const imgX = Math.floor((mouseX / this.displayW) * this.canvasW);
-                const imgY = Math.floor((mouseY / this.displayH) * this.canvasH);
+                const imgX = Math.floor((mouseX / rect.width) * this.canvasW);
+                const imgY = Math.floor((mouseY / rect.height) * this.canvasH);
 
                 const ctx = canvas.getContext('2d');
                 if (imgX >= 0 && imgX < this.canvasW && imgY >= 0 && imgY < this.canvasH) {
@@ -454,11 +453,13 @@
                 const mouseX = event.clientX - rect.left;
                 const mouseY = event.clientY - rect.top;
 
-                const imgX = Math.floor((mouseX / this.displayW) * this.canvasW);
-                const imgY = Math.floor((mouseY / this.displayH) * this.canvasH);
+                const imgX = Math.floor((mouseX / rect.width) * this.canvasW);
+                const imgY = Math.floor((mouseY / rect.height) * this.canvasH);
 
                 const ctx = canvas.getContext('2d');
+                if (imgX < 0 || imgY < 0 || imgX >= canvas.width || imgY >= canvas.height) return;
                 const clickedPixel = ctx.getImageData(imgX, imgY, 1, 1).data;
+                if (clickedPixel[3] === 0) return;
                 const targetR = clickedPixel[0];
                 const targetG = clickedPixel[1];
                 const targetB = clickedPixel[2];
@@ -471,6 +472,11 @@
             },
 
             punchColor(tr, tg, tb, isChromaMode = false) {
+                if (!this.hasImageLoaded || this.colorOperations.length >= 30) return;
+                this.colorOperations.push({
+                    color: '#' + [tr, tg, tb].map(v => v.toString(16).padStart(2, '0')).join(''),
+                    tolerance: this.tolerance, chroma: isChromaMode,
+                });
                 const canvas = this.$refs.frameCanvas;
                 if (!canvas) return;
                 const ctx = canvas.getContext('2d');
@@ -511,6 +517,7 @@
             },
 
             resetOriginalImage() {
+                this.colorOperations = [];
                 if (this.originalImageObj) {
                     const canvas = this.$refs.frameCanvas;
                     if (canvas) {
@@ -530,114 +537,50 @@
                 const data = imgData.data;
                 const w = this.canvasW;
                 const h = this.canvasH;
-                const step = 8;
-                const transparentSamples = [];
-
-                for (let y = 0; y < h; y += step) {
-                    for (let x = 0; x < w; x += step) {
-                        const idx = (y * w + x) * 4;
-                        const a = data[idx + 3];
-                        if (a < 64) {
-                            transparentSamples.push({ x, y });
-                        }
+                // Connected transparent regions, excluding the outer transparent background.
+                const step = Math.max(1, Math.ceil(Math.max(w, h) / 900));
+                const cols = Math.ceil(w / step), rows = Math.ceil(h / step);
+                const seen = new Uint8Array(cols * rows);
+                const detected = [];
+                for (let start = 0; start < seen.length; start++) {
+                    if (seen[start]) continue;
+                    const stack = [start];
+                    let minX = cols, minY = rows, maxX = 0, maxY = 0, count = 0, edge = false;
+                    while (stack.length) {
+                        const i = stack.pop();
+                        if (seen[i]) continue;
+                        seen[i] = 1;
+                        const x = i % cols, y = Math.floor(i / cols);
+                        if (data[((y * step) * w + x * step) * 4 + 3] >= 64) continue;
+                        count++;
+                        minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+                        minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+                        edge ||= x === 0 || y === 0 || x === cols - 1 || y === rows - 1;
+                        if (x > 0) stack.push(i - 1);
+                        if (x < cols - 1) stack.push(i + 1);
+                        if (y > 0) stack.push(i - cols);
+                        if (y < rows - 1) stack.push(i + cols);
+                    }
+                    if (!edge && count * step * step > w * h * 0.01) {
+                        detected.push({x: minX * step, y: minY * step,
+                            w: Math.min(w, (maxX + 1) * step) - minX * step,
+                            h: Math.min(h, (maxY + 1) * step) - minY * step});
                     }
                 }
-
-                if (transparentSamples.length === 0) {
-                    this.slots = [];
-                    this.onStateChange();
-                    return;
-                }
-
-                const midX = w / 2;
-                const isNarrowVertical = (w / h) <= 0.45; // e.g. 600x1800 (1:3 ratio)
-
-                const getSelectedLayout = () => {
-                    try {
-                        const sel = document.querySelector('select[name*="layout_type"]') || document.querySelector('[wire\\:model*="layout_type"]');
-                        if (sel && sel.value) return sel.value;
-                    } catch (e) {}
-                    return (params.initialConfig && params.initialConfig.layout_type) || null;
-                };
-                const userLayout = getSelectedLayout();
-                const forceDouble = userLayout === 'double_6' || userLayout === 'double_8';
-
-                const clusterPoints = (samples) => {
-                    if (samples.length === 0) return [];
-                    const yMap = {};
-                    samples.forEach(p => { yMap[p.y] = true; });
-                    const yVals = Object.keys(yMap).map(Number).sort((a, b) => a - b);
-
-                    const clusters = [];
-                    let cur = [];
-                    let prev = null;
-                    yVals.forEach(y => {
-                        if (prev === null || (y - prev) <= 24) {
-                            cur.push(y);
-                        } else {
-                            if (cur.length >= 8) clusters.push(cur);
-                            cur = [y];
-                        }
-                        prev = y;
-                    });
-                    if (cur.length >= 8) clusters.push(cur);
-
-                    const foundSlots = [];
-                    clusters.forEach(c => {
-                        const minY = Math.min(...c);
-                        const maxY = Math.max(...c);
-                        const slotH = maxY - minY;
-                        if (slotH < (h * 0.06)) return;
-
-                        const rowPts = samples.filter(p => p.y >= minY && p.y <= maxY);
-                        if (rowPts.length === 0) return;
-                        const xVals = rowPts.map(p => p.x);
-                        const minX = Math.min(...xVals);
-                        const maxX = Math.max(...xVals);
-                        const slotW = maxX - minX;
-                        if (slotW < (w * 0.12)) return;
-
-                        foundSlots.push({ x: minX, y: minY, w: slotW, h: slotH });
-                    });
-                    return foundSlots;
-                };
-
-                const marginCenter = Math.max(10, Math.round(w * 0.02));
-                const leftPts = transparentSamples.filter(p => p.x < (midX - marginCenter));
-                const rightPts = transparentSamples.filter(p => p.x >= (midX + marginCenter));
-                const leftSlots = clusterPoints(leftPts);
-                const rightSlots = clusterPoints(rightPts);
-
-                let detected = [];
-                // Check if this is a double column layout
-                const isDouble = forceDouble || (!isNarrowVertical && leftSlots.length >= 2 && rightSlots.length >= 2);
-
-                if (isDouble && (leftSlots.length > 0 || rightSlots.length > 0)) {
-                    // Double Column Layout: Left Column & Right Column
-                    const rightOrder = this.getRightColumnOrder(Math.max(rightSlots.length, 3));
-                    leftSlots.forEach((s, idx) => { s.pose_index = idx; });
-                    rightSlots.forEach((s, idx) => {
-                        s.pose_index = rightOrder[idx] !== undefined ? rightOrder[idx] : idx;
-                    });
-                    detected = [...leftSlots, ...rightSlots];
-                } else {
-                    // Single Column Layout
-                    detected = clusterPoints(transparentSamples);
-                    detected.forEach((s, idx) => { s.pose_index = idx; });
-                }
+                const double = ['double_6', 'double_8'].includes(this.layoutType);
+                detected.sort((a, b) => double
+                    ? ((a.x < w / 2 ? 0 : 1) - (b.x < w / 2 ? 0 : 1) || a.y - b.y)
+                    : a.y - b.y || a.x - b.x);
+                const half = this.layoutType === 'double_8' ? 4 : 3;
+                const order = this.getRightColumnOrder(half);
+                detected.forEach((slot, i) => slot.pose_index = double && i >= half ? (order[i - half] ?? 0) : i);
 
                 this.slots = detected;
                 this.onStateChange();
             },
 
             onStateChange() {
-                const getSelectedLayout = () => {
-                    try {
-                        const sel = document.querySelector('select[name*="layout_type"]') || document.querySelector('[wire\\:model*="layout_type"]');
-                        if (sel && sel.value) return sel.value;
-                    } catch (e) {}
-                    return (params.initialConfig && params.initialConfig.layout_type) || null;
-                };
+                const getSelectedLayout = () => this.layoutType || 'single';
                 const userLayoutType = getSelectedLayout();
 
                 let layoutType;
@@ -649,18 +592,14 @@
                 } else if (userLayoutType === 'double_8') {
                     layoutType = 'double_8';
                     poseCount = 4;
-                } else if (this.slots.length === 6) {
-                    layoutType = 'double_6';
-                    poseCount = 3;
-                } else if (this.slots.length === 8) {
-                    layoutType = 'double_8';
-                    poseCount = 4;
                 } else {
                     layoutType = this.slots.length <= 4 ? 'single' : 'grid';
                     poseCount = this.slots.length > 0 ? Math.max(...this.slots.map(s => s.pose_index + 1)) : 4;
                 }
 
                 const layoutConfig = {
+                    editor_version: 2,
+                    color_operations: this.colorOperations,
                     layout_type: layoutType,
                     slot_count: this.slots.length,
                     pose_count: poseCount,

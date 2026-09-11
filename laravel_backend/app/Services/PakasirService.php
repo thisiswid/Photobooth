@@ -28,11 +28,12 @@ class PakasirService
     /**
      * Tandai pembayaran lunas dan nyalakan timer sesinya.
      */
-    protected static function markPaid(Payment $payment): void
+    protected static function markPaid(Payment $payment, bool $isSimulated = false): void
     {
         $payment->update([
             'status'  => 'paid',
             'paid_at' => now(),
+            'is_simulated' => $isSimulated,
         ]);
 
         if ($payment->session) {
@@ -161,27 +162,11 @@ class PakasirService
 
     /**
      * Simulasi pembayaran lunas untuk pengembangan dan pengujian.
-     * Pemanggilnya (PaymentController) yang menolak jalan di produksi.
+     * Transaksi simulasi hanya dicatat secara lokal dan tidak dikirim ke
+     * gateway Pakasir agar tidak tercampur dengan dana pembayaran sebenarnya.
      */
     public static function simulatePaid(Payment $payment): void
     {
-        $slug = self::getSlug();
-        $apiKey = self::getApiKey();
-        $orderId = $payment->xendit_payment_id;
-
-        if ($orderId && !empty($slug) && !empty($apiKey)) {
-            try {
-                Http::timeout(5)->post('https://app.pakasir.com/api/paymentsimulation', [
-                    'project'  => $slug,
-                    'order_id' => $orderId,
-                    'amount'   => (int) $payment->amount,
-                    'api_key'  => $apiKey,
-                ]);
-            } catch (\Throwable $e) {
-                Log::warning("Pakasir payment simulation API call exception: " . $e->getMessage());
-            }
-        }
-
-        self::markPaid($payment);
+        self::markPaid($payment, true);
     }
 }

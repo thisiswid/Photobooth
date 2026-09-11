@@ -121,4 +121,75 @@ class DeviceLicenseAndFrameIsolationTest extends TestCase
         $this->assertSame(100000, $cafe->net_revenue);
         $this->assertSame(50000, $cafe->available_balance);
     }
+
+    public function test_simulated_payment_requires_cafe_toggle_and_never_enters_real_balance(): void
+    {
+        $cafe = Cafe::create([
+            'name' => 'Cafe Simulasi',
+            'slug' => 'cafe-simulasi',
+            'code' => 'PB-SIM',
+            'status' => 'active',
+            'payment_simulation_enabled' => false,
+        ]);
+        $device = $cafe->devices()->first();
+        $device->update(['installation_id' => '44444444-4444-4444-8444-444444444444']);
+        $session = Session::create(['cafe_id' => $cafe->id, 'device_id' => $device->id, 'status' => 'pending']);
+        $payment = Payment::create(['session_id' => $session->id, 'amount' => 25000, 'status' => 'pending']);
+        $credentials = [
+            'device_key' => $device->device_key,
+            'installation_id' => $device->installation_id,
+        ];
+
+        $this->postJson("/api/payments/{$payment->id}/simulate-paid", $credentials)->assertForbidden();
+
+        $cafe->update(['payment_simulation_enabled' => true]);
+        $this->postJson("/api/payments/{$payment->id}/simulate-paid", $credentials)
+            ->assertOk()
+            ->assertJsonPath('data.is_simulated', true);
+
+        $payment->refresh();
+        $cafe->refresh();
+        $this->assertTrue($payment->is_simulated);
+        $this->assertSame(0, $cafe->total_revenue);
+        $this->assertSame(25000, $cafe->simulation_revenue);
+        $this->assertSame(0, $cafe->available_balance);
+    }
+
+    public function test_other_cafe_device_cannot_simulate_a_payment(): void
+    {
+        $cafeA = Cafe::create(['name' => 'Cafe A', 'slug' => 'sim-a', 'code' => 'SIM-A', 'status' => 'active', 'payment_simulation_enabled' => true]);
+        $cafeB = Cafe::create(['name' => 'Cafe B', 'slug' => 'sim-b', 'code' => 'SIM-B', 'status' => 'active', 'payment_simulation_enabled' => true]);
+        $deviceA = $cafeA->devices()->first();
+        $deviceB = $cafeB->devices()->first();
+        $deviceA->update(['installation_id' => '55555555-5555-4555-8555-555555555555']);
+        $deviceB->update(['installation_id' => '66666666-6666-4666-8666-666666666666']);
+        $session = Session::create(['cafe_id' => $cafeA->id, 'device_id' => $deviceA->id, 'status' => 'pending']);
+        $payment = Payment::create(['session_id' => $session->id, 'amount' => 25000, 'status' => 'pending']);
+
+        $this->postJson("/api/payments/{$payment->id}/simulate-paid", [
+            'device_key' => $deviceB->device_key,
+            'installation_id' => $deviceB->installation_id,
+        ])->assertForbidden();
+
+        $this->assertSame('pending', $payment->fresh()->status);
+    }
+
+    public function test_other_cafe_device_cannot_track_a_payment(): void
+    {
+        $cafeA = Cafe::create(['name' => 'Cafe Track A', 'slug' => 'track-a', 'code' => 'TRACK-A', 'status' => 'active']);
+        $cafeB = Cafe::create(['name' => 'Cafe Track B', 'slug' => 'track-b', 'code' => 'TRACK-B', 'status' => 'active']);
+        $deviceA = $cafeA->devices()->first();
+        $deviceB = $cafeB->devices()->first();
+        $deviceA->update(['installation_id' => '77777777-7777-4777-8777-777777777777']);
+        $deviceB->update(['installation_id' => '88888888-8888-4888-8888-888888888888']);
+        $session = Session::create(['cafe_id' => $cafeA->id, 'device_id' => $deviceA->id, 'status' => 'pending']);
+        $payment = Payment::create(['session_id' => $session->id, 'amount' => 25000, 'status' => 'pending']);
+
+        $this->getJson("/api/payments/{$payment->id}/status?device_key={$deviceB->device_key}&installation_id={$deviceB->installation_id}")
+            ->assertForbidden();
+
+        $this->getJson("/api/payments/{$payment->id}/status?device_key={$deviceA->device_key}&installation_id={$deviceA->installation_id}")
+            ->assertOk()
+            ->assertJsonPath('data.payment_id', $payment->id);
+    }
 }

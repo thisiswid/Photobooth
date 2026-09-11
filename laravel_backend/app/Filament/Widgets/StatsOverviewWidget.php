@@ -29,8 +29,9 @@ class StatsOverviewWidget extends BaseWidget
         $todayErrors = (clone $errorQuery)->whereDate('created_at', today())->count();
         $todaySessions = (clone $sessionQuery)->whereDate('created_at', today())->count();
         $finishedSessions = (clone $sessionQuery)->where('status', 'finished')->whereDate('created_at', today())->count();
-        $paidPayments = (clone $paymentQuery)->where('status', 'paid')->whereDate('created_at', today())->count();
-        $todayRevenue = (clone $paymentQuery)->where('status', 'paid')->whereDate('created_at', today())->sum('amount');
+        $paidPayments = (clone $paymentQuery)->where('status', 'paid')->where('is_simulated', false)->whereDate('created_at', today())->count();
+        $todayRevenue = (clone $paymentQuery)->where('status', 'paid')->where('is_simulated', false)->whereDate('created_at', today())->sum('amount');
+        $simulationRevenue = (clone $paymentQuery)->where('status', 'paid')->where('is_simulated', true)->whereDate('created_at', today())->sum('amount');
         $cafe = $cafeId ? \App\Models\Cafe::find($cafeId) : null;
 
         return [
@@ -44,7 +45,7 @@ class StatsOverviewWidget extends BaseWidget
                 ->description('Paid hari ini')
                 ->color('warning'),
             Stat::make('Total Pendapatan', 'Rp ' . number_format($todayRevenue, 0, ',', '.'))
-                ->description('Hari ini')
+                ->description('Dana asli hari ini; simulasi Rp ' . number_format($simulationRevenue, 0, ',', '.'))
                 ->color('success'),
             Stat::make('Saldo Siap Ditarik', 'Rp ' . number_format($cafe?->available_balance ?? 0, 0, ',', '.'))
                 ->description($cafe && $cafe->pending_withdrawal > 0

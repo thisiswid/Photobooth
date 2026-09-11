@@ -17,6 +17,7 @@ class CafePerformanceWidget extends ChartWidget
         $days = collect(range(6, 0))->map(function ($daysAgo) {
             $date = Carbon::today()->subDays($daysAgo);
             $revenue = Payment::where('status', 'paid')
+                ->where('is_simulated', false)
                 ->whereDate('created_at', $date)
                 ->sum('amount');
 

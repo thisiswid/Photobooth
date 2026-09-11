@@ -36,6 +36,9 @@ class GlobalPaymentResource extends Resource
                 TextEntry::make('session.cafe.name')->label('Tenant / Cafe')->badge()->color('primary')->placeholder('Tanpa Cafe'),
                 TextEntry::make('session.device.name')->label('Mesin Booth')->placeholder('-'),
                 TextEntry::make('amount')->label('Nominal Transaksi')->money('IDR', locale: 'id'),
+                TextEntry::make('is_simulated')->label('Jenis Dana')->badge()
+                    ->formatStateUsing(fn ($state) => $state ? 'Dana Simulasi' : 'Dana Asli')
+                    ->color(fn ($state) => $state ? 'warning' : 'success'),
                 TextEntry::make('platform_share')
                     ->label('Potongan Platform')
                     ->state('Rp 0 (dinonaktifkan)')
@@ -95,6 +98,9 @@ class GlobalPaymentResource extends Resource
                     ->label('Nominal Transaksi')
                     ->money('IDR', locale: 'id')
                     ->sortable(),
+                TextColumn::make('is_simulated')->label('Jenis Dana')->badge()
+                    ->formatStateUsing(fn ($state) => $state ? 'Simulasi' : 'Asli')
+                    ->color(fn ($state) => $state ? 'warning' : 'success'),
                 TextColumn::make('platform_share')
                     ->label('Potongan Platform')
                     ->state('Rp 0')
@@ -122,6 +128,8 @@ class GlobalPaymentResource extends Resource
                         'pending' => 'Pending',
                         'failed'  => 'Failed',
                     ]),
+                SelectFilter::make('is_simulated')->label('Jenis Dana')
+                    ->options(['0' => 'Dana Asli', '1' => 'Dana Simulasi']),
             ])
             ->actions([
                 ViewAction::make(),

@@ -27,11 +27,15 @@ class TenantConfig {
 
   factory TenantConfig.fromJson(Map<String, dynamic> json) {
     return TenantConfig(
-      device: json['device'] != null ? DeviceModel.fromJson(json['device'] as Map<String, dynamic>) : null,
+      device: json['device'] != null
+          ? DeviceModel.fromJson(json['device'] as Map<String, dynamic>)
+          : null,
       cafe: json['cafe'] != null
           ? CafeModel.fromJson(json['cafe'] as Map<String, dynamic>)
           : CafeModel.fallback(),
-      event: json['event'] != null ? EventInfo.fromJson(json['event'] as Map<String, dynamic>) : null,
+      event: json['event'] != null
+          ? EventInfo.fromJson(json['event'] as Map<String, dynamic>)
+          : null,
       pricing: json['pricing'] != null
           ? PricingConfig.fromJson(json['pricing'] as Map<String, dynamic>)
           : const PricingConfig(),
@@ -39,7 +43,8 @@ class TenantConfig {
           ? TimerConfig.fromJson(json['timers'] as Map<String, dynamic>)
           : const TimerConfig(),
       hardware: json['hardware_defaults'] != null
-          ? HardwareConfig.fromJson(json['hardware_defaults'] as Map<String, dynamic>)
+          ? HardwareConfig.fromJson(
+              json['hardware_defaults'] as Map<String, dynamic>)
           : const HardwareConfig(),
       frames: (json['frames'] as List<dynamic>?)
               ?.map((e) => FrameItem.fromJson(e as Map<String, dynamic>))
@@ -122,6 +127,7 @@ class CafeModel {
   final String? logoUrl;
   final bool isAiEnabled;
   final bool showKioskSettings;
+  final bool paymentSimulationEnabled;
   final ThemeConfig theme;
 
   const CafeModel({
@@ -132,6 +138,7 @@ class CafeModel {
     this.logoUrl,
     this.isAiEnabled = true,
     this.showKioskSettings = true,
+    this.paymentSimulationEnabled = false,
     required this.theme,
   });
 
@@ -144,6 +151,8 @@ class CafeModel {
       logoUrl: json['logo_url'] as String?,
       isAiEnabled: json['is_ai_enabled'] as bool? ?? true,
       showKioskSettings: json['show_kiosk_settings'] as bool? ?? true,
+      paymentSimulationEnabled:
+          json['payment_simulation_enabled'] as bool? ?? false,
       theme: json['theme'] != null
           ? ThemeConfig.fromJson(json['theme'] as Map<String, dynamic>)
           : ThemeConfig.fallback(),
@@ -159,6 +168,7 @@ class CafeModel {
       'logo_url': logoUrl,
       'is_ai_enabled': isAiEnabled,
       'show_kiosk_settings': showKioskSettings,
+      'payment_simulation_enabled': paymentSimulationEnabled,
       'theme': theme.toJson(),
     };
   }
@@ -290,7 +300,8 @@ class TimerConfig {
       cameraCountdownSeconds: json['camera_countdown_seconds'] as int? ?? 5,
       sessionTimeoutSeconds: json['session_timeout_seconds'] as int? ?? 300,
       paymentTimeoutSeconds: json['payment_timeout_seconds'] as int? ?? 180,
-      resultScreenTimeoutSeconds: json['result_screen_timeout_seconds'] as int? ?? 60,
+      resultScreenTimeoutSeconds:
+          json['result_screen_timeout_seconds'] as int? ?? 60,
       retakeTimeoutSeconds: json['retake_timeout_seconds'] as int? ?? 10,
     );
   }

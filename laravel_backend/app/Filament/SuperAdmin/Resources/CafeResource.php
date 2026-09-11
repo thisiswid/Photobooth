@@ -69,6 +69,10 @@ class CafeResource extends Resource
                         ->label('Tampilkan Tombol Setting di Layar Kiosk')
                         ->helperText('Jika dinonaktifkan, icon gear di pojok layar awal disembunyikan dari pengunjung')
                         ->default(true),
+                    \Filament\Forms\Components\Toggle::make('payment_simulation_enabled')
+                        ->label('Aktifkan Simulasi Pembayaran')
+                        ->helperText('Khusus testing. Dana simulasi tidak masuk omzet atau saldo penarikan cafe.')
+                        ->default(false),
                 ])->columns(2),
 
             Section::make('Kontak & PIC')
@@ -133,6 +137,9 @@ class CafeResource extends Resource
                     }),
                 TextEntry::make('devices_count')->label('Jumlah Mesin Booth')
                     ->state(fn ($record) => $record->devices()->count() . ' Mesin'),
+                TextEntry::make('payment_simulation_enabled')->label('Simulasi Pembayaran')->badge()
+                    ->formatStateUsing(fn ($state) => $state ? 'Aktif' : 'Nonaktif')
+                    ->color(fn ($state) => $state ? 'warning' : 'gray'),
                 TextEntry::make('created_at')->label('Bergabung Sejak')->dateTime('d M Y'),
             ])->columns(3),
 
@@ -209,6 +216,11 @@ class CafeResource extends Resource
                     ->trueIcon('heroicon-o-cog-6-tooth')
                     ->falseIcon('heroicon-o-eye-slash')
                     ->trueColor('primary')
+                    ->falseColor('gray'),
+                IconColumn::make('payment_simulation_enabled')
+                    ->label('Simulasi Bayar')
+                    ->boolean()
+                    ->trueColor('warning')
                     ->falseColor('gray'),
                 TextColumn::make('subscription_end_at')
                     ->label('Masa Aktif')
