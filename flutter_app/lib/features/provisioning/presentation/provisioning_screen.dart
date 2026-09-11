@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/errors/app_exception.dart';
+import '../../../core/errors/error_handler.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/services/provisioning_service.dart';
 import '../providers/tenant_provider.dart';
@@ -55,10 +57,11 @@ class _ProvisioningScreenState extends ConsumerState<ProvisioningScreen> {
       final deviceKey = _keyController.text.trim().toUpperCase();
       final customUrl = _urlController.text.trim();
 
-      final config = await ref.read(tenantNotifierProvider.notifier).activateDevice(
-            deviceKey: deviceKey,
-            customBaseUrl: customUrl.isNotEmpty ? customUrl : null,
-          );
+      final config =
+          await ref.read(tenantNotifierProvider.notifier).activateDevice(
+                deviceKey: deviceKey,
+                customBaseUrl: customUrl.isNotEmpty ? customUrl : null,
+              );
 
       if (!mounted) return;
 
@@ -72,7 +75,8 @@ class _ProvisioningScreenState extends ConsumerState<ProvisioningScreen> {
               Expanded(
                 child: Text(
                   'Aktivasi Berhasil! Terhubung ke: ${config.cafe.name}',
-                  style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold),
+                  style:
+                      TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold),
                 ),
               ),
             ],
@@ -85,9 +89,16 @@ class _ProvisioningScreenState extends ConsumerState<ProvisioningScreen> {
       context.go(AppRoutes.welcome);
     } catch (e) {
       if (!mounted) return;
+      final message = e is AppException
+          ? ErrorHandler.toUserMessage(e)
+          : 'Aktivasi perangkat gagal. Silakan coba lagi.';
       setState(() {
-        _errorMessage = e.toString().replaceAll('Exception:', '').trim();
+        _errorMessage = message;
       });
+
+      if (e is ServerException && e.statusCode == 409) {
+        await _showLicenseLimitDialog(message);
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -95,6 +106,43 @@ class _ProvisioningScreenState extends ConsumerState<ProvisioningScreen> {
         });
       }
     }
+  }
+
+  Future<void> _showLicenseLimitDialog(String message) async {
+    if (!mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1611),
+        icon: const Icon(
+          Icons.devices_other_rounded,
+          color: Color(0xFFF59E0B),
+          size: 52,
+        ),
+        title: const Text(
+          'Batas Lisensi Tercapai',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          '$message\n\nHubungi admin cafe atau Super Admin untuk menambah batas lisensi atau mereset aktivasi perangkat lama.',
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: Colors.white70, height: 1.5),
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFD97706),
+            ),
+            child: const Text('Mengerti'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -136,7 +184,8 @@ class _ProvisioningScreenState extends ConsumerState<ProvisioningScreen> {
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFFD97706).withValues(alpha: 0.2),
+                            color:
+                                const Color(0xFFD97706).withValues(alpha: 0.2),
                             blurRadius: 16,
                             spreadRadius: 2,
                           ),
@@ -195,15 +244,20 @@ class _ProvisioningScreenState extends ConsumerState<ProvisioningScreen> {
                     // ── Error Banner ─────────────────────────────────────────
                     if (_errorMessage != null) ...[
                       Container(
-                        padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+                        padding: EdgeInsets.symmetric(
+                            horizontal: 16.w, vertical: 12.h),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                          color:
+                              const Color(0xFFEF4444).withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(12.r),
-                          border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.4)),
+                          border: Border.all(
+                              color: const Color(0xFFEF4444)
+                                  .withValues(alpha: 0.4)),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.error_outline, color: Color(0xFFF87171)),
+                            const Icon(Icons.error_outline,
+                                color: Color(0xFFF87171)),
                             SizedBox(width: 12.w),
                             Expanded(
                               child: Text(
@@ -244,21 +298,26 @@ class _ProvisioningScreenState extends ConsumerState<ProvisioningScreen> {
                           color: Colors.white24,
                           letterSpacing: 1.5,
                         ),
-                        prefixIcon: const Icon(Icons.vpn_key_rounded, color: Color(0xFFD97706)),
+                        prefixIcon: const Icon(Icons.vpn_key_rounded,
+                            color: Color(0xFFD97706)),
                         filled: true,
                         fillColor: const Color(0xFF140E0A),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 18.h),
+                        contentPadding: EdgeInsets.symmetric(
+                            horizontal: 20.w, vertical: 18.h),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(14.r),
-                          borderSide: const BorderSide(color: Color(0xFF451A03)),
+                          borderSide:
+                              const BorderSide(color: Color(0xFF451A03)),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(14.r),
-                          borderSide: const BorderSide(color: Color(0xFF78350F)),
+                          borderSide:
+                              const BorderSide(color: Color(0xFF78350F)),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(14.r),
-                          borderSide: const BorderSide(color: Color(0xFFD97706), width: 2),
+                          borderSide: const BorderSide(
+                              color: Color(0xFFD97706), width: 2),
                         ),
                       ),
                       validator: (val) {
@@ -327,7 +386,8 @@ class _ProvisioningScreenState extends ConsumerState<ProvisioningScreen> {
 
                     // ── Bantuan Hubungi Admin ─────────────────────────────────
                     Container(
-                      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+                      padding: EdgeInsets.symmetric(
+                          horizontal: 16.w, vertical: 12.h),
                       decoration: BoxDecoration(
                         color: Colors.black.withValues(alpha: 0.25),
                         borderRadius: BorderRadius.circular(10.r),
@@ -336,7 +396,8 @@ class _ProvisioningScreenState extends ConsumerState<ProvisioningScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.support_agent_rounded, size: 18.sp, color: const Color(0xFFD97706)),
+                          Icon(Icons.support_agent_rounded,
+                              size: 18.sp, color: const Color(0xFFD97706)),
                           SizedBox(width: 8.w),
                           Flexible(
                             child: Text(
@@ -383,16 +444,21 @@ class _ProvisioningScreenState extends ConsumerState<ProvisioningScreen> {
                       SizedBox(height: 12.h),
                       TextFormField(
                         controller: _urlController,
-                        style: TextStyle(fontSize: 14.sp, color: Colors.white70),
+                        style:
+                            TextStyle(fontSize: 14.sp, color: Colors.white70),
                         decoration: InputDecoration(
                           labelText: 'API Base URL',
-                          labelStyle: TextStyle(fontSize: 12.sp, color: Colors.white60),
+                          labelStyle:
+                              TextStyle(fontSize: 12.sp, color: Colors.white60),
                           hintText: 'https://snaptechbooth.my.id/api',
-                          hintStyle: TextStyle(fontSize: 12.sp, color: Colors.white24),
-                          prefixIcon: const Icon(Icons.cloud_outlined, color: Colors.white60),
+                          hintStyle:
+                              TextStyle(fontSize: 12.sp, color: Colors.white24),
+                          prefixIcon: const Icon(Icons.cloud_outlined,
+                              color: Colors.white60),
                           filled: true,
                           fillColor: const Color(0xFF140E0A),
-                          contentPadding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
+                          contentPadding: EdgeInsets.symmetric(
+                              horizontal: 16.w, vertical: 14.h),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10.r),
                             borderSide: const BorderSide(color: Colors.white24),

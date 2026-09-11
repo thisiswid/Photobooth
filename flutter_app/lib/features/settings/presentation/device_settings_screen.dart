@@ -7,6 +7,8 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:window_manager/window_manager.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/errors/app_exception.dart';
+import '../../../core/errors/error_handler.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/services/photobooth_capture_service.dart';
@@ -22,10 +24,12 @@ class DeviceSettingsScreen extends ConsumerStatefulWidget {
   const DeviceSettingsScreen({super.key});
 
   @override
-  ConsumerState<DeviceSettingsScreen> createState() => _DeviceSettingsScreenState();
+  ConsumerState<DeviceSettingsScreen> createState() =>
+      _DeviceSettingsScreenState();
 }
 
-class _DeviceSettingsScreenState extends ConsumerState<DeviceSettingsScreen> with SingleTickerProviderStateMixin {
+class _DeviceSettingsScreenState extends ConsumerState<DeviceSettingsScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   @override
@@ -98,7 +102,8 @@ class _SystemSettingsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tenantConfig = ref.watch(tenantNotifierProvider).valueOrNull;
-    final cafeName = tenantConfig?.cafe.name ?? AppConstants.defaultCafeBrandName;
+    final cafeName =
+        tenantConfig?.cafe.name ?? AppConstants.defaultCafeBrandName;
     final cafeCode = tenantConfig?.cafe.code ?? '-';
     final baseUrl = DioClient.instance.baseUrl;
 
@@ -107,7 +112,10 @@ class _SystemSettingsTab extends ConsumerWidget {
       children: [
         Text(
           'INFORMASI SISTEM TENANT',
-          style: AppFonts.ui(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 12.sp),
+          style: AppFonts.ui(
+              color: AppColors.gold,
+              fontWeight: FontWeight.bold,
+              fontSize: 12.sp),
         ),
         SizedBox(height: 10.h),
         Container(
@@ -119,11 +127,14 @@ class _SystemSettingsTab extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Tenant Cafe: $cafeName ($cafeCode)', style: const TextStyle(color: Colors.white)),
+              Text('Tenant Cafe: $cafeName ($cafeCode)',
+                  style: const TextStyle(color: Colors.white)),
               SizedBox(height: 6.h),
-              Text('API Base URL: $baseUrl', style: TextStyle(color: Colors.white70, fontSize: 12.sp)),
+              Text('API Base URL: $baseUrl',
+                  style: TextStyle(color: Colors.white70, fontSize: 12.sp)),
               SizedBox(height: 6.h),
-              Text('Versi Aplikasi: SnapTechBooth v${AppConstants.appVersion}', style: TextStyle(color: Colors.white70, fontSize: 12.sp)),
+              Text('Versi Aplikasi: SnapTechBooth v${AppConstants.appVersion}',
+                  style: TextStyle(color: Colors.white70, fontSize: 12.sp)),
             ],
           ),
         ),
@@ -141,7 +152,10 @@ class _SystemSettingsTab extends ConsumerWidget {
         SizedBox(height: 24.h),
         Text(
           'PERANGKAT & TENANT',
-          style: AppFonts.ui(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 12.sp),
+          style: AppFonts.ui(
+              color: AppColors.gold,
+              fontWeight: FontWeight.bold,
+              fontSize: 12.sp),
         ),
         SizedBox(height: 10.h),
         Text(
@@ -173,7 +187,10 @@ class _SystemSettingsTab extends ConsumerWidget {
           SizedBox(height: 24.h),
           Text(
             'KELUAR APLIKASI',
-            style: AppFonts.ui(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 12.sp),
+            style: AppFonts.ui(
+                color: AppColors.gold,
+                fontWeight: FontWeight.bold,
+                fontSize: 12.sp),
           ),
           SizedBox(height: 10.h),
           Text(
@@ -229,7 +246,8 @@ class _SystemSettingsTab extends ConsumerWidget {
                 SizedBox(width: 10.w),
                 const Text(
                   'Pengaturan Device Key',
-                  style: TextStyle(color: Color(0xFFFDE68A), fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                      color: Color(0xFFFDE68A), fontWeight: FontWeight.bold),
                 ),
               ],
             ),
@@ -251,23 +269,34 @@ class _SystemSettingsTab extends ConsumerWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text('Tenant Saat Ini: $cafeName',
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600)),
                           SizedBox(height: 4.h),
                           Text('Active Key: $currentKey',
-                              style: TextStyle(color: const Color(0xFFFDE68A), fontSize: 12.sp, letterSpacing: 1.0)),
+                              style: TextStyle(
+                                  color: const Color(0xFFFDE68A),
+                                  fontSize: 12.sp,
+                                  letterSpacing: 1.0)),
                         ],
                       ),
                     ),
                     SizedBox(height: 16.h),
                     Text(
                       'MASUKKAN KEY BARU',
-                      style: TextStyle(color: const Color(0xFFD97706), fontSize: 11.sp, fontWeight: FontWeight.w700),
+                      style: TextStyle(
+                          color: const Color(0xFFD97706),
+                          fontSize: 11.sp,
+                          fontWeight: FontWeight.w700),
                     ),
                     SizedBox(height: 6.h),
                     TextField(
                       controller: keyController,
                       textCapitalization: TextCapitalization.characters,
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1.5),
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.5),
                       decoration: InputDecoration(
                         hintText: 'CONTOH: SNAP-FK-9921',
                         hintStyle: const TextStyle(color: Colors.white24),
@@ -275,18 +304,23 @@ class _SystemSettingsTab extends ConsumerWidget {
                         fillColor: const Color(0xFF140E0A),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10.r),
-                          borderSide: const BorderSide(color: Color(0xFF78350F)),
+                          borderSide:
+                              const BorderSide(color: Color(0xFF78350F)),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10.r),
-                          borderSide: const BorderSide(color: Color(0xFFD97706), width: 1.5),
+                          borderSide: const BorderSide(
+                              color: Color(0xFFD97706), width: 1.5),
                         ),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 12.h),
+                        contentPadding: EdgeInsets.symmetric(
+                            horizontal: 14.w, vertical: 12.h),
                       ),
                     ),
                     if (errorText != null) ...[
                       SizedBox(height: 8.h),
-                      Text(errorText!, style: const TextStyle(color: Color(0xFFF87171), fontSize: 12)),
+                      Text(errorText!,
+                          style: const TextStyle(
+                              color: Color(0xFFF87171), fontSize: 12)),
                     ],
                     SizedBox(height: 14.h),
                     Container(
@@ -294,16 +328,20 @@ class _SystemSettingsTab extends ConsumerWidget {
                       decoration: BoxDecoration(
                         color: const Color(0xFFD97706).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8.r),
-                        border: Border.all(color: const Color(0xFFD97706).withValues(alpha: 0.3)),
+                        border: Border.all(
+                            color:
+                                const Color(0xFFD97706).withValues(alpha: 0.3)),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.info_outline, size: 16, color: Color(0xFFD97706)),
+                          const Icon(Icons.info_outline,
+                              size: 16, color: Color(0xFFD97706)),
                           SizedBox(width: 8.w),
                           Expanded(
                             child: Text(
                               'Belum punya key baru? Hubungi Admin SnapTech untuk menerbitkan pairing key.',
-                              style: TextStyle(color: Colors.white70, fontSize: 11.sp),
+                              style: TextStyle(
+                                  color: Colors.white70, fontSize: 11.sp),
                             ),
                           ),
                         ],
@@ -316,7 +354,8 @@ class _SystemSettingsTab extends ConsumerWidget {
             actions: [
               TextButton(
                 onPressed: isLoading ? null : () => Navigator.of(ctx).pop(),
-                child: const Text('Batal', style: TextStyle(color: Colors.white60)),
+                child: const Text('Batal',
+                    style: TextStyle(color: Colors.white60)),
               ),
               TextButton(
                 onPressed: isLoading
@@ -326,16 +365,20 @@ class _SystemSettingsTab extends ConsumerWidget {
                           context: ctx,
                           builder: (c) => AlertDialog(
                             backgroundColor: AppColors.darkCoffee,
-                            title: const Text('Lepas Perangkat?', style: TextStyle(color: Colors.white)),
+                            title: const Text('Lepas Perangkat?',
+                                style: TextStyle(color: Colors.white)),
                             content: Text(
                               'Perangkat akan dilepas dari "$cafeName" dan kembali ke layar aktivasi awal.',
                               style: const TextStyle(color: Colors.white70),
                             ),
                             actions: [
-                              TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Batal')),
+                              TextButton(
+                                  onPressed: () => Navigator.pop(c, false),
+                                  child: const Text('Batal')),
                               TextButton(
                                 onPressed: () => Navigator.pop(c, true),
-                                child: const Text('Lepas', style: TextStyle(color: Color(0xFFE57373))),
+                                child: const Text('Lepas',
+                                    style: TextStyle(color: Color(0xFFE57373))),
                               ),
                             ],
                           ),
@@ -345,15 +388,19 @@ class _SystemSettingsTab extends ConsumerWidget {
                             Navigator.of(ctx).pop();
                           }
                           try {
-                            await PhotoboothCaptureService.instance.releasePtp();
+                            await PhotoboothCaptureService.instance
+                                .releasePtp();
                           } catch (_) {}
-                          await ref.read(tenantNotifierProvider.notifier).unpairDevice();
+                          await ref
+                              .read(tenantNotifierProvider.notifier)
+                              .unpairDevice();
                           if (context.mounted) {
                             context.go(AppRoutes.provisioning);
                           }
                         }
                       },
-                child: const Text('Lepas Perangkat', style: TextStyle(color: Color(0xFFE57373))),
+                child: const Text('Lepas Perangkat',
+                    style: TextStyle(color: Color(0xFFE57373))),
               ),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
@@ -365,7 +412,8 @@ class _SystemSettingsTab extends ConsumerWidget {
                     : () async {
                         final newKey = keyController.text.trim().toUpperCase();
                         if (newKey.isEmpty) {
-                          setModalState(() => errorText = 'Silakan masukkan Device Key baru.');
+                          setModalState(() =>
+                              errorText = 'Silakan masukkan Device Key baru.');
                           return;
                         }
 
@@ -375,28 +423,63 @@ class _SystemSettingsTab extends ConsumerWidget {
                         });
 
                         try {
-                          await ref.read(tenantNotifierProvider.notifier).activateDevice(deviceKey: newKey);
+                          await ref
+                              .read(tenantNotifierProvider.notifier)
+                              .activateDevice(deviceKey: newKey);
                           if (ctx.mounted) {
                             Navigator.of(ctx).pop();
                           }
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text('Device Key berhasil diperbarui!'),
+                                content:
+                                    Text('Device Key berhasil diperbarui!'),
                                 backgroundColor: Color(0xFF16A34A),
                               ),
                             );
                             context.go(AppRoutes.welcome);
                           }
                         } catch (e) {
+                          final message = e is AppException
+                              ? ErrorHandler.toUserMessage(e)
+                              : 'Aktivasi perangkat gagal. Silakan coba lagi.';
                           setModalState(() {
                             isLoading = false;
-                            errorText = e.toString().replaceAll('Exception:', '').trim();
+                            errorText = message;
                           });
+                          if (e is ServerException &&
+                              e.statusCode == 409 &&
+                              context.mounted) {
+                            await showDialog<void>(
+                              context: context,
+                              builder: (dialogContext) => AlertDialog(
+                                backgroundColor: AppColors.darkCoffee,
+                                icon: const Icon(Icons.devices_other_rounded,
+                                    color: Color(0xFFF59E0B), size: 48),
+                                title: const Text('Batas Lisensi Tercapai',
+                                    style: TextStyle(color: Colors.white)),
+                                content: Text(
+                                  '$message\n\nHubungi admin cafe atau Super Admin untuk menambah slot atau mereset perangkat lama.',
+                                  style: const TextStyle(color: Colors.white70),
+                                ),
+                                actions: [
+                                  FilledButton(
+                                    onPressed: () =>
+                                        Navigator.of(dialogContext).pop(),
+                                    child: const Text('Mengerti'),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
                         }
                       },
                 child: isLoading
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
                     : const Text('Simpan & Pasang Key'),
               ),
             ],
@@ -413,7 +496,8 @@ class _SystemSettingsTab extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.darkCoffee,
-        title: const Text('Tutup aplikasi?', style: TextStyle(color: Colors.white)),
+        title: const Text('Tutup aplikasi?',
+            style: TextStyle(color: Colors.white)),
         content: const Text(
           'Sesi yang sedang berjalan akan berhenti, dan kamera akan dilepas.',
           style: TextStyle(color: Colors.white70),
@@ -425,7 +509,8 @@ class _SystemSettingsTab extends ConsumerWidget {
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Tutup', style: TextStyle(color: Color(0xFFE57373))),
+            child:
+                const Text('Tutup', style: TextStyle(color: Color(0xFFE57373))),
           ),
         ],
       ),

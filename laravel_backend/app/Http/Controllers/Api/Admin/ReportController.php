@@ -44,6 +44,7 @@ class ReportController extends Controller
         $totalRevenue     = $this->payments($period)->where('status', 'paid')->sum('amount');
         $paidCount        = $this->payments($period)->where('status', 'paid')->count();
         $failedCount      = $this->payments($period)->where('status', 'failed')->count();
+        $cafe = auth()->user()?->cafe;
 
         // Sesi per hari (7 hari terakhir), juga dibatasi ke cafe pemanggil.
         $dailyData = collect(range(6, 0))->map(function ($daysAgo) {
@@ -64,6 +65,14 @@ class ReportController extends Controller
                 'total_revenue'    => $totalRevenue,
                 'paid_count'       => $paidCount,
                 'failed_count'     => $failedCount,
+                'financial_summary'=> $cafe ? [
+                    'gross_revenue'      => $cafe->total_revenue,
+                    'platform_fee'       => $cafe->platform_fee,
+                    'net_revenue'        => $cafe->net_revenue,
+                    'withdrawn'          => $cafe->total_withdrawn,
+                    'pending_withdrawal' => $cafe->pending_withdrawal,
+                    'available_balance'  => $cafe->available_balance,
+                ] : null,
                 'daily_sessions'   => $dailyData,
             ],
         ]);

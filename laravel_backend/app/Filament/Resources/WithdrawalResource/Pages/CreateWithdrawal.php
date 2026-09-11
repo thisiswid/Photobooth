@@ -4,6 +4,7 @@ namespace App\Filament\Resources\WithdrawalResource\Pages;
 
 use App\Filament\Resources\WithdrawalResource;
 use App\Models\Cafe;
+use App\Models\User;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Database\Eloquent\Model;
@@ -69,6 +70,23 @@ class CreateWithdrawal extends CreateRecord
 
             return WithdrawalResource::getModel()::create($data);
         });
+    }
+
+    protected function afterCreate(): void
+    {
+        $record = $this->record;
+
+        Notification::make()
+            ->title('Pengajuan pencairan baru')
+            ->body("{$record->cafe->name} mengajukan {$record->reference_no} sebesar Rp " . number_format($record->amount, 0, ',', '.') . '.')
+            ->warning()
+            ->sendToDatabase(User::query()->where('role', 'super_admin')->get());
+
+        Notification::make()
+            ->title('Pengajuan pencairan diterima')
+            ->body("{$record->reference_no} berstatus pending dan sedang menunggu respons Super Admin.")
+            ->warning()
+            ->sendToDatabase(auth()->user());
     }
 
     protected function getRedirectUrl(): string

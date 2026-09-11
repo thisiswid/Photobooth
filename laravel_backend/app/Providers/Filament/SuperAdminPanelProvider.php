@@ -27,6 +27,7 @@ class SuperAdminPanelProvider extends PanelProvider
             ->id('super_admin')
             ->path('super-admin')
             ->login()
+            ->databaseNotifications()
             ->colors([
                 'primary' => Color::Indigo,
                 'gray'    => Color::Slate,

@@ -4,6 +4,7 @@ namespace App\Filament\SuperAdmin\Resources;
 
 use App\Filament\SuperAdmin\Resources\GlobalWithdrawalResource\Pages;
 use App\Models\Withdrawal;
+use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\FileUpload;
@@ -148,10 +149,10 @@ class GlobalWithdrawalResource extends Resource
                     ])
                     ->requiresConfirmation()
                     ->action(function (Withdrawal $record, array $data): void {
-                        \Illuminate\Support\Facades\DB::transaction(function () use ($record, $data): void {
+                        $processed = \Illuminate\Support\Facades\DB::transaction(function () use ($record, $data): bool {
                             $locked = Withdrawal::query()->lockForUpdate()->findOrFail($record->id);
                             if (!$locked->isPending()) {
-                                return;
+                                return false;
                             }
                             $locked->update([
                                 'status' => 'approved',
@@ -160,7 +161,20 @@ class GlobalWithdrawalResource extends Resource
                                 'processed_by' => auth()->id(),
                                 'processed_at' => now(),
                             ]);
+                            return true;
                         });
+
+                        if (!$processed) {
+                            Notification::make()->title('Pengajuan sudah diproses')->warning()->send();
+                            return;
+                        }
+
+                        $record->refresh();
+                        Notification::make()
+                            ->title('Pencairan berhasil ditransfer')
+                            ->body("{$record->reference_no} sebesar Rp " . number_format($record->amount, 0, ',', '.') . ' telah disetujui. Bukti transfer tersedia di riwayat pencairan.')
+                            ->success()
+                            ->sendToDatabase(User::query()->where('cafe_id', $record->cafe_id)->get());
 
                         Notification::make()
                             ->title('Pencairan Dana Berhasil Disetujui')
@@ -181,10 +195,10 @@ class GlobalWithdrawalResource extends Resource
                     ])
                     ->requiresConfirmation()
                     ->action(function (Withdrawal $record, array $data): void {
-                        \Illuminate\Support\Facades\DB::transaction(function () use ($record, $data): void {
+                        $processed = \Illuminate\Support\Facades\DB::transaction(function () use ($record, $data): bool {
                             $locked = Withdrawal::query()->lockForUpdate()->findOrFail($record->id);
                             if (!$locked->isPending()) {
-                                return;
+                                return false;
                             }
                             $locked->update([
                                 'status' => 'rejected',
@@ -192,7 +206,20 @@ class GlobalWithdrawalResource extends Resource
                                 'processed_by' => auth()->id(),
                                 'processed_at' => now(),
                             ]);
+                            return true;
                         });
+
+                        if (!$processed) {
+                            Notification::make()->title('Pengajuan sudah diproses')->warning()->send();
+                            return;
+                        }
+
+                        $record->refresh();
+                        Notification::make()
+                            ->title('Pengajuan pencairan ditolak')
+                            ->body("{$record->reference_no} ditolak. Alasan: {$record->notes}")
+                            ->danger()
+                            ->sendToDatabase(User::query()->where('cafe_id', $record->cafe_id)->get());
 
                         Notification::make()
                             ->title('Pengajuan Penarikan Ditolak')
