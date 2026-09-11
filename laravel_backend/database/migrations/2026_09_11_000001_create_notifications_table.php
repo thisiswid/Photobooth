@@ -12,7 +12,9 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->string('type');
             $table->morphs('notifiable');
-            $table->text('data');
+            // Filament memfilter `data->>'format'`; pada PostgreSQL kolom ini
+            // wajib bertipe JSON, bukan TEXT.
+            $table->json('data');
             $table->timestamp('read_at')->nullable();
             $table->timestamps();
         });
