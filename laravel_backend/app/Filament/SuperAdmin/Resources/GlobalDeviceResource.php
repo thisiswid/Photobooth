@@ -7,6 +7,7 @@ use App\Models\Device;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
+use Filament\Actions\Action;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -100,6 +101,8 @@ class GlobalDeviceResource extends Resource
             Section::make('Status Koneksi & Statistik')->schema([
                 TextEntry::make('ip_address')->label('IP Address Terakhir')->default('-'),
                 TextEntry::make('last_seen_at')->label('Terakhir Online / Heartbeat')->since()->placeholder('Belum pernah online'),
+                TextEntry::make('installation_id')->label('ID Instalasi App')->copyable()->placeholder('Slot belum dipakai'),
+                TextEntry::make('activated_at')->label('Aktivasi Pertama')->dateTime('d M Y H:i:s')->placeholder('Belum aktif'),
                 TextEntry::make('sessions_count')->label('Total Sesi Foto Dilayani')
                     ->state(fn ($record) => $record->sessions()->count() . ' Sesi'),
                 TextEntry::make('created_at')->label('Terdaftar Pada')->dateTime('d M Y H:i:s'),
@@ -141,6 +144,11 @@ class GlobalDeviceResource extends Resource
                     ->since()
                     ->placeholder('Belum pernah')
                     ->sortable(),
+                TextColumn::make('activated_at')
+                    ->label('Aktivasi App')
+                    ->dateTime('d M Y H:i')
+                    ->placeholder('Belum dipakai')
+                    ->sortable(),
                 TextColumn::make('sessions_count')
                     ->label('Total Sesi')
                     ->counts('sessions')
@@ -159,6 +167,18 @@ class GlobalDeviceResource extends Resource
                     ]),
             ])
             ->actions([
+                Action::make('resetActivation')
+                    ->label('Reset Aktivasi App')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->visible(fn (Device $record) => filled($record->installation_id))
+                    ->action(fn (Device $record) => $record->update([
+                        'installation_id' => null,
+                        'activated_at' => null,
+                        'last_seen_at' => null,
+                        'status' => 'inactive',
+                    ])),
                 ViewAction::make(),
                 EditAction::make(),
                 DeleteAction::make(),

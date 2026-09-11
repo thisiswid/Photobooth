@@ -3,55 +3,151 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Event;
+use App\Models\Payment;
 use App\Models\Photo;
 use App\Models\Session;
 use App\Models\TimerSetting;
+use App\Models\Frame;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
  * Handles session lifecycle for the Flutter customer app.
  *
- * Flow: POST /sessions → setFrame → uploadPhotos → finish
- * No email anywhere in this controller.
+ * Flow: POST /payments (bikin sesi + payment) -> webhook/status menandai LUNAS
+ *       -> setFrame -> uploadPhotos -> generateResult -> finish
+ *
+ * Setiap endpoint di bawah menolak sesi yang pembayarannya belum lunas.
+ * Tidak ada lagi pembuatan sesi otomatis: sesi hanya lahir dari alur pembayaran.
  */
 class SessionController extends Controller
 {
     /**
-     * Create / start a session after payment is confirmed PAID.
-     * Sets status=active and starts the session timer dynamically from TimerSetting.
+     * Ambil sesi yang pembayarannya sudah LUNAS, atau gagal dengan jelas.
+     *
+     * Menggantikan pola lama "kalau sesi tidak ditemukan, buat saja" yang
+     * membuat siapa pun bisa memulai sesi tanpa membayar.
+     */
+    protected function resolvePaidSession($session): Session
+    {
+        $sessionModel = $session instanceof Session
+            ? $session
+            : (is_numeric($session) ? Session::find((int) $session) : null);
+
+        abort_if(!$sessionModel, 404, 'Sesi tidak ditemukan.');
+
+        $payment = Payment::where('session_id', $sessionModel->id)->latest('id')->first();
+
+        abort_if(
+            !$payment || $payment->status !== 'paid',
+            402,
+            'Sesi ini belum lunas. Selesaikan pembayaran terlebih dahulu.'
+        );
+
+        return $sessionModel;
+    }
+
+    /**
+     * Hitung durasi sesi dari TimerSetting event, lalu cafe, lalu default.
+     */
+    protected function sessionDuration(?int $eventId, ?int $cafeId): int
+    {
+        $timerSetting = ($eventId
+            ? TimerSetting::where('event_id', $eventId)->where('is_active', true)->first()
+            : null) ?? TimerSetting::resolveForCafe($cafeId);
+
+        return (int) ($timerSetting->session_timeout_seconds ?? 360);
+    }
+
+    protected function frameForSession(int $frameId, Session $session): Frame
+    {
+        return Frame::query()
+            ->whereKey($frameId)
+            ->whereHas('event', fn ($query) => $query->where('cafe_id', $session->cafe_id))
+            ->when($session->event_id, fn ($query) => $query->where('event_id', $session->event_id))
+            ->where('active', true)
+            ->firstOrFail();
+    }
+
+    /**
+     * Simpan foto yang diunggah kiosk sebagai berkas.
+     *
+     * Hanya menerima berkas gambar sungguhan. Jalur lama yang menerima
+     * `file_url` berupa string dari klien dihapus: string itu dipakai apa
+     * adanya sebagai path berkas oleh portal unduhan, sehingga bisa dipakai
+     * membaca berkas server mana pun.
+     */
+    protected function storeUploadedPhotos(Request $request, Session $sessionModel): void
+    {
+        $request->validate([
+            'photos'        => ['nullable', 'array', 'max:12'],
+            'photos.*'      => ['file', 'image', 'mimes:jpg,jpeg,png', 'max:12288'],
+            'photo_files'   => ['nullable', 'array', 'max:12'],
+            'photo_files.*' => ['file', 'image', 'mimes:jpg,jpeg,png', 'max:12288'],
+        ]);
+
+        $files = [];
+        if ($request->hasFile('photos')) {
+            $files = $request->file('photos');
+        } elseif ($request->hasFile('photo_files')) {
+            $files = $request->file('photo_files');
+        }
+
+        if (!is_array($files)) {
+            $files = [$files];
+        }
+
+        foreach ($files as $file) {
+            $path = $file->store('photos', 'public');
+            Photo::create([
+                'session_id' => $sessionModel->id,
+                'file_url'   => $path,
+                'type'       => 'raw',
+            ]);
+        }
+    }
+
+    /**
+     * Mulai sesi untuk pembayaran yang SUDAH lunas.
+     *
+     * Sesi itu sendiri dibuat oleh PaymentController::store(); endpoint ini
+     * hanya menyalakan timernya. Sebelumnya method ini membuat sesi aktif
+     * sekaligus mengarang Payment Rp 48.000 berstatus 'paid' tanpa memeriksa
+     * apa pun, sehingga satu request menghasilkan sesi gratis dan omset fiktif.
      */
     public function store(Request $request): JsonResponse
     {
-        $eventId = (int)$request->input('event_id', 1);
-        $frameId = $request->input('frame_id');
-
-        $event = Event::find($eventId);
-        $cafeId = $event?->cafe_id ?? \App\Models\Cafe::first()?->id;
-        $timerSetting = TimerSetting::where('event_id', $eventId)->where('is_active', true)->first()
-            ?? TimerSetting::resolveForCafe($cafeId);
-
-        $durationSeconds = $timerSetting->session_timeout_seconds ?? 360;
-
-        $session = Session::create([
-            'cafe_id'    => $cafeId,
-            'event_id'   => $eventId,
-            'frame_id'   => $frameId,
-            'status'     => 'active',
-            'started_at' => now(),
-            'expires_at' => now()->addSeconds($durationSeconds),
+        $request->validate([
+            'payment_id' => ['required', 'integer', 'exists:payments,id'],
+            'frame_id'   => ['nullable', 'integer', 'exists:frames,id'],
         ]);
 
-        \App\Models\Payment::firstOrCreate(
-            ['session_id' => $session->id],
-            [
-                'amount'            => 48000,
-                'status'            => 'paid',
-                'paid_at'           => now(),
-                'xendit_payment_id' => 'PAY-' . strtoupper(\Illuminate\Support\Str::random(10)),
-            ]
+        $payment = Payment::with('session')->findOrFail($request->payment_id);
+
+        abort_if(
+            $payment->status !== 'paid',
+            402,
+            'Pembayaran belum lunas.'
         );
+
+        $session = $payment->session;
+        abort_if(!$session, 404, 'Sesi untuk pembayaran ini tidak ditemukan.');
+
+        $durationSeconds = $this->sessionDuration($session->event_id, $session->cafe_id);
+
+        // Idempoten: kalau timer sudah menyala, jangan diulang dari awal.
+        if ($session->status === 'pending' || !$session->started_at) {
+            $session->update([
+                'status'     => 'active',
+                'started_at' => now(),
+                'expires_at' => now()->addSeconds($durationSeconds),
+            ]);
+        }
+
+        if ($request->filled('frame_id')) {
+            $this->frameForSession((int) $request->frame_id, $session);
+            $session->update(['frame_id' => $request->frame_id]);
+        }
 
         return response()->json([
             'success' => true,
@@ -67,34 +163,17 @@ class SessionController extends Controller
     }
 
     /**
-     * Save the frame selected by the customer.
-     * Must be called before entering Photo Session (business rule #5).
+     * Simpan bingkai yang dipilih pelanggan.
      */
     public function setFrame(Request $request, $session): JsonResponse
     {
-        $eventId = (int)$request->input('event_id', 1);
-        $event = Event::find($eventId);
-        $cafeId = $event?->cafe_id ?? \App\Models\Cafe::first()?->id;
-        $timerSetting = TimerSetting::where('event_id', $eventId)->where('is_active', true)->first()
-            ?? TimerSetting::resolveForCafe($cafeId);
-        $durationSeconds = $timerSetting->session_timeout_seconds ?? 360;
+        $request->validate([
+            'frame_id' => ['required', 'integer', 'exists:frames,id'],
+        ]);
 
-        $sessionModel = is_numeric($session) ? Session::find((int)$session) : ($session instanceof Session ? $session : null);
-        if (!$sessionModel) {
-            $sessionModel = Session::create([
-                'cafe_id'    => $cafeId,
-                'event_id'   => $eventId,
-                'frame_id'   => $request->input('frame_id'),
-                'status'     => 'active',
-                'started_at' => now(),
-                'expires_at' => now()->addSeconds($durationSeconds),
-            ]);
-        } else {
-            $sessionModel->update([
-                'frame_id' => $request->input('frame_id'),
-                'cafe_id'  => $sessionModel->cafe_id ?? $cafeId,
-            ]);
-        }
+        $sessionModel = $this->resolvePaidSession($session);
+        $this->frameForSession((int) $request->frame_id, $sessionModel);
+        $sessionModel->update(['frame_id' => $request->frame_id]);
 
         return response()->json([
             'success' => true,
@@ -104,24 +183,16 @@ class SessionController extends Controller
     }
 
     /**
-     * Upload captured photos with the selected filter.
-     * Transitions session status to processing.
+     * Unggah foto hasil pengambilan beserta filter yang dipilih.
      */
     public function uploadPhotos(Request $request, $session): JsonResponse
     {
-        $sessionModel = is_numeric($session) ? Session::find((int)$session) : ($session instanceof Session ? $session : null);
-        if (!$sessionModel) {
-            $eventId = (int)$request->input('event_id', 1);
-            $event = Event::find($eventId);
-            $cafeId = $event?->cafe_id ?? \App\Models\Cafe::first()?->id;
-            $sessionModel = Session::create([
-                'cafe_id'    => $cafeId,
-                'event_id'   => $eventId,
-                'status'     => 'processing',
-                'started_at' => now(),
-                'expires_at' => now()->addMinutes(5),
-            ]);
-        }
+        $sessionModel = $this->resolvePaidSession($session);
+
+        $request->validate([
+            'filter_id'       => ['nullable', 'integer', 'exists:filters,id'],
+            'selected_filter' => ['nullable', 'string', 'max:100'],
+        ]);
 
         if ($request->filled('filter_id')) {
             $sessionModel->update([
@@ -130,26 +201,7 @@ class SessionController extends Controller
             ]);
         }
 
-        if ($request->hasFile('photos')) {
-            $files = $request->file('photos');
-            if (!is_array($files)) $files = [$files];
-            foreach ($files as $file) {
-                $path = $file->store('photos', 'public');
-                Photo::create([
-                    'session_id' => $sessionModel->id,
-                    'file_url'   => $path,
-                    'type'       => 'raw',
-                ]);
-            }
-        } elseif ($request->filled('photos') && is_array($request->photos)) {
-            foreach ($request->photos as $photo) {
-                Photo::create([
-                    'session_id' => $sessionModel->id,
-                    'file_url'   => is_array($photo) ? ($photo['url'] ?? '') : $photo,
-                    'type'       => is_array($photo) ? ($photo['type'] ?? 'raw') : 'raw',
-                ]);
-            }
-        }
+        $this->storeUploadedPhotos($request, $sessionModel);
 
         $sessionModel->update(['status' => 'processing']);
 
@@ -161,26 +213,17 @@ class SessionController extends Controller
     }
 
     /**
-     * Generate HD Photo Strip, Animated GIF, and QR Code Download Link (7 days).
+     * Hasilkan Photo Strip HD, GIF animasi, dan tautan unduhan ber-QR (7 hari).
      */
     public function generateResult(Request $request, $session, \App\Services\GenerateResultService $generator): JsonResponse
     {
-        $sessionModel = is_numeric($session) ? Session::find((int)$session) : ($session instanceof Session ? $session : null);
-        if (!$sessionModel) {
-            $eventId = (int)$request->input('event_id', 1);
-            $event = Event::find($eventId);
-            $cafeId = $event?->cafe_id ?? \App\Models\Cafe::first()?->id;
-            $sessionModel = Session::create([
-                'cafe_id'         => $cafeId,
-                'event_id'        => $eventId,
-                'frame_id'        => $request->input('frame_id'),
-                'filter_id'       => $request->input('filter_id'),
-                'selected_filter' => $request->input('selected_filter'),
-                'status'          => 'processing',
-                'started_at'      => now()->subMinutes(2),
-                'expires_at'      => now()->addMinutes(3),
-            ]);
-        }
+        $sessionModel = $this->resolvePaidSession($session);
+
+        $request->validate([
+            'filter_id'       => ['nullable', 'integer', 'exists:filters,id'],
+            'selected_filter' => ['nullable', 'string', 'max:100'],
+            'frame_id'        => ['nullable', 'integer', 'exists:frames,id'],
+        ]);
 
         if ($request->filled('filter_id')) {
             $sessionModel->update([
@@ -190,54 +233,26 @@ class SessionController extends Controller
         }
 
         if ($request->filled('frame_id')) {
+            $this->frameForSession((int) $request->frame_id, $sessionModel);
             $sessionModel->update(['frame_id' => $request->frame_id]);
         }
 
-        // Handle uploaded photo files from tablet (multipart/form-data)
-        if ($request->hasFile('photos')) {
-            $files = $request->file('photos');
-            if (!is_array($files)) $files = [$files];
-            foreach ($files as $file) {
-                $path = $file->store('photos', 'public');
-                Photo::create([
-                    'session_id' => $sessionModel->id,
-                    'file_url'   => $path,
-                    'type'       => 'raw',
-                ]);
-            }
-        } elseif ($request->hasFile('photo_files')) {
-            $files = $request->file('photo_files');
-            if (!is_array($files)) $files = [$files];
-            foreach ($files as $file) {
-                $path = $file->store('photos', 'public');
-                Photo::create([
-                    'session_id' => $sessionModel->id,
-                    'file_url'   => $path,
-                    'type'       => 'raw',
-                ]);
-            }
-        } elseif ($request->filled('photos') && is_array($request->photos)) {
-            foreach ($request->photos as $p) {
-                Photo::create([
-                    'session_id' => $sessionModel->id,
-                    'file_url'   => is_array($p) ? ($p['url'] ?? '') : $p,
-                    'type'       => 'raw',
-                ]);
-            }
-        }
+        $this->storeUploadedPhotos($request, $sessionModel);
 
-        // Generate HD Photo Strip + Animated GIF + 7 days QR Token
         $result = $generator->generate($sessionModel);
 
         $sessionModel->update(['status' => 'result_ready']);
 
-        // Catat print job di database agar admin dapat memantau riwayat cetak
-        \App\Models\PrintJob::create([
-            'session_id' => $sessionModel->id,
-            'printer'    => 'Kiosk Thermal/Photo Printer',
-            'status'     => 'done',
-            'printed_at' => now(),
-        ]);
+        // Antrean cetak dicatat sebagai 'pending'. Sebelumnya langsung ditandai
+        // 'done' dengan printed_at terisi, padahal belum ada pencetakan apa pun,
+        // sehingga riwayat cetak di panel admin tidak mencerminkan kenyataan.
+        \App\Models\PrintJob::firstOrCreate(
+            ['session_id' => $sessionModel->id],
+            [
+                'printer' => 'Kiosk Thermal/Photo Printer',
+                'status'  => 'pending',
+            ]
+        );
 
         $host = request()->getSchemeAndHttpHost();
         $downloadUrl = $host . '/d/' . $result->qr_token;
@@ -257,18 +272,16 @@ class SessionController extends Controller
     }
 
     /**
-     * Finish the session when customer presses Selesai.
-     * Returns to Welcome Screen flow. No email.
+     * Tutup sesi saat pelanggan menekan Selesai.
      */
     public function finish(Request $request, $session): JsonResponse
     {
-        $sessionModel = is_numeric($session) ? Session::find((int)$session) : ($session instanceof Session ? $session : null);
-        if ($sessionModel) {
-            $sessionModel->update([
-                'status'      => 'finished',
-                'finished_at' => now(),
-            ]);
-        }
+        $sessionModel = $this->resolvePaidSession($session);
+
+        $sessionModel->update([
+            'status'      => 'finished',
+            'finished_at' => now(),
+        ]);
 
         return response()->json([
             'success' => true,

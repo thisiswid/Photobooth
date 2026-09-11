@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Device;
+use App\Models\Cafe;
 use App\Models\ErrorLog;
 use App\Models\Event;
 use App\Models\Filter;
@@ -12,6 +13,8 @@ use App\Models\ScreenConfig;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class DeviceProvisioningController extends Controller
 {
@@ -22,6 +25,7 @@ class DeviceProvisioningController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'device_key' => 'required|string',
+            'installation_id' => 'required|uuid',
             'platform'   => 'nullable|string',
             'app_version'=> 'nullable|string',
         ]);
@@ -35,39 +39,80 @@ class DeviceProvisioningController extends Controller
         }
 
         $deviceKey = trim($request->device_key);
-        $device = Device::where('device_key', $deviceKey)
-            ->with(['cafe', 'event'])
-            ->first();
+        $installationId = strtolower($request->installation_id);
 
-        // ── Fallback 1: Jika input adalah Kode Lisensi Cafe (Code / Identifier) ──
-        if (!$device) {
-            $cafe = \App\Models\Cafe::where('code', $deviceKey)
-                ->orWhere('code', strtoupper($deviceKey))
-                ->orWhere('slug', strtolower($deviceKey))
-                ->first();
+        $device = DB::transaction(function () use ($deviceKey, $installationId, $request) {
+            $device = Device::where('device_key', $deviceKey)->lockForUpdate()->first();
+            $cafe = $device?->cafe;
 
-            if ($cafe) {
-                $device = Device::where('cafe_id', $cafe->id)->first();
-                if (!$device) {
-                    $device = Device::create([
-                        'cafe_id'    => $cafe->id,
-                        'name'       => $cafe->name . ' - Kiosk Utama',
-                        'device_key' => $deviceKey,
-                        'platform'   => $request->platform ?? 'android',
-                        'status'     => 'active',
-                        'last_seen_at' => now(),
-                    ]);
-                } else {
-                    $device->update([
-                        'device_key' => $deviceKey,
-                        'platform'   => $request->platform ?? $device->platform ?? 'android',
-                        'status'     => 'active',
-                        'last_seen_at' => now(),
-                    ]);
-                }
-                $device->load(['cafe', 'event']);
+            if (!$cafe) {
+                $cafe = Cafe::where(function ($query) use ($deviceKey) {
+                    $query->whereRaw('UPPER(code) = ?', [strtoupper($deviceKey)])
+                        ->orWhere('slug', strtolower($deviceKey));
+                })->lockForUpdate()->first();
             }
-        }
+
+            if (!$cafe) {
+                return null;
+            }
+
+            $usingCafeLicense = strtoupper((string) $cafe->code) === strtoupper($deviceKey)
+                || strtolower((string) $cafe->slug) === strtolower($deviceKey);
+
+            // Aktivasi ulang dari instalasi yang sama selalu idempoten.
+            $sameInstallation = Device::where('cafe_id', $cafe->id)
+                ->where('installation_id', $installationId)
+                ->lockForUpdate()
+                ->first();
+            if ($sameInstallation) {
+                $device = $sameInstallation;
+            }
+
+            // Kode cafe boleh mengalokasikan slot berikutnya. Device pairing
+            // key individual tetap eksklusif untuk satu instalasi.
+            if ($usingCafeLicense && $device?->installation_id && !$sameInstallation) {
+                $device = null;
+            }
+
+            if ($device?->installation_id && $device->installation_id !== $installationId) {
+                abort(409, 'Key perangkat ini sudah aktif di instalasi aplikasi lain. Reset perangkat lama dari panel admin terlebih dahulu.');
+            }
+
+            if (!$device) {
+                $activatedCount = Device::where('cafe_id', $cafe->id)
+                    ->whereNotNull('installation_id')
+                    ->lockForUpdate()
+                    ->count();
+
+                abort_if(
+                    $activatedCount >= max(1, (int) $cafe->device_limit),
+                    409,
+                    'Batas aktivasi lisensi cafe sudah tercapai. Hubungi admin untuk menambah slot atau mereset perangkat lama.'
+                );
+
+                $device = Device::where('cafe_id', $cafe->id)
+                    ->whereNull('installation_id')
+                    ->lockForUpdate()
+                    ->first();
+
+                $device ??= new Device([
+                    'cafe_id' => $cafe->id,
+                    'name' => $cafe->name . ' - Kiosk ' . ($activatedCount + 1),
+                    'device_key' => 'PB-' . Str::upper(Str::random(12)),
+                ]);
+            }
+
+            $device->fill([
+                'installation_id' => $installationId,
+                'activated_at' => $device->activated_at ?? now(),
+                'platform' => $request->platform ?? $device->platform ?? 'android',
+                'ip_address' => $request->ip(),
+                'last_seen_at' => now(),
+                'status' => 'active',
+            ])->save();
+
+            return $device->load(['cafe', 'event']);
+        });
 
         if (!$device) {
             return response()->json([
@@ -108,6 +153,7 @@ class DeviceProvisioningController extends Controller
                     'name'        => $device->name,
                     'device_key'  => $device->device_key,
                     'platform'    => $device->platform,
+                    'installation_id' => $device->installation_id,
                 ],
                 'cafe' => [
                     'id'          => $device->cafe->id,
@@ -128,35 +174,14 @@ class DeviceProvisioningController extends Controller
      * Mengambil seluruh konfigurasi dinamis (Theme, Frames, Filters, Screens, Pricing)
      * untuk sinkronisasi tampilan kiosk cafe.
      */
-    public function config(string $deviceKey): JsonResponse
+    public function config(Request $request, string $deviceKey): JsonResponse
     {
+        $request->validate(['installation_id' => ['required', 'uuid']]);
         $deviceKey = trim($deviceKey);
         $device = Device::where('device_key', $deviceKey)
+            ->where('installation_id', strtolower($request->installation_id))
             ->with(['cafe', 'event'])
             ->first();
-
-        // ── Fallback: Cari via Cafe Code ──
-        if (!$device) {
-            $cafe = \App\Models\Cafe::where('code', $deviceKey)
-                ->orWhere('code', strtoupper($deviceKey))
-                ->orWhere('slug', strtolower($deviceKey))
-                ->first();
-
-            if ($cafe) {
-                $device = Device::where('cafe_id', $cafe->id)->first();
-                if (!$device) {
-                    $device = Device::create([
-                        'cafe_id'    => $cafe->id,
-                        'name'       => $cafe->name . ' - Kiosk Utama',
-                        'device_key' => $deviceKey,
-                        'platform'   => 'android',
-                        'status'     => 'active',
-                        'last_seen_at' => now(),
-                    ]);
-                }
-                $device->load(['cafe', 'event']);
-            }
-        }
 
         if (!$device || !$device->cafe) {
             return response()->json([
@@ -172,7 +197,8 @@ class DeviceProvisioningController extends Controller
             ?? Event::where('cafe_id', $cafe->id)->latest()->first();
 
         // Ambil Frames aktif
-        $framesQuery = Frame::where('active', true);
+        $framesQuery = Frame::where('active', true)
+            ->whereHas('event', fn ($query) => $query->where('cafe_id', $cafe->id));
         if ($event) {
             $framesQuery->where('event_id', $event->id);
         }
@@ -190,7 +216,9 @@ class DeviceProvisioningController extends Controller
         });
 
         // Ambil Filters aktif
-        $filtersQuery = Filter::where('active', true)->orderBy('sort_order');
+        $filtersQuery = Filter::where('active', true)
+            ->whereHas('event', fn ($query) => $query->where('cafe_id', $cafe->id))
+            ->orderBy('sort_order');
         if ($event) {
             $filtersQuery->where('event_id', $event->id);
         }
@@ -279,6 +307,7 @@ class DeviceProvisioningController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'device_key'     => 'required|string',
+            'installation_id'=> 'required|uuid',
             'printer_status' => 'nullable|string', // ready, paper_low, out_of_paper, offline, error
             'camera_status'  => 'nullable|string', // connected, disconnected, error
             'app_version'    => 'nullable|string',
@@ -290,16 +319,9 @@ class DeviceProvisioningController extends Controller
         }
 
         $deviceKey = trim($request->device_key);
-        $device = Device::where('device_key', $deviceKey)->first();
-        if (!$device) {
-            $cafe = \App\Models\Cafe::where('code', $deviceKey)
-                ->orWhere('code', strtoupper($deviceKey))
-                ->orWhere('slug', strtolower($deviceKey))
-                ->first();
-            if ($cafe) {
-                $device = Device::where('cafe_id', $cafe->id)->first();
-            }
-        }
+        $device = Device::where('device_key', $deviceKey)
+            ->where('installation_id', strtolower($request->installation_id))
+            ->first();
         if (!$device) {
             return response()->json(['success' => false, 'message' => 'Device not found'], 404);
         }
@@ -315,7 +337,7 @@ class DeviceProvisioningController extends Controller
             ErrorLog::create([
                 'cafe_id'     => $device->cafe_id,
                 'device_id'   => $device->device_key ?? (string) $device->id,
-                'event_id'    => $device->event_id ?? \App\Models\Event::where('cafe_id', $device->cafe_id)->where('active', true)->first()?->id ?? \App\Models\Event::first()?->id,
+                'event_id'    => $device->event_id ?? \App\Models\Event::where('cafe_id', $device->cafe_id)->where('active', true)->first()?->id,
                 'category'    => $request->camera_status === 'error' ? 'camera' : ($request->printer_status === 'error' ? 'hardware' : 'system'),
                 'level'       => 'warning',
                 'title'       => 'Heartbeat Telemetry Alert: ' . ($request->error_message ?? 'Hardware status error'),

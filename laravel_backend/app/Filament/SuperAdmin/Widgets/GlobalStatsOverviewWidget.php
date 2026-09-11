@@ -23,8 +23,9 @@ class GlobalStatsOverviewWidget extends BaseWidget
         $todayRevenue = Payment::where('status', 'paid')->whereDate('created_at', today())->sum('amount');
         $monthRevenue = Payment::where('status', 'paid')->whereMonth('created_at', now()->month)->whereYear('created_at', now()->year)->sum('amount');
 
-        // Estimate Platform Fee (average 10%)
-        $todayPlatformFee = $todayRevenue * 0.10;
+        $cafes = Cafe::all();
+        $outstandingCafeBalance = $cafes->sum(fn (Cafe $cafe) => $cafe->available_balance);
+        $pendingWithdrawals = $cafes->sum(fn (Cafe $cafe) => $cafe->pending_withdrawal);
 
         $unresolvedErrors = ErrorLog::whereDate('created_at', today())->whereIn('level', ['critical', 'error'])->count();
 
@@ -40,9 +41,14 @@ class GlobalStatsOverviewWidget extends BaseWidget
                 ->color('info'),
 
             Stat::make('Omset Global Hari Ini', 'Rp ' . number_format($todayRevenue, 0, ',', '.'))
-                ->description('Fee Platform: Rp ' . number_format($todayPlatformFee, 0, ',', '.'))
+                ->description('Potongan platform dinonaktifkan')
                 ->icon('heroicon-o-banknotes')
                 ->color('success'),
+
+            Stat::make('Saldo Seluruh Cafe', 'Rp ' . number_format($outstandingCafeBalance, 0, ',', '.'))
+                ->description('Pending pencairan: Rp ' . number_format($pendingWithdrawals, 0, ',', '.'))
+                ->icon('heroicon-o-wallet')
+                ->color('warning'),
 
             Stat::make('Omset Bulan Ini', 'Rp ' . number_format($monthRevenue, 0, ',', '.'))
                 ->description(Payment::where('status', 'paid')->whereMonth('created_at', now()->month)->count() . ' transaksi berhasil')

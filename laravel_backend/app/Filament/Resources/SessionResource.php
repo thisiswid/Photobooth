@@ -140,8 +140,7 @@ class SessionResource extends Resource
         if ($cafeId = auth()->user()?->cafe_id) {
             $query->where(function ($q) use ($cafeId) {
                 $q->where('cafe_id', $cafeId)
-                  ->orWhereHas('event', fn ($eq) => $eq->where('cafe_id', $cafeId))
-                  ->orWhereNull('cafe_id');
+                  ->orWhereHas('event', fn ($eq) => $eq->where('cafe_id', $cafeId));
             });
         }
         return $query;

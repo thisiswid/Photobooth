@@ -13,6 +13,8 @@ class Device extends Model
         'event_id',
         'name',
         'device_key',
+        'installation_id',
+        'activated_at',
         'platform',
         'ip_address',
         'status',
@@ -21,6 +23,7 @@ class Device extends Model
 
     protected $casts = [
         'last_seen_at' => 'datetime',
+        'activated_at' => 'datetime',
     ];
 
     public function cafe(): BelongsTo   { return $this->belongsTo(Cafe::class); }

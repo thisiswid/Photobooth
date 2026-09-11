@@ -31,6 +31,7 @@ class StatsOverviewWidget extends BaseWidget
         $finishedSessions = (clone $sessionQuery)->where('status', 'finished')->whereDate('created_at', today())->count();
         $paidPayments = (clone $paymentQuery)->where('status', 'paid')->whereDate('created_at', today())->count();
         $todayRevenue = (clone $paymentQuery)->where('status', 'paid')->whereDate('created_at', today())->sum('amount');
+        $cafe = $cafeId ? \App\Models\Cafe::find($cafeId) : null;
 
         return [
             Stat::make('Total Sesi Hari Ini', $todaySessions)
@@ -44,6 +45,12 @@ class StatsOverviewWidget extends BaseWidget
                 ->color('warning'),
             Stat::make('Total Pendapatan', 'Rp ' . number_format($todayRevenue, 0, ',', '.'))
                 ->description('Hari ini')
+                ->color('success'),
+            Stat::make('Saldo Siap Ditarik', 'Rp ' . number_format($cafe?->available_balance ?? 0, 0, ',', '.'))
+                ->description($cafe && $cafe->pending_withdrawal > 0
+                    ? 'Pending: Rp ' . number_format($cafe->pending_withdrawal, 0, ',', '.')
+                    : 'Sesuai data transaksi dan pencairan')
+                ->icon('heroicon-o-wallet')
                 ->color('success'),
             Stat::make('Status Sistem & Error', $todayErrors > 0 ? "{$todayErrors} Insiden Hari Ini" : 'Semua Berjalan Normal')
                 ->description($todayErrors > 0 ? 'Perlu perhatian staf' : '0 error sinyal / kamera / sistem')

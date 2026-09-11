@@ -62,10 +62,16 @@ class User extends Authenticatable implements FilamentUser
             }
 
             if ($this->isCafeAdmin()) {
-                if ($this->cafe_id && $this->cafe) {
-                    return $this->cafe->isSubscriptionActive();
+                // Wajib terikat ke satu cafe. Sebelumnya cabang ini
+                // mengembalikan true untuk pengguna tanpa cafe_id, dan karena
+                // semua getEloquentQuery() memfilter dengan
+                // `if ($cafeId = auth()->user()?->cafe_id)`, pengguna seperti
+                // itu justru melihat data seluruh tenant.
+                if (!$this->cafe_id || !$this->cafe) {
+                    return false;
                 }
-                return true;
+
+                return $this->cafe->isSubscriptionActive();
             }
 
             return false;

@@ -3,31 +3,74 @@
 namespace App\Services;
 
 use App\Models\Payment;
+use App\Models\TimerSetting;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class PakasirService
 {
-    protected static function getSlug(): string
+    protected static function getSlug(): ?string
     {
-        return config('services.pakasir.slug', env('PAKASIR_SLUG', 'snaptechbooth'));
-    }
-
-    protected static function getApiKey(): string
-    {
-        return config('services.pakasir.api_key', env('PAKASIR_API_KEY', 'UNDovg8HAySBJSyOUiC3DcyNvwmkC8x1'));
+        return config('services.pakasir.slug');
     }
 
     /**
-     * Buat Dynamic QRIS via Pakasir API.
-     * POST https://app.pakasir.com/api/transactioncreate/qris
+     * Kunci API Pakasir. Sebelumnya method ini punya kunci asli sebagai nilai
+     * default di dalam kode, sehingga kunci itu ikut ter-commit ke repo dan
+     * tetap terpakai walau .env tidak mengisinya. Sekarang tanpa default:
+     * kalau belum dikonfigurasi, penerbitan QRIS gagal dengan jelas.
      */
-    public static function createQris(Payment $payment): array
+    protected static function getApiKey(): ?string
+    {
+        return config('services.pakasir.api_key');
+    }
+
+    /**
+     * Tandai pembayaran lunas dan nyalakan timer sesinya.
+     */
+    protected static function markPaid(Payment $payment): void
+    {
+        $payment->update([
+            'status'  => 'paid',
+            'paid_at' => now(),
+        ]);
+
+        if ($payment->session) {
+            $timerSetting = TimerSetting::resolveForCafe($payment->session->cafe_id);
+            $duration = $timerSetting->session_timeout_seconds ?? 300;
+            $payment->session->update([
+                'status'     => 'active',
+                'started_at' => now(),
+                'expires_at' => now()->addSeconds($duration),
+            ]);
+        }
+    }
+
+    /**
+     * Terbitkan Dynamic QRIS via Pakasir API.
+     * POST https://app.pakasir.com/api/transactioncreate/qris
+     *
+     * Mengembalikan null kalau QRIS tidak bisa diterbitkan. Sebelumnya method
+     * ini mengarang string QRIS merchant Shopee yang di-hardcode dan
+     * mengirimkannya ke kiosk seolah-olah sah, sehingga tamu bisa diminta
+     * memindai alat pembayaran milik pihak lain.
+     */
+    public static function createQris(Payment $payment): ?array
     {
         $slug = self::getSlug();
         $apiKey = self::getApiKey();
+
+        if (empty($slug) || empty($apiKey)) {
+            Log::error('Pakasir belum dikonfigurasi: PAKASIR_SLUG / PAKASIR_API_KEY kosong.');
+            return null;
+        }
+
         $orderId = 'STB-' . $payment->id . '-' . time();
         $amount = (int) $payment->amount;
+
+        // Simpan order_id lebih dulu supaya webhook tetap bisa mencocokkan
+        // pembayaran ini walau response API hilang di tengah jalan.
+        $payment->update(['xendit_payment_id' => $orderId]);
 
         try {
             $response = Http::timeout(10)->post('https://app.pakasir.com/api/transactioncreate/qris', [
@@ -40,7 +83,6 @@ class PakasirService
             Log::info("Pakasir QRIS Create Request for Payment #{$payment->id}", [
                 'order_id' => $orderId,
                 'amount'   => $amount,
-                'response' => $response->json(),
                 'status'   => $response->status(),
             ]);
 
@@ -49,17 +91,12 @@ class PakasirService
                 $qrString = $data['payment_number'] ?? null;
 
                 if ($qrString) {
-                    $payment->update([
-                        'xendit_payment_id' => $orderId, // Digunakan sebagai identifier transaksi / order_id
-                    ]);
-
                     return [
                         'order_id'      => $orderId,
                         'qr_string'     => $qrString,
                         'total_payment' => $data['total_payment'] ?? $amount,
                         'fee'           => $data['fee'] ?? 0,
                         'expired_at'    => $data['expired_at'] ?? now()->addMinutes(15)->toIso8601String(),
-                        'is_mock'       => false,
                     ];
                 }
             }
@@ -72,37 +109,23 @@ class PakasirService
             Log::error("Pakasir QRIS API Exception for Payment #{$payment->id}: " . $e->getMessage());
         }
 
-        // Fallback Mock QRIS string jika offline/koneksi API terkendala
-        $fallbackOrderId = 'MOCK-' . $payment->id . '-' . time();
-        $mockQr = "00020101021226610016ID.CO.SHOPEE.WWW01189360091800216005230208216005230303UME51440014ID.CO.QRIS.WWW0215ID10243228429300303UME5204792953033605409" . $amount . ".005802ID5913SnapTechBooth6007Jakarta61051234562230519MOCK" . $payment->id . "6304A079";
-
-        $payment->update([
-            'xendit_payment_id' => $fallbackOrderId,
-        ]);
-
-        return [
-            'order_id'      => $fallbackOrderId,
-            'qr_string'     => $mockQr,
-            'total_payment' => $amount,
-            'fee'           => 0,
-            'expired_at'    => now()->addMinutes(15)->toIso8601String(),
-            'is_mock'       => true,
-        ];
+        return null;
     }
 
     /**
-     * Cek status transaksi langsung ke API Pakasir
-     * GET https://app.pakasir.com/api/transactiondetail?project={slug}&amount={amount}&order_id={order_id}&api_key={api_key}
+     * Cek status transaksi langsung ke API Pakasir.
+     * GET https://app.pakasir.com/api/transactiondetail
      */
     public static function checkStatus(Payment $payment): ?string
     {
         $orderId = $payment->xendit_payment_id;
-        if (!$orderId || str_starts_with($orderId, 'MOCK-')) {
+        $slug = self::getSlug();
+        $apiKey = self::getApiKey();
+
+        if (!$orderId || empty($slug) || empty($apiKey)) {
             return null;
         }
 
-        $slug = self::getSlug();
-        $apiKey = self::getApiKey();
         $amount = (int) $payment->amount;
 
         try {
@@ -117,22 +140,15 @@ class PakasirService
                 $transaction = $response->json('transaction') ?? $response->json();
                 $status = strtolower($transaction['status'] ?? '');
 
-                if ($status === 'completed' || $status === 'paid' || $status === 'success') {
-                    $payment->update([
-                        'status'  => 'paid',
-                        'paid_at' => now(),
-                    ]);
+                // Nominal yang dilaporkan gateway harus sama dengan yang ditagih.
+                $reportedAmount = (int) ($transaction['amount'] ?? $amount);
+                if ($reportedAmount !== $amount) {
+                    Log::warning("Pakasir amount mismatch for Payment #{$payment->id}: expected {$amount}, got {$reportedAmount}");
+                    return null;
+                }
 
-                    if ($payment->session) {
-                        $timerSetting = \App\Models\TimerSetting::resolveForCafe($payment->session->cafe_id);
-                        $duration = $timerSetting->session_timeout_seconds ?? 300;
-                        $payment->session->update([
-                            'status'     => 'active',
-                            'started_at' => now(),
-                            'expires_at' => now()->addSeconds($duration),
-                        ]);
-                    }
-
+                if (in_array($status, ['completed', 'paid', 'success'], true)) {
+                    self::markPaid($payment);
                     return 'paid';
                 }
             }
@@ -144,22 +160,21 @@ class PakasirService
     }
 
     /**
-     * Simulasi Pembayaran Lunas (Sandbox / Testing)
+     * Simulasi pembayaran lunas untuk pengembangan dan pengujian.
+     * Pemanggilnya (PaymentController) yang menolak jalan di produksi.
      */
     public static function simulatePaid(Payment $payment): void
     {
         $slug = self::getSlug();
         $apiKey = self::getApiKey();
-        $orderId = $payment->xendit_payment_id ?? ('STB-' . $payment->id);
-        $amount = (int) $payment->amount;
+        $orderId = $payment->xendit_payment_id;
 
-        // Coba hit API simulasi resmi Pakasir jika bukan mock lokal
-        if (!str_starts_with($orderId, 'MOCK-')) {
+        if ($orderId && !empty($slug) && !empty($apiKey)) {
             try {
                 Http::timeout(5)->post('https://app.pakasir.com/api/paymentsimulation', [
                     'project'  => $slug,
                     'order_id' => $orderId,
-                    'amount'   => $amount,
+                    'amount'   => (int) $payment->amount,
                     'api_key'  => $apiKey,
                 ]);
             } catch (\Throwable $e) {
@@ -167,20 +182,6 @@ class PakasirService
             }
         }
 
-        // Tandai lunas di database lokal
-        $payment->update([
-            'status'  => 'paid',
-            'paid_at' => now(),
-        ]);
-
-        if ($payment->session) {
-            $timerSetting = \App\Models\TimerSetting::resolveForCafe($payment->session->cafe_id);
-            $duration = $timerSetting->session_timeout_seconds ?? 300;
-            $payment->session->update([
-                'status'     => 'active',
-                'started_at' => now(),
-                'expires_at' => now()->addSeconds($duration),
-            ]);
-        }
+        self::markPaid($payment);
     }
 }
