@@ -269,6 +269,7 @@ class DeviceProvisioningController extends Controller
                     'logo_url'            => $cafe->logo_path ? asset('storage/' . $cafe->logo_path) : null,
                     'is_ai_enabled'       => (bool) ($cafe->is_ai_enabled ?? true),
                     'show_kiosk_settings' => (bool) ($cafe->show_kiosk_settings ?? true),
+                    'payment_simulation_enabled' => (bool) ($cafe->payment_simulation_enabled ?? false),
                     'theme'    => [
                         'primary_color' => '#D97706',
                         'accent_color'  => '#78350F',

@@ -111,8 +111,20 @@ class PaymentController extends Controller
         ], 201);
     }
 
-    public function status(Payment $payment): JsonResponse
+    public function status(Request $request, Payment $payment): JsonResponse
     {
+        $request->validate([
+            'device_key' => ['required', 'string'],
+            'installation_id' => ['required', 'uuid'],
+        ]);
+        $device = Device::query()
+            ->where('device_key', trim($request->device_key))
+            ->where('installation_id', strtolower($request->installation_id))
+            ->where('status', 'active')
+            ->first();
+
+        abort_if(!$device || (int) $payment->session?->device_id !== (int) $device->id, 403, 'Transaksi bukan milik perangkat ini.');
+
         // Jika masih pending, coba cek status transaksi langsung ke Pakasir API
         if ($payment->status === 'pending') {
             PakasirService::checkStatus($payment);
@@ -127,6 +139,7 @@ class PaymentController extends Controller
                 'session_id'     => $payment->session_id,
                 'session_status' => $payment->session?->status,
                 'paid_at'        => $payment->paid_at,
+                'is_simulated'   => $payment->is_simulated,
             ],
             'message' => 'OK',
         ]);
@@ -135,17 +148,28 @@ class PaymentController extends Controller
     /**
      * Simulasi pembayaran untuk pengembangan dan pengujian.
      *
-     * Endpoint ini menandai pembayaran apa pun sebagai LUNAS, jadi ia tidak
-     * boleh hidup di produksi. Untuk pembayaran tunai di kasir, buat endpoint
-     * terpisah yang menuntut kredensial operator.
+     * Hanya tersedia jika Super Admin mengaktifkannya untuk cafe terkait dan
+     * pemanggil membuktikan identitas instalasi perangkat pemilik transaksi.
      */
-    public function simulatePaid(Payment $payment): JsonResponse
+    public function simulatePaid(Request $request, Payment $payment): JsonResponse
     {
-        abort_if(
-            app()->environment('production'),
-            403,
-            'Simulasi pembayaran dimatikan di lingkungan produksi.'
-        );
+        $request->validate([
+            'device_key' => ['required', 'string'],
+            'installation_id' => ['required', 'uuid'],
+        ]);
+
+        $device = Device::query()
+            ->where('device_key', trim($request->device_key))
+            ->where('installation_id', strtolower($request->installation_id))
+            ->where('status', 'active')
+            ->first();
+        $session = $payment->session;
+        $cafe = $session?->cafe;
+
+        abort_if(!$device || !$session || (int) $session->device_id !== (int) $device->id, 403, 'Transaksi bukan milik perangkat ini.');
+        abort_if(!$cafe || (int) $cafe->id !== (int) $device->cafe_id, 403, 'Transaksi bukan milik cafe ini.');
+        abort_if(!$cafe->payment_simulation_enabled, 403, 'Simulasi pembayaran dinonaktifkan oleh Super Admin.');
+        abort_if($payment->status !== 'pending', 409, 'Transaksi ini tidak lagi menunggu pembayaran.');
 
         PakasirService::simulatePaid($payment);
         $payment->refresh();
@@ -158,6 +182,7 @@ class PaymentController extends Controller
                 'status'         => $payment->status,
                 'session_id'     => $payment->session_id,
                 'session_status' => $payment->session?->status,
+                'is_simulated'   => true,
             ],
         ]);
     }

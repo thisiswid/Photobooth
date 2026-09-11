@@ -20,8 +20,9 @@ class GlobalStatsOverviewWidget extends BaseWidget
         $totalDevices = Device::count();
         $activeDevices = Device::where('status', 'active')->count();
 
-        $todayRevenue = Payment::where('status', 'paid')->whereDate('created_at', today())->sum('amount');
-        $monthRevenue = Payment::where('status', 'paid')->whereMonth('created_at', now()->month)->whereYear('created_at', now()->year)->sum('amount');
+        $todayRevenue = Payment::where('status', 'paid')->where('is_simulated', false)->whereDate('created_at', today())->sum('amount');
+        $monthRevenue = Payment::where('status', 'paid')->where('is_simulated', false)->whereMonth('created_at', now()->month)->whereYear('created_at', now()->year)->sum('amount');
+        $todaySimulation = Payment::where('status', 'paid')->where('is_simulated', true)->whereDate('created_at', today())->sum('amount');
 
         $cafes = Cafe::all();
         $outstandingCafeBalance = $cafes->sum(fn (Cafe $cafe) => $cafe->available_balance);
@@ -41,7 +42,7 @@ class GlobalStatsOverviewWidget extends BaseWidget
                 ->color('info'),
 
             Stat::make('Omset Global Hari Ini', 'Rp ' . number_format($todayRevenue, 0, ',', '.'))
-                ->description('Potongan platform dinonaktifkan')
+                ->description('Dana asli; simulasi Rp ' . number_format($todaySimulation, 0, ',', '.'))
                 ->icon('heroicon-o-banknotes')
                 ->color('success'),
 
@@ -51,7 +52,7 @@ class GlobalStatsOverviewWidget extends BaseWidget
                 ->color('warning'),
 
             Stat::make('Omset Bulan Ini', 'Rp ' . number_format($monthRevenue, 0, ',', '.'))
-                ->description(Payment::where('status', 'paid')->whereMonth('created_at', now()->month)->count() . ' transaksi berhasil')
+                ->description(Payment::where('status', 'paid')->where('is_simulated', false)->whereMonth('created_at', now()->month)->whereYear('created_at', now()->year)->count() . ' transaksi dana asli')
                 ->icon('heroicon-o-chart-bar')
                 ->color('success'),
 

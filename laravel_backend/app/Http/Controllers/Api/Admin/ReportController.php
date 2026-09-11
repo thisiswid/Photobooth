@@ -41,8 +41,10 @@ class ReportController extends Controller
 
         $totalSessions    = $this->sessions($period)->count();
         $finishedSessions = $this->sessions($period)->where('status', 'finished')->count();
-        $totalRevenue     = $this->payments($period)->where('status', 'paid')->sum('amount');
-        $paidCount        = $this->payments($period)->where('status', 'paid')->count();
+        $totalRevenue     = $this->payments($period)->where('status', 'paid')->where('is_simulated', false)->sum('amount');
+        $paidCount        = $this->payments($period)->where('status', 'paid')->where('is_simulated', false)->count();
+        $simulationRevenue = $this->payments($period)->where('status', 'paid')->where('is_simulated', true)->sum('amount');
+        $simulationCount   = $this->payments($period)->where('status', 'paid')->where('is_simulated', true)->count();
         $failedCount      = $this->payments($period)->where('status', 'failed')->count();
         $cafe = auth()->user()?->cafe;
 
@@ -64,6 +66,8 @@ class ReportController extends Controller
                 'finished_sessions'=> $finishedSessions,
                 'total_revenue'    => $totalRevenue,
                 'paid_count'       => $paidCount,
+                'simulation_revenue' => $simulationRevenue,
+                'simulation_count'   => $simulationCount,
                 'failed_count'     => $failedCount,
                 'financial_summary'=> $cafe ? [
                     'gross_revenue'      => $cafe->total_revenue,
@@ -72,6 +76,7 @@ class ReportController extends Controller
                     'withdrawn'          => $cafe->total_withdrawn,
                     'pending_withdrawal' => $cafe->pending_withdrawal,
                     'available_balance'  => $cafe->available_balance,
+                    'simulation_funds'   => $cafe->simulation_revenue,
                 ] : null,
                 'daily_sessions'   => $dailyData,
             ],

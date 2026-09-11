@@ -41,6 +41,7 @@ class FrameResource extends Resource
         return $schema->components([
             Section::make('1. Informasi & Upload File Frame')->schema([
                 Select::make('event_id')
+                    ->required()
                     ->label('Event')
                     ->relationship(
                         name: 'event',

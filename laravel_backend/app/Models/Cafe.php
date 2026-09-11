@@ -22,6 +22,7 @@ class Cafe extends Model
         'status',
         'is_ai_enabled',
         'show_kiosk_settings',
+        'payment_simulation_enabled',
         'subscription_end_at',
         'device_limit',
         'revenue_share_percentage',
@@ -36,6 +37,7 @@ class Cafe extends Model
     protected $casts = [
         'is_ai_enabled'            => 'boolean',
         'show_kiosk_settings'      => 'boolean',
+        'payment_simulation_enabled' => 'boolean',
         'subscription_end_at'      => 'datetime',
         'device_limit'             => 'integer',
         'revenue_share_percentage' => 'decimal:2',
@@ -108,7 +110,18 @@ class Cafe extends Model
      */
     public function getTotalRevenueAttribute(): int
     {
-        return (int) $this->payments()->where('payments.status', 'paid')->sum('amount');
+        return (int) $this->payments()
+            ->where('payments.status', 'paid')
+            ->where('payments.is_simulated', false)
+            ->sum('amount');
+    }
+
+    public function getSimulationRevenueAttribute(): int
+    {
+        return (int) $this->payments()
+            ->where('payments.status', 'paid')
+            ->where('payments.is_simulated', true)
+            ->sum('amount');
     }
 
     /**

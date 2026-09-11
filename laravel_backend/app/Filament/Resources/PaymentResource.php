@@ -37,6 +37,9 @@ class PaymentResource extends Resource
                 TextEntry::make('session.id')->label('ID Sesi Foto'),
                 TextEntry::make('session.event.name')->label('Event')->default('Fakultas Kopi Main Booth'),
                 TextEntry::make('amount')->label('Nominal Pembayaran')->money('IDR'),
+                TextEntry::make('is_simulated')->label('Jenis Dana')->badge()
+                    ->formatStateUsing(fn ($state) => $state ? 'Dana Simulasi' : 'Dana Asli')
+                    ->color(fn ($state) => $state ? 'warning' : 'success'),
                 TextEntry::make('payment_method')->label('Metode Bayar')->default('QRIS Instant'),
                 TextEntry::make('status')->label('Status Pembayaran')->badge()
                     ->color(fn ($state) => match($state) {
@@ -70,6 +73,9 @@ class PaymentResource extends Resource
                 TextColumn::make('session.id')->label('ID Sesi')->sortable(),
                 TextColumn::make('session.event.name')->label('Event')->default('Main Booth'),
                 TextColumn::make('amount')->label('Nominal')->money('IDR')->sortable(),
+                TextColumn::make('is_simulated')->label('Jenis Dana')->badge()
+                    ->formatStateUsing(fn ($state) => $state ? 'Simulasi' : 'Asli')
+                    ->color(fn ($state) => $state ? 'warning' : 'success'),
                 TextColumn::make('status')->label('Status')->badge()
                     ->color(fn ($state) => match($state) {
                         'paid'   => 'success',
@@ -83,6 +89,8 @@ class PaymentResource extends Resource
             ->filters([
                 SelectFilter::make('status')
                     ->options(['pending' => 'Pending', 'paid' => 'Paid', 'failed' => 'Failed']),
+                SelectFilter::make('is_simulated')->label('Jenis Dana')
+                    ->options(['0' => 'Dana Asli', '1' => 'Dana Simulasi']),
             ])
             ->actions([
                 ViewAction::make()->label('Detail'),
@@ -93,7 +101,7 @@ class PaymentResource extends Resource
                     ->requiresConfirmation()
                     ->modalHeading('Konfirmasi Pembayaran Lunas')
                     ->modalDescription('Apakah Anda ingin menandai pembayaran ini sebagai SUKSES / LUNAS? Sesi foto akan otomatis aktif.')
-                    ->visible(fn ($record) => $record->status === 'pending')
+                    ->visible(fn ($record) => $record->status === 'pending' && (bool) $record->session?->cafe?->payment_simulation_enabled)
                     ->action(function ($record) {
                         \App\Services\PakasirService::simulatePaid($record);
                         \Filament\Notifications\Notification::make()

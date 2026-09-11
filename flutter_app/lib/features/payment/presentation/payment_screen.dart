@@ -130,16 +130,19 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       }
     } catch (e) {
       debugPrint('Error initiating payment: $e');
-      // Fallback mock jika offline/error
       setState(() {
         _isLoading = false;
-        _orderId = 'MOCK-${DateTime.now().millisecondsSinceEpoch}';
-        _qrString =
-            "00020101021226610016ID.CO.SHOPEE.WWW01189360091800216005230208216005230303UME51440014ID.CO.QRIS.WWW0215ID10243228429300303UME5204792953033605409$_totalAmount.005802ID5913SnapTechBooth6007Jakarta61051234562230519MOCK${_totalAmount}6304A079";
-        _paymentId = 1;
-        _sessionId = 1;
+        _qrString = null;
+        _paymentId = null;
+        _sessionId = null;
       });
-      _startPolling();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('QRIS gagal dibuat. Silakan coba lagi.',
+              style: AppFonts.ui(color: AppColors.paperBright)),
+          backgroundColor: AppColors.inkOxide,
+        ));
+      }
     }
   }
 
@@ -156,8 +159,16 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       }
 
       try {
-        final res =
-            await DioClient.instance.dio.get('/payments/$_paymentId/status');
+        final deviceKey = await ProvisioningService.instance.getDeviceKey();
+        final installationId =
+            await ProvisioningService.instance.getInstallationId();
+        final res = await DioClient.instance.dio.get(
+          '/payments/$_paymentId/status',
+          queryParameters: {
+            'device_key': deviceKey,
+            'installation_id': installationId,
+          },
+        );
         if (res.data['success'] == true && res.data['data'] != null) {
           final status = res.data['data']['status'];
           if (status == 'paid') {
@@ -213,11 +224,31 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       case 'success':
         if (_paymentId != null) {
           try {
-            await DioClient.instance.dio
-                .post('/payments/$_paymentId/simulate-paid');
+            final deviceKey = await ProvisioningService.instance.getDeviceKey();
+            final installationId =
+                await ProvisioningService.instance.getInstallationId();
+            await DioClient.instance.dio.post(
+              '/payments/$_paymentId/simulate-paid',
+              data: {
+                'device_key': deviceKey,
+                'installation_id': installationId,
+              },
+            );
           } catch (e) {
             debugPrint('Simulate paid call failed: $e');
+            if (mounted) {
+              setState(() => _isProcessing = false);
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text('Simulasi ditolak atau sedang dinonaktifkan.',
+                    style: AppFonts.ui(color: AppColors.paperBright)),
+                backgroundColor: AppColors.inkOxide,
+              ));
+            }
+            return;
           }
+        } else {
+          setState(() => _isProcessing = false);
+          return;
         }
         await _onPaymentSuccess();
         break;
@@ -456,6 +487,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                 isCompact: isCompact,
                 onRefresh: _initiatePayment,
                 onSimulator: _showSimulator,
+                showSimulator: tenant?.cafe.paymentSimulationEnabled ?? false,
               ).animate().fadeIn(duration: 350.ms).slideY(begin: 0.04),
             ),
           ),
@@ -478,6 +510,7 @@ class _QrisMainCard extends StatelessWidget {
     required this.isCompact,
     required this.onRefresh,
     required this.onSimulator,
+    required this.showSimulator,
   });
 
   final String cafeName;
@@ -489,6 +522,7 @@ class _QrisMainCard extends StatelessWidget {
   final bool isCompact;
   final VoidCallback onRefresh;
   final VoidCallback onSimulator;
+  final bool showSimulator;
 
   @override
   Widget build(BuildContext context) {
@@ -658,36 +692,38 @@ class _QrisMainCard extends StatelessWidget {
             SizedBox(height: 16.h),
 
             // ── Tombol Simulator Testing (Demo/Kasir) ──────────────────
-            GestureDetector(
-              onTap: onSimulator,
-              child: Container(
-                width: double.infinity,
-                padding: EdgeInsets.symmetric(vertical: 9.h),
-                decoration: BoxDecoration(
-                  color: AppColors.paperDeep,
-                  border: Border.all(color: AppColors.ink15, width: 1),
-                  borderRadius: BorderRadius.circular(4.r),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.tune_rounded,
-                        size: 13.sp, color: AppColors.ink70),
-                    SizedBox(width: 6.w),
-                    Text(
-                      'SIMULASI PEMBAYARAN (TESTING)',
-                      style: AppFonts.ui(
-                        fontSize: 9.5.sp,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.ink70,
-                        letterSpacing: 1.2,
+            if (showSimulator) ...[
+              GestureDetector(
+                onTap: onSimulator,
+                child: Container(
+                  width: double.infinity,
+                  padding: EdgeInsets.symmetric(vertical: 9.h),
+                  decoration: BoxDecoration(
+                    color: AppColors.paperDeep,
+                    border: Border.all(color: AppColors.ink15, width: 1),
+                    borderRadius: BorderRadius.circular(4.r),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.tune_rounded,
+                          size: 13.sp, color: AppColors.ink70),
+                      SizedBox(width: 6.w),
+                      Text(
+                        'SIMULASI PEMBAYARAN (TESTING)',
+                        style: AppFonts.ui(
+                          fontSize: 9.5.sp,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.ink70,
+                          letterSpacing: 1.2,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-            SizedBox(height: 12.h),
+              SizedBox(height: 12.h),
+            ],
 
             // ── Powered by SnapTech ──────────────────────────────────
             Row(
