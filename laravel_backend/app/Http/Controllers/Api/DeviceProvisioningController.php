@@ -43,7 +43,12 @@ class DeviceProvisioningController extends Controller
 
         $device = DB::transaction(function () use ($deviceKey, $installationId, $request) {
             $device = Device::where('device_key', $deviceKey)->lockForUpdate()->first();
-            $cafe = $device?->cafe;
+            // Kunci baris cafe sebagai mutex aktivasi. PostgreSQL tidak
+            // mengizinkan COUNT(*) FOR UPDATE, jadi serialisasi dilakukan
+            // pada satu baris cafe lalu count dijalankan tanpa row lock.
+            $cafe = $device?->cafe_id
+                ? Cafe::whereKey($device->cafe_id)->lockForUpdate()->first()
+                : null;
 
             if (!$cafe) {
                 $cafe = Cafe::where(function ($query) use ($deviceKey) {
@@ -81,7 +86,6 @@ class DeviceProvisioningController extends Controller
             if (!$device) {
                 $activatedCount = Device::where('cafe_id', $cafe->id)
                     ->whereNotNull('installation_id')
-                    ->lockForUpdate()
                     ->count();
 
                 abort_if(
