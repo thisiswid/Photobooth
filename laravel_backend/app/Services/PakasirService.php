@@ -3,15 +3,39 @@
 namespace App\Services;
 
 use App\Models\Payment;
+use App\Models\PakasirSetting;
 use App\Models\TimerSetting;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class PakasirService
 {
-    protected static function getSlug(): ?string
+    public static function credentials(): array
     {
-        return config('services.pakasir.slug');
+        try {
+            $setting = PakasirSetting::query()->first();
+            if ($setting && $setting->is_enabled) {
+                return [
+                    'slug' => trim((string) $setting->project_slug),
+                    'api_key' => trim((string) $setting->api_key),
+                ];
+            }
+            if ($setting) {
+                return ['slug' => null, 'api_key' => null];
+            }
+        } catch (\Throwable $e) {
+            Log::debug('Pakasir DB setting belum tersedia; menggunakan konfigurasi .env.', ['message' => $e->getMessage()]);
+        }
+
+        return [
+            'slug' => config('services.pakasir.slug'),
+            'api_key' => config('services.pakasir.api_key'),
+        ];
+    }
+
+    public static function getSlug(): ?string
+    {
+        return self::credentials()['slug'];
     }
 
     /**
@@ -22,7 +46,7 @@ class PakasirService
      */
     protected static function getApiKey(): ?string
     {
-        return config('services.pakasir.api_key');
+        return self::credentials()['api_key'];
     }
 
     /**
