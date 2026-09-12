@@ -48,6 +48,55 @@ class DeviceLicenseAndFrameIsolationTest extends TestCase
         $this->assertSame(1, $cafe->devices()->whereNotNull('installation_id')->count());
     }
 
+    public function test_same_app_installation_can_move_to_a_different_cafe_key(): void
+    {
+        $cafeA = Cafe::create([
+            'name' => 'Cafe Lama',
+            'slug' => 'cafe-lama',
+            'code' => 'PB-LAMA',
+            'status' => 'active',
+            'device_limit' => 1,
+        ]);
+        $cafeB = Cafe::create([
+            'name' => 'Cafe Baru',
+            'slug' => 'cafe-baru',
+            'code' => 'PB-BARU',
+            'status' => 'active',
+            'device_limit' => 1,
+        ]);
+        $installationId = '99999999-9999-4999-8999-999999999999';
+
+        $firstActivation = $this->postJson('/api/devices/activate', [
+            'device_key' => $cafeA->code,
+            'installation_id' => $installationId,
+            'platform' => 'windows',
+        ])->assertOk();
+
+        $oldDeviceId = $firstActivation->json('data.device.id');
+
+        $secondActivation = $this->postJson('/api/devices/activate', [
+            'device_key' => $cafeB->code,
+            'installation_id' => $installationId,
+            'platform' => 'windows',
+        ])->assertOk()
+            ->assertJsonPath('data.cafe.id', $cafeB->id);
+
+        $newDeviceId = $secondActivation->json('data.device.id');
+
+        $this->assertNotSame($oldDeviceId, $newDeviceId);
+        $this->assertDatabaseHas('devices', [
+            'id' => $oldDeviceId,
+            'installation_id' => null,
+            'status' => 'inactive',
+        ]);
+        $this->assertDatabaseHas('devices', [
+            'id' => $newDeviceId,
+            'cafe_id' => $cafeB->id,
+            'installation_id' => $installationId,
+            'status' => 'active',
+        ]);
+    }
+
     public function test_device_config_only_contains_frames_from_its_own_cafe(): void
     {
         $cafeA = Cafe::create(['name' => 'Cafe A', 'slug' => 'cafe-a', 'code' => 'PB-A', 'status' => 'active']);
