@@ -42,6 +42,13 @@ class DeviceProvisioningController extends Controller
         $installationId = strtolower($request->installation_id);
 
         $device = DB::transaction(function () use ($deviceKey, $installationId, $request) {
+            // Satu instalasi hanya boleh terikat ke satu device. Ambil relasi lama
+            // sejak awal agar perpindahan key dapat melepas slot sebelumnya sebelum
+            // installation_id yang sama dipasang pada device baru.
+            $previousDevice = Device::where('installation_id', $installationId)
+                ->lockForUpdate()
+                ->first();
+
             $device = Device::where('device_key', $deviceKey)->lockForUpdate()->first();
             // Kunci baris cafe sebagai mutex aktivasi. PostgreSQL tidak
             // mengizinkan COUNT(*) FOR UPDATE, jadi serialisasi dilakukan
@@ -65,10 +72,9 @@ class DeviceProvisioningController extends Controller
                 || strtolower((string) $cafe->slug) === strtolower($deviceKey);
 
             // Aktivasi ulang dari instalasi yang sama selalu idempoten.
-            $sameInstallation = Device::where('cafe_id', $cafe->id)
-                ->where('installation_id', $installationId)
-                ->lockForUpdate()
-                ->first();
+            $sameInstallation = $previousDevice?->cafe_id === $cafe->id
+                ? $previousDevice
+                : null;
             if ($sameInstallation) {
                 $device = $sameInstallation;
             }
@@ -103,6 +109,17 @@ class DeviceProvisioningController extends Controller
                     'cafe_id' => $cafe->id,
                     'name' => $cafe->name . ' - Kiosk ' . ($activatedCount + 1),
                     'device_key' => 'PB-' . Str::upper(Str::random(12)),
+                ]);
+            }
+
+            // Key baru yang valid boleh memindahkan instalasi ini ke tenant/device
+            // tujuan. Data transaksi lama tetap berada pada cafe lama; yang dilepas
+            // hanya ikatan lisensi instalasinya supaya tidak melanggar unique index.
+            if ($previousDevice && !$previousDevice->is($device)) {
+                $previousDevice->update([
+                    'installation_id' => null,
+                    'activated_at' => null,
+                    'status' => 'inactive',
                 ]);
             }
 
