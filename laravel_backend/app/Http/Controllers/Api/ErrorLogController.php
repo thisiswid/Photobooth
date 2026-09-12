@@ -30,9 +30,17 @@ class ErrorLogController extends Controller
         $deviceId = $validated['device_id'] ?? null;
         $device = null;
         if ($deviceId) {
-            $device = \App\Models\Device::where('device_key', $deviceId)
-                ->orWhere('id', $deviceId)
-                ->orWhere('name', $deviceId)
+            $device = \App\Models\Device::query()
+                ->where(function ($query) use ($deviceId) {
+                    $query->where('device_key', $deviceId)
+                        ->orWhere('name', $deviceId);
+
+                    // Membandingkan string seperti "Tablet-Photobooth-1"
+                    // dengan kolom BIGINT id menyebabkan PostgreSQL error 500.
+                    if (ctype_digit($deviceId)) {
+                        $query->orWhere('id', (int) $deviceId);
+                    }
+                })
                 ->first();
         }
 
@@ -41,14 +49,11 @@ class ErrorLogController extends Controller
 
         $cafeId = $validated['cafe_id']
             ?? $event?->cafe_id
-            ?? $device?->cafe_id
-            ?? \App\Models\Cafe::first()?->id;
+            ?? $device?->cafe_id;
 
-        if (!$eventId) {
+        if (!$eventId && $cafeId) {
             $event = \App\Models\Event::where('cafe_id', $cafeId)->where('active', true)->first()
-                ?? \App\Models\Event::where('cafe_id', $cafeId)->latest()->first()
-                ?? \App\Models\Event::where('active', true)->first()
-                ?? \App\Models\Event::first();
+                ?? \App\Models\Event::where('cafe_id', $cafeId)->latest()->first();
             $eventId = $event?->id;
         }
 

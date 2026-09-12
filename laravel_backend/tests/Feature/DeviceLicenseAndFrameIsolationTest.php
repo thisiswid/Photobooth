@@ -192,4 +192,21 @@ class DeviceLicenseAndFrameIsolationTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.payment_id', $payment->id);
     }
+
+    public function test_client_error_log_accepts_a_non_numeric_device_label(): void
+    {
+        $this->postJson('/api/logs', [
+            'device_id' => 'Tablet-Photobooth-1',
+            'category' => 'network',
+            'level' => 'critical',
+            'title' => 'Network Error HTTP 500',
+            'message' => 'Aktivasi perangkat gagal.',
+            'context' => ['endpoint' => 'POST /devices/activate'],
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('error_logs', [
+            'device_id' => 'Tablet-Photobooth-1',
+            'cafe_id' => null,
+        ]);
+    }
 }

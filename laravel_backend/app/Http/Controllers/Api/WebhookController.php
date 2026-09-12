@@ -38,7 +38,7 @@ class WebhookController extends Controller
         $status = strtolower($data['status'] ?? '');
         $project = $data['project'] ?? '';
 
-        $expectedSlug = config('services.pakasir.slug');
+        $expectedSlug = PakasirService::getSlug();
 
         // Slug yang tidak cocok ditolak, bukan sekadar dicatat.
         if (empty($expectedSlug) || $project !== $expectedSlug) {
