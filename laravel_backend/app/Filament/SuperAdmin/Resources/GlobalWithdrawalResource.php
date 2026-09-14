@@ -3,31 +3,51 @@
 namespace App\Filament\SuperAdmin\Resources;
 
 use App\Filament\SuperAdmin\Resources\GlobalWithdrawalResource\Pages;
-use App\Models\Withdrawal;
 use App\Models\User;
+use App\Models\Withdrawal;
 use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Textarea;
 use Filament\Infolists\Components\ImageEntry;
-use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\DB;
 
 class GlobalWithdrawalResource extends Resource
 {
     protected static ?string $model = Withdrawal::class;
 
-    public static function getNavigationIcon(): string { return 'heroicon-o-banknotes'; }
-    public static function getNavigationGroup(): string { return 'Finance & Analytics'; }
-    public static function getNavigationSort(): int { return 4; }
-    public static function getModelLabel(): string { return 'Penarikan Dana Mitra'; }
-    public static function getPluralModelLabel(): string { return 'Pencairan Dana (Withdrawals)'; }
+    public static function getNavigationIcon(): string
+    {
+        return 'heroicon-o-banknotes';
+    }
+
+    public static function getNavigationGroup(): string
+    {
+        return 'Finance & Analytics';
+    }
+
+    public static function getNavigationSort(): int
+    {
+        return 4;
+    }
+
+    public static function getModelLabel(): string
+    {
+        return 'Penarikan Dana Mitra';
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return 'Pencairan Dana (Withdrawals)';
+    }
 
     public static function form(Schema $schema): Schema
     {
@@ -43,10 +63,10 @@ class GlobalWithdrawalResource extends Resource
                 TextEntry::make('user.name')->label('Diajukan Oleh'),
                 TextEntry::make('amount')->label('Nominal Pencairan')->money('IDR', locale: 'id'),
                 TextEntry::make('status')->label('Status')->badge()
-                    ->color(fn ($state) => match($state) {
+                    ->color(fn ($state) => match ($state) {
                         'approved' => 'success',
                         'rejected' => 'danger',
-                        default    => 'warning',
+                        default => 'warning',
                     }),
                 TextEntry::make('created_at')->label('Waktu Pengajuan')->dateTime('d M Y H:i:s'),
                 TextEntry::make('bank_name')->label('Bank Tujuan'),
@@ -64,7 +84,7 @@ class GlobalWithdrawalResource extends Resource
                         ->disk('public')
                         ->columnSpanFull(),
                 ])
-                ->visible(fn ($record) => !empty($record->proof_of_transfer_path)),
+                ->visible(fn ($record) => ! empty($record->proof_of_transfer_path)),
         ]);
     }
 
@@ -107,10 +127,10 @@ class GlobalWithdrawalResource extends Resource
                 TextColumn::make('status')
                     ->label('Status')
                     ->badge()
-                    ->color(fn ($state) => match($state) {
+                    ->color(fn ($state) => match ($state) {
                         'approved' => 'success',
                         'rejected' => 'danger',
-                        default    => 'warning',
+                        default => 'warning',
                     }),
                 TextColumn::make('created_at')
                     ->label('Waktu Diajukan')
@@ -124,7 +144,7 @@ class GlobalWithdrawalResource extends Resource
             ->filters([
                 SelectFilter::make('status')
                     ->options([
-                        'pending'  => 'Pending (Menunggu)',
+                        'pending' => 'Pending (Menunggu)',
                         'approved' => 'Approved (Ditransfer)',
                         'rejected' => 'Rejected (Ditolak)',
                     ]),
@@ -149,9 +169,9 @@ class GlobalWithdrawalResource extends Resource
                     ])
                     ->requiresConfirmation()
                     ->action(function (Withdrawal $record, array $data): void {
-                        $processed = \Illuminate\Support\Facades\DB::transaction(function () use ($record, $data): bool {
+                        $processed = DB::transaction(function () use ($record, $data): bool {
                             $locked = Withdrawal::query()->lockForUpdate()->findOrFail($record->id);
-                            if (!$locked->isPending()) {
+                            if (! $locked->isPending()) {
                                 return false;
                             }
                             $locked->update([
@@ -161,18 +181,20 @@ class GlobalWithdrawalResource extends Resource
                                 'processed_by' => auth()->id(),
                                 'processed_at' => now(),
                             ]);
+
                             return true;
                         });
 
-                        if (!$processed) {
+                        if (! $processed) {
                             Notification::make()->title('Pengajuan sudah diproses')->warning()->send();
+
                             return;
                         }
 
                         $record->refresh();
                         Notification::make()
                             ->title('Pencairan berhasil ditransfer')
-                            ->body("{$record->reference_no} sebesar Rp " . number_format($record->amount, 0, ',', '.') . ' telah disetujui. Bukti transfer tersedia di riwayat pencairan.')
+                            ->body("{$record->reference_no} sebesar Rp ".number_format($record->amount, 0, ',', '.').' telah disetujui. Bukti transfer tersedia di riwayat pencairan.')
                             ->success()
                             ->sendToDatabase(User::query()->where('cafe_id', $record->cafe_id)->get());
 
@@ -195,9 +217,9 @@ class GlobalWithdrawalResource extends Resource
                     ])
                     ->requiresConfirmation()
                     ->action(function (Withdrawal $record, array $data): void {
-                        $processed = \Illuminate\Support\Facades\DB::transaction(function () use ($record, $data): bool {
+                        $processed = DB::transaction(function () use ($record, $data): bool {
                             $locked = Withdrawal::query()->lockForUpdate()->findOrFail($record->id);
-                            if (!$locked->isPending()) {
+                            if (! $locked->isPending()) {
                                 return false;
                             }
                             $locked->update([
@@ -206,11 +228,13 @@ class GlobalWithdrawalResource extends Resource
                                 'processed_by' => auth()->id(),
                                 'processed_at' => now(),
                             ]);
+
                             return true;
                         });
 
-                        if (!$processed) {
+                        if (! $processed) {
                             Notification::make()->title('Pengajuan sudah diproses')->warning()->send();
+
                             return;
                         }
 
@@ -233,6 +257,7 @@ class GlobalWithdrawalResource extends Resource
     {
         return [
             'index' => Pages\ListGlobalWithdrawals::route('/'),
+            'view' => Pages\ViewGlobalWithdrawal::route('/{record}'),
         ];
     }
 }

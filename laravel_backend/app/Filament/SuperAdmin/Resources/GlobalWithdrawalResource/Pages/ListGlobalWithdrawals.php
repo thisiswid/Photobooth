@@ -3,6 +3,7 @@
 namespace App\Filament\SuperAdmin\Resources\GlobalWithdrawalResource\Pages;
 
 use App\Filament\SuperAdmin\Resources\GlobalWithdrawalResource;
+use App\Filament\Widgets\PakasirSettlementInfoWidget;
 use Filament\Resources\Pages\ListRecords;
 
 class ListGlobalWithdrawals extends ListRecords
@@ -12,5 +13,12 @@ class ListGlobalWithdrawals extends ListRecords
     protected function getHeaderActions(): array
     {
         return [];
+    }
+
+    protected function getHeaderWidgets(): array
+    {
+        return [
+            PakasirSettlementInfoWidget::class,
+        ];
     }
 }

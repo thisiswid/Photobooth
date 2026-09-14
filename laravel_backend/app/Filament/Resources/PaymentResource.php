@@ -4,25 +4,47 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\PaymentResource\Pages;
 use App\Models\Payment;
-use Filament\Schemas\Schema;
-use Filament\Schemas\Components\Section;
-use Filament\Infolists\Components\TextEntry;
-use Filament\Resources\Resource;
+use App\Services\PakasirService;
 use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Notifications\Notification;
+use Filament\Resources\Resource;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class PaymentResource extends Resource
 {
     protected static ?string $model = Payment::class;
 
-    public static function getNavigationIcon(): string { return 'heroicon-o-banknotes'; }
-    public static function getNavigationGroup(): string { return 'Operasional'; }
-    public static function getNavigationSort(): int { return 2; }
-    public static function getModelLabel(): string { return 'Transaksi'; }
-    public static function getPluralModelLabel(): string { return 'Transaksi'; }
+    public static function getNavigationIcon(): string
+    {
+        return 'heroicon-o-banknotes';
+    }
+
+    public static function getNavigationGroup(): string
+    {
+        return 'Operasional';
+    }
+
+    public static function getNavigationSort(): int
+    {
+        return 2;
+    }
+
+    public static function getModelLabel(): string
+    {
+        return 'Transaksi';
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return 'Transaksi';
+    }
 
     public static function form(Schema $schema): Schema
     {
@@ -37,15 +59,18 @@ class PaymentResource extends Resource
                 TextEntry::make('session.id')->label('ID Sesi Foto'),
                 TextEntry::make('session.event.name')->label('Event')->default('Fakultas Kopi Main Booth'),
                 TextEntry::make('amount')->label('Nominal Pembayaran')->money('IDR'),
+                TextEntry::make('original_amount')->label('Harga Awal')->money('IDR'),
+                TextEntry::make('discount_amount')->label('Diskon Voucher')->money('IDR'),
+                TextEntry::make('voucher.code')->label('Kode Voucher')->badge()->placeholder('-'),
                 TextEntry::make('is_simulated')->label('Jenis Dana')->badge()
                     ->formatStateUsing(fn ($state) => $state ? 'Dana Simulasi' : 'Dana Asli')
                     ->color(fn ($state) => $state ? 'warning' : 'success'),
                 TextEntry::make('payment_method')->label('Metode Bayar')->default('QRIS Instant'),
                 TextEntry::make('status')->label('Status Pembayaran')->badge()
-                    ->color(fn ($state) => match($state) {
-                        'paid'   => 'success',
+                    ->color(fn ($state) => match ($state) {
+                        'paid' => 'success',
                         'failed' => 'danger',
-                        default  => 'warning',
+                        default => 'warning',
                     }),
                 TextEntry::make('xendit_payment_id')->label('ID Referensi Gateway')->default('-')->copyable(),
                 TextEntry::make('paid_at')->label('Waktu Pembayaran Sukses')->dateTime('d M Y H:i:s'),
@@ -56,10 +81,10 @@ class PaymentResource extends Resource
                 TextEntry::make('session.frame.name')->label('Frame Dipilih')->default('-'),
                 TextEntry::make('session.filter.name')->label('Filter Dipilih')->default('Original'),
                 TextEntry::make('session.status')->label('Status Sesi')->badge()
-                    ->color(fn ($state) => match($state) {
+                    ->color(fn ($state) => match ($state) {
                         'finished' => 'success',
-                        'active'   => 'info',
-                        default    => 'gray',
+                        'active' => 'info',
+                        default => 'gray',
                     }),
             ])->columns(3),
         ]);
@@ -73,14 +98,16 @@ class PaymentResource extends Resource
                 TextColumn::make('session.id')->label('ID Sesi')->sortable(),
                 TextColumn::make('session.event.name')->label('Event')->default('Main Booth'),
                 TextColumn::make('amount')->label('Nominal')->money('IDR')->sortable(),
+                TextColumn::make('discount_amount')->label('Diskon')->money('IDR')->toggleable(),
+                TextColumn::make('voucher.code')->label('Voucher')->badge()->placeholder('-')->searchable(),
                 TextColumn::make('is_simulated')->label('Jenis Dana')->badge()
                     ->formatStateUsing(fn ($state) => $state ? 'Simulasi' : 'Asli')
                     ->color(fn ($state) => $state ? 'warning' : 'success'),
                 TextColumn::make('status')->label('Status')->badge()
-                    ->color(fn ($state) => match($state) {
-                        'paid'   => 'success',
+                    ->color(fn ($state) => match ($state) {
+                        'paid' => 'success',
                         'failed' => 'danger',
-                        default  => 'warning',
+                        default => 'warning',
                     }),
                 TextColumn::make('paid_at')->label('Waktu Bayar')->dateTime('d M Y H:i')->sortable(),
                 TextColumn::make('created_at')->label('Dibuat')->dateTime('d M Y H:i')->sortable(),
@@ -103,8 +130,8 @@ class PaymentResource extends Resource
                     ->modalDescription('Apakah Anda ingin menandai pembayaran ini sebagai SUKSES / LUNAS? Sesi foto akan otomatis aktif.')
                     ->visible(fn ($record) => $record->status === 'pending' && (bool) $record->session?->cafe?->payment_simulation_enabled)
                     ->action(function ($record) {
-                        \App\Services\PakasirService::simulatePaid($record);
-                        \Filament\Notifications\Notification::make()
+                        PakasirService::simulatePaid($record);
+                        Notification::make()
                             ->title('Pembayaran berhasil diverifikasi & sesi foto diaktifkan!')
                             ->success()
                             ->send();
@@ -112,22 +139,22 @@ class PaymentResource extends Resource
                 Action::make('view_session')
                     ->label('Lihat Sesi')
                     ->icon('heroicon-o-clock')
-                    ->url(fn ($record) => $record->session_id ? url('/admin/sessions/' . $record->session_id) : null),
+                    ->url(fn ($record) => $record->session_id ? url('/admin/sessions/'.$record->session_id) : null),
             ])
             ->poll('15s');
     }
 
-    public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
+    public static function getEloquentQuery(): Builder
     {
         $query = parent::getEloquentQuery();
         if ($cafeId = auth()->user()?->cafe_id) {
             $query->where(function ($q) use ($cafeId) {
-                $q->whereHas('session', fn ($sq) =>
-                    $sq->where('cafe_id', $cafeId)
-                       ->orWhereHas('event', fn ($eq) => $eq->where('cafe_id', $cafeId))
+                $q->whereHas('session', fn ($sq) => $sq->where('cafe_id', $cafeId)
+                    ->orWhereHas('event', fn ($eq) => $eq->where('cafe_id', $cafeId))
                 );
             });
         }
+
         return $query;
     }
 
@@ -135,7 +162,7 @@ class PaymentResource extends Resource
     {
         return [
             'index' => Pages\ListPayments::route('/'),
-            'view'  => Pages\ViewPayment::route('/{record}'),
+            'view' => Pages\ViewPayment::route('/{record}'),
         ];
     }
 }

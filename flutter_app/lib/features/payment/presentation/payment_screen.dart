@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -30,15 +31,22 @@ class PaymentScreen extends ConsumerStatefulWidget {
 }
 
 class _PaymentScreenState extends ConsumerState<PaymentScreen> {
-  bool _isLoading = true;
+  bool _isLoading = false;
   bool _isProcessing = false;
   bool _isSuccess = false;
+  bool _paymentStarted = false;
+  bool _isValidatingVoucher = false;
 
   String? _qrString;
   int? _paymentId;
   int? _sessionId;
   String? _orderId;
   int _totalAmount = 1000;
+  int _originalAmount = 1000;
+  int _discountAmount = 0;
+  String? _appliedVoucherCode;
+  String? _voucherMessage;
+  final TextEditingController _voucherController = TextEditingController();
 
   Timer? _timeoutTimer;
   Timer? _pollTimer;
@@ -49,16 +57,17 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     super.initState();
     final tenantConfig = ref.read(tenantNotifierProvider).valueOrNull;
     _totalAmount = tenantConfig?.pricing.sessionPrice ?? 1000;
+    _originalAmount = _totalAmount;
     _timeoutLeft = tenantConfig?.timers.paymentTimeoutSeconds ?? 180;
 
     _startTimeout();
-    _initiatePayment();
   }
 
   @override
   void dispose() {
     _timeoutTimer?.cancel();
     _pollTimer?.cancel();
+    _voucherController.dispose();
     super.dispose();
   }
 
@@ -93,9 +102,10 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   }
 
   /// Membuat transaksi QRIS via Backend / Pakasir
-  Future<void> _initiatePayment() async {
+  Future<void> _initiatePayment({String? voucherCode}) async {
     setState(() {
       _isLoading = true;
+      _paymentStarted = true;
     });
 
     final tenantConfig = ref.read(tenantNotifierProvider).valueOrNull;
@@ -106,6 +116,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       'device_key': deviceKey,
       'installation_id': installationId,
       if (tenantConfig?.event?.id != null) 'event_id': tenantConfig!.event!.id,
+      if (voucherCode != null && voucherCode.isNotEmpty)
+        'voucher_code': voucherCode,
     };
 
     try {
@@ -118,10 +130,19 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           _sessionId = data['session_id'];
           _qrString = data['qr_string'];
           _orderId = data['order_id'] ?? data['external_id'];
-          _totalAmount =
-              (data['total_payment'] ?? data['amount'] ?? _totalAmount) as int;
+          _originalAmount =
+              (data['original_amount'] as num?)?.toInt() ?? _originalAmount;
+          _discountAmount = (data['discount_amount'] as num?)?.toInt() ?? 0;
+          _totalAmount = (data['total_payment'] as num?)?.toInt() ??
+              (data['amount'] as num?)?.toInt() ??
+              _totalAmount;
           _isLoading = false;
         });
+
+        if (data['status'] == 'paid') {
+          await _onPaymentSuccess();
+          return;
+        }
 
         // Mulai polling status pembayaran
         _startPolling();
@@ -135,14 +156,100 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         _qrString = null;
         _paymentId = null;
         _sessionId = null;
+        _paymentStarted = false;
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('QRIS gagal dibuat. Silakan coba lagi.',
+          content: Text(
+              _errorMessage(e, 'Pembayaran gagal dibuat. Silakan coba lagi.'),
               style: AppFonts.ui(color: AppColors.paperBright)),
           backgroundColor: AppColors.inkOxide,
         ));
       }
+    }
+  }
+
+  String _errorMessage(Object error, String fallback) {
+    if (error is DioException) {
+      final data = error.response?.data;
+      if (data is Map) {
+        final errors = data['errors'];
+        if (errors is Map &&
+            errors['voucher_code'] is List &&
+            (errors['voucher_code'] as List).isNotEmpty) {
+          return errors['voucher_code'].first.toString();
+        }
+        if (data['message'] != null) return data['message'].toString();
+      }
+    }
+    return fallback;
+  }
+
+  Future<bool> _validateVoucher() async {
+    final code = _voucherController.text.trim();
+    if (code.isEmpty) {
+      setState(() {
+        _appliedVoucherCode = null;
+        _voucherMessage = null;
+        _discountAmount = 0;
+        _totalAmount = _originalAmount;
+      });
+      return true;
+    }
+
+    setState(() => _isValidatingVoucher = true);
+    try {
+      final tenantConfig = ref.read(tenantNotifierProvider).valueOrNull;
+      final response =
+          await DioClient.instance.dio.post('/vouchers/validate', data: {
+        'device_key': await ProvisioningService.instance.getDeviceKey(),
+        'installation_id':
+            await ProvisioningService.instance.getInstallationId(),
+        'voucher_code': code,
+        if (tenantConfig?.event?.id != null)
+          'event_id': tenantConfig!.event!.id,
+      });
+      final data = response.data['data'];
+      if (!mounted) return false;
+      setState(() {
+        _appliedVoucherCode = data['code']?.toString();
+        _originalAmount = (data['original_amount'] as num).toInt();
+        _discountAmount = (data['discount_amount'] as num).toInt();
+        _totalAmount = (data['final_amount'] as num).toInt();
+        _voucherMessage = '${data['name']} berhasil digunakan';
+      });
+      return true;
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _appliedVoucherCode = null;
+          _voucherMessage = _errorMessage(e, 'Voucher tidak dapat digunakan.');
+          _discountAmount = 0;
+          _totalAmount = _originalAmount;
+        });
+      }
+      return false;
+    } finally {
+      if (mounted) setState(() => _isValidatingVoucher = false);
+    }
+  }
+
+  Future<void> _proceedToPayment() async {
+    if (_isLoading || _isValidatingVoucher || _paymentStarted) return;
+    final valid = await _validateVoucher();
+    if (!valid) return;
+    await _initiatePayment(voucherCode: _appliedVoucherCode);
+  }
+
+  void _resetVoucherWhenEdited(String value) {
+    if (_appliedVoucherCode != null &&
+        value.trim().toUpperCase() != _appliedVoucherCode) {
+      setState(() {
+        _appliedVoucherCode = null;
+        _voucherMessage = null;
+        _discountAmount = 0;
+        _totalAmount = _originalAmount;
+      });
     }
   }
 
@@ -485,9 +592,20 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                 isLoading: _isLoading,
                 timeoutText: _formatTime(_timeoutLeft),
                 isCompact: isCompact,
-                onRefresh: _initiatePayment,
+                onRefresh: () =>
+                    _initiatePayment(voucherCode: _appliedVoucherCode),
                 onSimulator: _showSimulator,
                 showSimulator: tenant?.cafe.paymentSimulationEnabled ?? false,
+                paymentStarted: _paymentStarted,
+                voucherController: _voucherController,
+                isValidatingVoucher: _isValidatingVoucher,
+                voucherMessage: _voucherMessage,
+                voucherApplied: _appliedVoucherCode != null,
+                originalPrice: _formatPrice(_originalAmount),
+                discountPrice: _formatPrice(_discountAmount),
+                onApplyVoucher: _validateVoucher,
+                onProceed: _proceedToPayment,
+                onVoucherChanged: _resetVoucherWhenEdited,
               ).animate().fadeIn(duration: 350.ms).slideY(begin: 0.04),
             ),
           ),
@@ -511,6 +629,16 @@ class _QrisMainCard extends StatelessWidget {
     required this.onRefresh,
     required this.onSimulator,
     required this.showSimulator,
+    required this.paymentStarted,
+    required this.voucherController,
+    required this.isValidatingVoucher,
+    required this.voucherApplied,
+    required this.originalPrice,
+    required this.discountPrice,
+    required this.onApplyVoucher,
+    required this.onProceed,
+    required this.onVoucherChanged,
+    this.voucherMessage,
   });
 
   final String cafeName;
@@ -523,6 +651,16 @@ class _QrisMainCard extends StatelessWidget {
   final VoidCallback onRefresh;
   final VoidCallback onSimulator;
   final bool showSimulator;
+  final bool paymentStarted;
+  final TextEditingController voucherController;
+  final bool isValidatingVoucher;
+  final bool voucherApplied;
+  final String originalPrice;
+  final String discountPrice;
+  final String? voucherMessage;
+  final VoidCallback onApplyVoucher;
+  final VoidCallback onProceed;
+  final ValueChanged<String> onVoucherChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -595,7 +733,7 @@ class _QrisMainCard extends StatelessWidget {
             ),
             SizedBox(height: 14.h),
 
-            // ── Area Kode QRIS ─────────────────────────────────────────
+            // ── Voucher / Area Kode QRIS ───────────────────────────────
             Container(
               padding: EdgeInsets.all(12.r),
               decoration: BoxDecoration(
@@ -611,51 +749,117 @@ class _QrisMainCard extends StatelessWidget {
               ),
               child: SizedBox(
                 width: qrSize,
-                height: qrSize,
-                child: isLoading
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const CircularProgressIndicator(
-                              color: AppColors.ink,
-                              strokeWidth: 2.0,
-                            ),
-                            SizedBox(height: 10.h),
-                            Text(
-                              'Membuat kode QRIS...',
+                height: paymentStarted ? qrSize : null,
+                child: !paymentStarted
+                    ? Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.local_activity_outlined,
+                              size: 38.r, color: AppColors.ink70),
+                          SizedBox(height: 10.h),
+                          Text('PUNYA KODE VOUCHER?',
                               style: AppFonts.ui(
-                                fontSize: 10.sp,
-                                color: AppColors.ink70,
+                                  fontSize: 11.sp,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.ink)),
+                          SizedBox(height: 10.h),
+                          Row(children: [
+                            Expanded(
+                              child: TextField(
+                                controller: voucherController,
+                                onChanged: onVoucherChanged,
+                                textCapitalization:
+                                    TextCapitalization.characters,
+                                decoration: const InputDecoration(
+                                  hintText: 'Masukkan kode',
+                                  isDense: true,
+                                  border: OutlineInputBorder(),
+                                ),
                               ),
                             ),
+                            SizedBox(width: 8.w),
+                            FilledButton(
+                              onPressed:
+                                  isValidatingVoucher ? null : onApplyVoucher,
+                              child: isValidatingVoucher
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2))
+                                  : const Text('Gunakan'),
+                            ),
+                          ]),
+                          if (voucherMessage != null) ...[
+                            SizedBox(height: 8.h),
+                            Text(
+                              voucherMessage!,
+                              textAlign: TextAlign.center,
+                              style: AppFonts.ui(
+                                  fontSize: 10.sp,
+                                  fontWeight: FontWeight.w600,
+                                  color: voucherApplied
+                                      ? AppColors.inkGreen
+                                      : AppColors.inkOxide),
+                            ),
                           ],
-                        ),
-                      )
-                    : (qrString != null && qrString!.isNotEmpty)
-                        ? QrImageView(
-                            data: qrString!,
-                            version: QrVersions.auto,
-                            size: qrSize,
-                            gapless: true,
-                            errorCorrectionLevel: QrErrorCorrectLevel.M,
-                            backgroundColor: Colors.white,
-                            eyeStyle: const QrEyeStyle(
-                              eyeShape: QrEyeShape.square,
-                              color: Colors.black,
-                            ),
-                            dataModuleStyle: const QrDataModuleStyle(
-                              dataModuleShape: QrDataModuleShape.square,
-                              color: Colors.black,
-                            ),
-                          )
-                        : Center(
-                            child: IconButton(
-                              icon: const Icon(Icons.refresh,
-                                  color: AppColors.ink, size: 36),
-                              onPressed: onRefresh,
+                          SizedBox(height: 14.h),
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton.icon(
+                              onPressed: isValidatingVoucher ? null : onProceed,
+                              icon: const Icon(Icons.qr_code_2),
+                              label: Text(price == 'Rp 0'
+                                  ? 'GUNAKAN VOUCHER GRATIS'
+                                  : 'LANJUT KE PEMBAYARAN'),
                             ),
                           ),
+                        ],
+                      )
+                    : isLoading
+                        ? Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const CircularProgressIndicator(
+                                  color: AppColors.ink,
+                                  strokeWidth: 2.0,
+                                ),
+                                SizedBox(height: 10.h),
+                                Text(
+                                  'Membuat kode QRIS...',
+                                  style: AppFonts.ui(
+                                    fontSize: 10.sp,
+                                    color: AppColors.ink70,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : (qrString != null && qrString!.isNotEmpty)
+                            ? QrImageView(
+                                data: qrString!,
+                                version: QrVersions.auto,
+                                size: qrSize,
+                                gapless: true,
+                                errorCorrectionLevel: QrErrorCorrectLevel.M,
+                                backgroundColor: Colors.white,
+                                eyeStyle: const QrEyeStyle(
+                                  eyeShape: QrEyeShape.square,
+                                  color: Colors.black,
+                                ),
+                                dataModuleStyle: const QrDataModuleStyle(
+                                  dataModuleShape: QrDataModuleShape.square,
+                                  color: Colors.black,
+                                ),
+                              )
+                            : Center(
+                                child: IconButton(
+                                  icon: const Icon(Icons.refresh,
+                                      color: AppColors.ink, size: 36),
+                                  onPressed: onRefresh,
+                                ),
+                              ),
               ),
             ),
             SizedBox(height: 16.h),
@@ -677,6 +881,12 @@ class _QrisMainCard extends StatelessWidget {
                   ),
                 ),
                 SizedBox(height: 4.h),
+                if (voucherApplied) ...[
+                  Text('Harga awal $originalPrice  •  Diskon -$discountPrice',
+                      style:
+                          AppFonts.ui(fontSize: 10.sp, color: AppColors.ink70)),
+                  SizedBox(height: 3.h),
+                ],
                 Text(
                   price,
                   textAlign: TextAlign.center,

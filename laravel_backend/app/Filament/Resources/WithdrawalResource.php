@@ -4,15 +4,14 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\WithdrawalResource\Pages;
 use App\Filament\Resources\WithdrawalResource\Widgets\WithdrawalOverviewWidget;
-use App\Models\Cafe;
 use App\Models\Withdrawal;
+use Filament\Actions\ViewAction;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Infolists\Components\ImageEntry;
-use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Resources\Resource;
-use Filament\Actions\ViewAction;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -22,11 +21,30 @@ class WithdrawalResource extends Resource
 {
     protected static ?string $model = Withdrawal::class;
 
-    public static function getNavigationIcon(): string { return 'heroicon-o-banknotes'; }
-    public static function getNavigationGroup(): string { return 'Keuangan'; }
-    public static function getNavigationSort(): int { return 1; }
-    public static function getModelLabel(): string { return 'Penarikan Dana'; }
-    public static function getPluralModelLabel(): string { return 'Penarikan Dana (Withdrawal)'; }
+    public static function getNavigationIcon(): string
+    {
+        return 'heroicon-o-banknotes';
+    }
+
+    public static function getNavigationGroup(): string
+    {
+        return 'Keuangan';
+    }
+
+    public static function getNavigationSort(): int
+    {
+        return 1;
+    }
+
+    public static function getModelLabel(): string
+    {
+        return 'Penarikan Dana';
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return 'Penarikan Dana (Withdrawal)';
+    }
 
     public static function getEloquentQuery(): Builder
     {
@@ -34,6 +52,7 @@ class WithdrawalResource extends Resource
         if ($cafeId = auth()->user()?->cafe_id) {
             $query->where('cafe_id', $cafeId);
         }
+
         return $query->latest();
     }
 
@@ -43,8 +62,8 @@ class WithdrawalResource extends Resource
         $maxBalance = $cafe?->available_balance ?? 0;
 
         return $schema->components([
-            \Filament\Schemas\Components\Section::make('Form Pengajuan Penarikan Saldo')
-                ->description("Saldo yang dapat ditarik saat ini: Rp " . number_format($maxBalance, 0, ',', '.'))
+            Section::make('Form Pengajuan Penarikan Saldo')
+                ->description('Saldo yang dapat ditarik saat ini: Rp '.number_format($maxBalance, 0, ',', '.'))
                 ->schema([
                     TextInput::make('amount')
                         ->label('Nominal Penarikan (Rp)')
@@ -53,7 +72,7 @@ class WithdrawalResource extends Resource
                         ->minValue(50000)
                         ->maxValue($maxBalance)
                         ->required()
-                        ->helperText("Minimal penarikan Rp 50.000 (Maksimal: Rp " . number_format($maxBalance, 0, ',', '.') . ")"),
+                        ->helperText('Minimal penarikan Rp 50.000 (Maksimal: Rp '.number_format($maxBalance, 0, ',', '.').')'),
 
                     TextInput::make('bank_name')
                         ->label('Nama Bank Tujuan')
@@ -88,10 +107,10 @@ class WithdrawalResource extends Resource
                 TextEntry::make('reference_no')->label('Nomor Referensi')->copyable(),
                 TextEntry::make('amount')->label('Nominal Penarikan')->money('IDR'),
                 TextEntry::make('status')->label('Status')->badge()
-                    ->color(fn ($state) => match($state) {
+                    ->color(fn ($state) => match ($state) {
                         'approved' => 'success',
                         'rejected' => 'danger',
-                        default    => 'warning',
+                        default => 'warning',
                     }),
                 TextEntry::make('created_at')->label('Waktu Pengajuan')->dateTime('d M Y H:i:s'),
                 TextEntry::make('bank_name')->label('Bank Tujuan'),
@@ -109,7 +128,7 @@ class WithdrawalResource extends Resource
                         ->disk('public')
                         ->columnSpanFull(),
                 ])
-                ->visible(fn ($record) => !empty($record->proof_of_transfer_path)),
+                ->visible(fn ($record) => ! empty($record->proof_of_transfer_path)),
         ]);
     }
 
@@ -136,10 +155,10 @@ class WithdrawalResource extends Resource
                 TextColumn::make('status')
                     ->label('Status')
                     ->badge()
-                    ->color(fn ($state) => match($state) {
+                    ->color(fn ($state) => match ($state) {
                         'approved' => 'success',
                         'rejected' => 'danger',
-                        default    => 'warning',
+                        default => 'warning',
                     }),
                 TextColumn::make('created_at')
                     ->label('Waktu Pengajuan')
@@ -165,8 +184,9 @@ class WithdrawalResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index'  => Pages\ListWithdrawals::route('/'),
+            'index' => Pages\ListWithdrawals::route('/'),
             'create' => Pages\CreateWithdrawal::route('/create'),
+            'view' => Pages\ViewWithdrawal::route('/{record}'),
         ];
     }
 }
