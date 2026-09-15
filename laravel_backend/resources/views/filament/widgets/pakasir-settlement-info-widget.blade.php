@@ -4,13 +4,17 @@
         description="Jadwal settlement dan ketentuan pencairan saldo melalui Pakasir."
         icon="heroicon-o-building-library"
         icon-color="warning"
+        collapsible
+        collapsed
+        persist-collapsed
+        collapse-id="pakasir-withdrawal-guide"
     >
         <div class="space-y-6 text-sm text-gray-600 dark:text-gray-300">
             <div class="grid gap-4 lg:grid-cols-3">
                 <div class="rounded-xl bg-warning-50 p-5 ring-1 ring-inset ring-warning-200 dark:bg-warning-950/30 dark:ring-warning-800">
                     <div class="flex items-start gap-3">
                         <div class="rounded-lg bg-warning-100 p-2 text-warning-700 dark:bg-warning-900/50 dark:text-warning-300">
-                            <x-heroicon-o-clock class="h-5 w-5" />
+                            <x-heroicon-o-clock class="h-5 w-5" style="display: block; width: 1.25rem; height: 1.25rem;" />
                         </div>
                         <div>
                             <p class="font-semibold text-gray-950 dark:text-white">Settlement saldo QRIS</p>
@@ -28,7 +32,7 @@
                     <div class="flex items-start justify-between gap-3">
                         <div class="flex items-start gap-3">
                             <div class="rounded-lg bg-success-50 p-2 text-success-600 dark:bg-success-950/40 dark:text-success-400">
-                                <x-heroicon-o-hand-raised class="h-5 w-5" />
+                                <x-heroicon-o-hand-raised class="h-5 w-5" style="display: block; width: 1.25rem; height: 1.25rem;" />
                             </div>
                             <div>
                                 <p class="font-semibold text-gray-950 dark:text-white">Penarikan Manual</p>
@@ -48,7 +52,7 @@
                 <div class="rounded-xl bg-white p-5 ring-1 ring-inset ring-gray-200 dark:bg-gray-900 dark:ring-white/10">
                     <div class="flex items-start gap-3">
                         <div class="rounded-lg bg-primary-50 p-2 text-primary-600 dark:bg-primary-950/40 dark:text-primary-400">
-                            <x-heroicon-o-bolt class="h-5 w-5" />
+                            <x-heroicon-o-bolt class="h-5 w-5" style="display: block; width: 1.25rem; height: 1.25rem;" />
                         </div>
                         <div>
                             <p class="font-semibold text-gray-950 dark:text-white">Penarikan Otomatis</p>
