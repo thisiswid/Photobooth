@@ -35,6 +35,8 @@ class StatsOverviewWidget extends BaseWidget
         $finishedSessions = (clone $sessionQuery)->where('status', 'finished')->whereDate('created_at', today())->count();
         $paidPayments = (clone $paymentQuery)->where('status', 'paid')->where('is_simulated', false)->whereDate('created_at', today())->count();
         $todayRevenue = (clone $paymentQuery)->where('status', 'paid')->where('is_simulated', false)->whereDate('created_at', today())->sum('amount');
+        $todayPakasirFee = (clone $paymentQuery)->where('status', 'paid')->where('is_simulated', false)->whereDate('created_at', today())->sum('provider_fee');
+        $todayNetRevenue = (clone $paymentQuery)->where('status', 'paid')->where('is_simulated', false)->whereDate('created_at', today())->sum('net_amount');
         $simulationRevenue = (clone $paymentQuery)->where('status', 'paid')->where('is_simulated', true)->whereDate('created_at', today())->sum('amount');
         $cafe = $cafeId ? Cafe::find($cafeId) : null;
 
@@ -51,8 +53,8 @@ class StatsOverviewWidget extends BaseWidget
                 ->description('Transaksi dana asli hari ini')
                 ->icon('heroicon-o-credit-card')
                 ->color('warning'),
-            Stat::make('Omzet Hari Ini', 'Rp '.number_format($todayRevenue, 0, ',', '.'))
-                ->description('Dana asli hari ini; simulasi Rp '.number_format($simulationRevenue, 0, ',', '.'))
+            Stat::make('Omzet Bruto Hari Ini', 'Rp '.number_format($todayRevenue, 0, ',', '.'))
+                ->description('Neto Rp '.number_format($todayNetRevenue, 0, ',', '.').' • biaya Pakasir Rp '.number_format($todayPakasirFee, 0, ',', '.').' • simulasi Rp '.number_format($simulationRevenue, 0, ',', '.'))
                 ->icon('heroicon-o-banknotes')
                 ->color('success'),
             Stat::make('Saldo Siap Ditarik', 'Rp '.number_format($cafe?->available_balance ?? 0, 0, ',', '.'))

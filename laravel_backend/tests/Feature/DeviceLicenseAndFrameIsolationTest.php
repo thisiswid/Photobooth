@@ -114,7 +114,7 @@ class DeviceLicenseAndFrameIsolationTest extends TestCase
         ])->assertOk();
 
         $deviceKey = $activation->json('data.device.device_key');
-        $this->getJson('/api/devices/' . $deviceKey . '/config?installation_id=' . $installationId)
+        $this->getJson('/api/devices/'.$deviceKey.'/config?installation_id='.$installationId)
             ->assertOk()
             ->assertJsonCount(1, 'data.frames')
             ->assertJsonPath('data.frames.0.name', 'Frame A');
@@ -128,7 +128,7 @@ class DeviceLicenseAndFrameIsolationTest extends TestCase
         $otherEvent = Event::create(['cafe_id' => $cafeB->id, 'name' => 'Milik B', 'active' => true]);
         Frame::create(['event_id' => $otherEvent->id, 'name' => 'Rahasia B', 'asset_url' => 'frames/b.png', 'active' => true]);
 
-        $this->getJson('/api/events/' . $emptyEvent->id . '/frames')
+        $this->getJson('/api/events/'.$emptyEvent->id.'/frames')
             ->assertOk()
             ->assertJsonCount(0, 'data');
     }
@@ -167,8 +167,9 @@ class DeviceLicenseAndFrameIsolationTest extends TestCase
         $cafe->refresh();
         $this->assertSame(100000, $cafe->total_revenue);
         $this->assertSame(0, $cafe->platform_fee);
-        $this->assertSame(100000, $cafe->net_revenue);
-        $this->assertSame(50000, $cafe->available_balance);
+        $this->assertSame(1010, $cafe->pakasir_fee);
+        $this->assertSame(98990, $cafe->net_revenue);
+        $this->assertSame(48990, $cafe->available_balance);
     }
 
     public function test_simulated_payment_requires_cafe_toggle_and_never_enters_real_balance(): void

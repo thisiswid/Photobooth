@@ -58,7 +58,11 @@ class PaymentResource extends Resource
                 TextEntry::make('id')->label('ID Transaksi'),
                 TextEntry::make('session.id')->label('ID Sesi Foto'),
                 TextEntry::make('session.event.name')->label('Event')->default('Fakultas Kopi Main Booth'),
-                TextEntry::make('amount')->label('Nominal Pembayaran')->money('IDR'),
+                TextEntry::make('amount')->label('Pembayaran Bruto')->money('IDR'),
+                TextEntry::make('provider_fee')->label('Biaya Pakasir')
+                    ->formatStateUsing(fn ($state) => (int) $state > 0 ? '- Rp '.number_format((float) $state, 0, ',', '.') : 'Rp 0')
+                    ->color('danger'),
+                TextEntry::make('net_amount')->label('Neto Diterima Cafe')->money('IDR')->color('success'),
                 TextEntry::make('original_amount')->label('Harga Awal')->money('IDR'),
                 TextEntry::make('discount_amount')->label('Diskon Voucher')->money('IDR'),
                 TextEntry::make('voucher.code')->label('Kode Voucher')->badge()->placeholder('-'),
@@ -96,8 +100,18 @@ class PaymentResource extends Resource
             ->columns([
                 TextColumn::make('id')->label('ID')->sortable(),
                 TextColumn::make('session.id')->label('ID Sesi')->sortable(),
+                TextColumn::make('xendit_payment_id')
+                    ->label('Order ID Pakasir')
+                    ->searchable()
+                    ->copyable()
+                    ->placeholder('-'),
                 TextColumn::make('session.event.name')->label('Event')->default('Main Booth'),
-                TextColumn::make('amount')->label('Nominal')->money('IDR')->sortable(),
+                TextColumn::make('amount')->label('Bruto')->money('IDR')->sortable(),
+                TextColumn::make('provider_fee')->label('Biaya Pakasir')
+                    ->formatStateUsing(fn ($state) => (int) $state > 0 ? '- Rp '.number_format((float) $state, 0, ',', '.') : 'Rp 0')
+                    ->color('danger')
+                    ->sortable(),
+                TextColumn::make('net_amount')->label('Neto Cafe')->money('IDR')->color('success')->sortable(),
                 TextColumn::make('discount_amount')->label('Diskon')->money('IDR')->toggleable(),
                 TextColumn::make('voucher.code')->label('Voucher')->badge()->placeholder('-')->searchable(),
                 TextColumn::make('is_simulated')->label('Jenis Dana')->badge()
