@@ -89,6 +89,8 @@ class VoucherPaymentTest extends TestCase
             ->assertJsonPath('data.original_amount', 25000)
             ->assertJsonPath('data.discount_amount', 10000)
             ->assertJsonPath('data.amount', 15000)
+            ->assertJsonPath('data.provider_fee', 415)
+            ->assertJsonPath('data.net_amount', 14585)
             ->assertJsonPath('data.payment_method', 'qris_voucher');
 
         Http::assertSent(fn ($request) => $request['amount'] === 15000);

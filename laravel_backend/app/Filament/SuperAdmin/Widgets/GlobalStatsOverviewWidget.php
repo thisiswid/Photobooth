@@ -6,13 +6,15 @@ use App\Models\Cafe;
 use App\Models\Device;
 use App\Models\ErrorLog;
 use App\Models\Payment;
-use App\Models\Session;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 
 class GlobalStatsOverviewWidget extends BaseWidget
 {
-    public static function getSort(): int { return 1; }
+    public static function getSort(): int
+    {
+        return 1;
+    }
 
     protected function getStats(): array
     {
@@ -21,7 +23,10 @@ class GlobalStatsOverviewWidget extends BaseWidget
         $activeDevices = Device::where('status', 'active')->count();
 
         $todayRevenue = Payment::where('status', 'paid')->where('is_simulated', false)->whereDate('created_at', today())->sum('amount');
+        $todayPakasirFee = Payment::where('status', 'paid')->where('is_simulated', false)->whereDate('created_at', today())->sum('provider_fee');
+        $todayNetRevenue = Payment::where('status', 'paid')->where('is_simulated', false)->whereDate('created_at', today())->sum('net_amount');
         $monthRevenue = Payment::where('status', 'paid')->where('is_simulated', false)->whereMonth('created_at', now()->month)->whereYear('created_at', now()->year)->sum('amount');
+        $monthNetRevenue = Payment::where('status', 'paid')->where('is_simulated', false)->whereMonth('created_at', now()->month)->whereYear('created_at', now()->year)->sum('net_amount');
         $todaySimulation = Payment::where('status', 'paid')->where('is_simulated', true)->whereDate('created_at', today())->sum('amount');
 
         $cafes = Cafe::all();
@@ -32,7 +37,7 @@ class GlobalStatsOverviewWidget extends BaseWidget
 
         return [
             Stat::make('Cafe / Tenant Aktif', $activeCafes)
-                ->description('Dari ' . Cafe::count() . ' total cafe terdaftar')
+                ->description('Dari '.Cafe::count().' total cafe terdaftar')
                 ->icon('heroicon-o-building-storefront')
                 ->color('primary'),
 
@@ -41,18 +46,18 @@ class GlobalStatsOverviewWidget extends BaseWidget
                 ->icon('heroicon-o-computer-desktop')
                 ->color('info'),
 
-            Stat::make('Omset Global Hari Ini', 'Rp ' . number_format($todayRevenue, 0, ',', '.'))
-                ->description('Dana asli; simulasi Rp ' . number_format($todaySimulation, 0, ',', '.'))
+            Stat::make('Omset Bruto Hari Ini', 'Rp '.number_format($todayRevenue, 0, ',', '.'))
+                ->description('Neto Rp '.number_format($todayNetRevenue, 0, ',', '.').' • biaya Pakasir Rp '.number_format($todayPakasirFee, 0, ',', '.').' • simulasi Rp '.number_format($todaySimulation, 0, ',', '.'))
                 ->icon('heroicon-o-banknotes')
                 ->color('success'),
 
-            Stat::make('Saldo Seluruh Cafe', 'Rp ' . number_format($outstandingCafeBalance, 0, ',', '.'))
-                ->description('Pending pencairan: Rp ' . number_format($pendingWithdrawals, 0, ',', '.'))
+            Stat::make('Saldo Seluruh Cafe', 'Rp '.number_format($outstandingCafeBalance, 0, ',', '.'))
+                ->description('Pending pencairan: Rp '.number_format($pendingWithdrawals, 0, ',', '.'))
                 ->icon('heroicon-o-wallet')
                 ->color('warning'),
 
-            Stat::make('Omset Bulan Ini', 'Rp ' . number_format($monthRevenue, 0, ',', '.'))
-                ->description(Payment::where('status', 'paid')->where('is_simulated', false)->whereMonth('created_at', now()->month)->whereYear('created_at', now()->year)->count() . ' transaksi dana asli')
+            Stat::make('Neto Bulan Ini', 'Rp '.number_format($monthNetRevenue, 0, ',', '.'))
+                ->description('Bruto Rp '.number_format($monthRevenue, 0, ',', '.').' dari '.Payment::where('status', 'paid')->where('is_simulated', false)->whereMonth('created_at', now()->month)->whereYear('created_at', now()->year)->count().' transaksi')
                 ->icon('heroicon-o-chart-bar')
                 ->color('success'),
 

@@ -54,7 +54,11 @@ class GlobalPaymentResource extends Resource
                 TextEntry::make('id')->label('ID Transaksi'),
                 TextEntry::make('session.cafe.name')->label('Tenant / Cafe')->badge()->color('primary')->placeholder('Tanpa Cafe'),
                 TextEntry::make('session.device.name')->label('Mesin Booth')->placeholder('-'),
-                TextEntry::make('amount')->label('Nominal Transaksi')->money('IDR', locale: 'id'),
+                TextEntry::make('amount')->label('Pembayaran Bruto')->money('IDR', locale: 'id'),
+                TextEntry::make('provider_fee')->label('Biaya Pakasir')
+                    ->formatStateUsing(fn ($state) => (int) $state > 0 ? '- Rp '.number_format((float) $state, 0, ',', '.') : 'Rp 0')
+                    ->color('danger'),
+                TextEntry::make('net_amount')->label('Neto Milik Cafe')->money('IDR', locale: 'id')->color('success'),
                 TextEntry::make('original_amount')->label('Harga Awal')->money('IDR', locale: 'id'),
                 TextEntry::make('discount_amount')->label('Diskon Voucher')->money('IDR', locale: 'id'),
                 TextEntry::make('voucher.code')->label('Kode Voucher')->badge()->placeholder('-'),
@@ -117,8 +121,18 @@ class GlobalPaymentResource extends Resource
                     ->copyable()
                     ->placeholder('-'),
                 TextColumn::make('amount')
-                    ->label('Nominal Transaksi')
+                    ->label('Bruto')
                     ->money('IDR', locale: 'id')
+                    ->sortable(),
+                TextColumn::make('provider_fee')
+                    ->label('Biaya Pakasir')
+                    ->formatStateUsing(fn ($state) => (int) $state > 0 ? '- Rp '.number_format((float) $state, 0, ',', '.') : 'Rp 0')
+                    ->color('danger')
+                    ->sortable(),
+                TextColumn::make('net_amount')
+                    ->label('Neto Cafe')
+                    ->money('IDR', locale: 'id')
+                    ->color('success')
                     ->sortable(),
                 TextColumn::make('discount_amount')->label('Diskon')->money('IDR', locale: 'id')->toggleable(),
                 TextColumn::make('voucher.code')->label('Voucher')->badge()->placeholder('-')->searchable(),

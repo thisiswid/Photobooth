@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\LogsActivity;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -9,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class Cafe extends Model
 {
-    use \App\Traits\LogsActivity, HasFactory;
+    use HasFactory, LogsActivity;
 
     protected $fillable = [
         'name',
@@ -140,11 +141,22 @@ class Cafe extends Model
     }
 
     /**
-     * Hak omset bersih milik cafe (setelah dipotong komisi platform)
+     * Total biaya layanan Pakasir dari pembayaran QRIS dana asli yang sukses.
+     */
+    public function getPakasirFeeAttribute(): int
+    {
+        return (int) $this->payments()
+            ->where('payments.status', 'paid')
+            ->where('payments.is_simulated', false)
+            ->sum('provider_fee');
+    }
+
+    /**
+     * Hak omset bersih cafe setelah biaya gateway. Komisi platform masih nol.
      */
     public function getNetRevenueAttribute(): int
     {
-        return $this->total_revenue - $this->platform_fee;
+        return max(0, $this->total_revenue - $this->pakasir_fee - $this->platform_fee);
     }
 
     /**
