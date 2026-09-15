@@ -70,7 +70,9 @@ class GlobalVoucherResource extends Resource
                 TextInput::make('max_discount')->label('Maksimal Diskon Persen')->numeric()->minValue(0)->prefix('Rp'),
                 TextInput::make('minimum_purchase')->label('Minimum Transaksi')->numeric()->minValue(0)->default(0)->prefix('Rp'),
                 TextInput::make('quota')->label('Kuota Total')->numeric()->minValue(1)->helperText('Kosong berarti tanpa batas.'),
-                TextInput::make('per_device_limit')->label('Batas per Perangkat')->numeric()->minValue(1)->default(1),
+                TextInput::make('per_device_limit')->label('Batas per Perangkat')->numeric()->minValue(1)
+                    ->placeholder('Tanpa batas')
+                    ->helperText('Kosongkan untuk kiosk bersama; kuota total tetap berlaku.'),
                 DateTimePicker::make('starts_at')->label('Mulai Berlaku')->native(false),
                 DateTimePicker::make('expires_at')->label('Berakhir')->native(false),
                 Toggle::make('is_active')->label('Voucher Aktif')->default(true),
