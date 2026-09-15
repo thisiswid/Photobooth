@@ -11,4 +11,9 @@ class PakasirSettlementInfoWidget extends Widget
     protected string $view = 'filament.widgets.pakasir-settlement-info-widget';
 
     protected int|string|array $columnSpan = 'full';
+
+    public static function getSort(): int
+    {
+        return 2;
+    }
 }

@@ -44,7 +44,9 @@ class PhotoboothLayout extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(sessionNotifierProvider);
-    final hasTimer = session.hasActiveSession || session.remainingSeconds > 0;
+    // Jangan tampilkan sesi kedaluwarsa sebagai timer 00:00. Objek sesi lama
+    // dapat tetap tersedia sesaat selama router berpindah kembali ke Welcome.
+    final hasTimer = session.hasActiveSession && session.remainingSeconds > 0;
 
     return Scaffold(
       backgroundColor: material.surface,

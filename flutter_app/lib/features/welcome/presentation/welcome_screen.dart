@@ -23,6 +23,7 @@ import '../../../shared/widgets/responsive_layout_builder.dart';
 import '../../../shared/widgets/unified_camera_preview.dart';
 import '../../../shared/widgets/uvc_preview.dart';
 import '../../provisioning/providers/tenant_provider.dart';
+import '../../session/providers/session_provider.dart';
 
 /// Layar Sambutan — material kamar gelap.
 ///
@@ -116,6 +117,12 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
     }
 
     if (!mounted) return;
+
+    // Welcome adalah awal transaksi baru. Sesi sebelumnya bisa masih tersimpan
+    // ketika timer habis dan router mengembalikan pengguna ke halaman ini.
+    // Bersihkan state lama sebelum membuka tutorial agar timer 00:00 dan data
+    // foto/transaksi sebelumnya tidak ikut terbawa ke alur berikutnya.
+    ref.read(sessionNotifierProvider.notifier).resetSession();
     context.go(AppRoutes.tutorial);
   }
 
