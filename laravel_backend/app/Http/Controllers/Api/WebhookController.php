@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Payment;
 use App\Services\PakasirService;
+use App\Services\VoucherService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -43,10 +44,11 @@ class WebhookController extends Controller
         // Slug yang tidak cocok ditolak, bukan sekadar dicatat.
         if (empty($expectedSlug) || $project !== $expectedSlug) {
             Log::warning("Pakasir webhook ditolak: project slug tidak cocok (dapat '{$project}').");
+
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        if (!$orderId) {
+        if (! $orderId) {
             return response()->json(['message' => 'Missing order_id'], 400);
         }
 
@@ -55,8 +57,9 @@ class WebhookController extends Controller
         // dengan menebak nomor urutnya.
         $payment = Payment::where('xendit_payment_id', $orderId)->first();
 
-        if (!$payment) {
-            Log::warning('Pakasir webhook payment record not found for order_id: ' . $orderId);
+        if (! $payment) {
+            Log::warning('Pakasir webhook payment record not found for order_id: '.$orderId);
+
             return response()->json(['message' => 'Payment not found'], 200);
         }
 
@@ -66,16 +69,20 @@ class WebhookController extends Controller
 
             if ($confirmed !== 'paid') {
                 Log::warning("Pakasir webhook untuk Payment #{$payment->id} tidak terkonfirmasi saat dicek balik ke gateway.");
+
                 return response()->json(['message' => 'Payment not confirmed by gateway'], 202);
             }
         } elseif (in_array($status, ['failed', 'expired', 'cancelled'], true)) {
-            $payment->update(['status' => 'failed']);
+            if ($payment->status === 'pending') {
+                $payment->update(['status' => 'failed']);
+                VoucherService::release($payment);
+            }
         }
 
         return response()->json([
-            'message'    => 'Webhook processed successfully',
+            'message' => 'Webhook processed successfully',
             'payment_id' => $payment->id,
-            'status'     => $payment->fresh()->status,
+            'status' => $payment->fresh()->status,
         ]);
     }
 }

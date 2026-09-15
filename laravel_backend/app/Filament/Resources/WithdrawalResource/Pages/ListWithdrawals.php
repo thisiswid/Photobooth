@@ -4,6 +4,7 @@ namespace App\Filament\Resources\WithdrawalResource\Pages;
 
 use App\Filament\Resources\WithdrawalResource;
 use App\Filament\Resources\WithdrawalResource\Widgets\WithdrawalOverviewWidget;
+use App\Filament\Widgets\PakasirSettlementInfoWidget;
 use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
 
@@ -22,6 +23,7 @@ class ListWithdrawals extends ListRecords
     {
         return [
             WithdrawalOverviewWidget::class,
+            PakasirSettlementInfoWidget::class,
         ];
     }
 }

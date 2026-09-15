@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class Cafe extends Model
 {
-    use HasFactory, \App\Traits\LogsActivity;
+    use \App\Traits\LogsActivity, HasFactory;
 
     protected $fillable = [
         'name',
@@ -35,13 +35,13 @@ class Cafe extends Model
     ];
 
     protected $casts = [
-        'is_ai_enabled'            => 'boolean',
-        'show_kiosk_settings'      => 'boolean',
+        'is_ai_enabled' => 'boolean',
+        'show_kiosk_settings' => 'boolean',
         'payment_simulation_enabled' => 'boolean',
-        'subscription_end_at'      => 'datetime',
-        'device_limit'             => 'integer',
+        'subscription_end_at' => 'datetime',
+        'device_limit' => 'integer',
         'revenue_share_percentage' => 'decimal:2',
-        'session_price'            => 'integer',
+        'session_price' => 'integer',
     ];
 
     protected static function booted(): void
@@ -49,10 +49,10 @@ class Cafe extends Model
         static::created(function (Cafe $cafe) {
             if ($cafe->devices()->count() === 0) {
                 $cafe->devices()->create([
-                    'name'       => $cafe->name . ' - Kiosk Utama',
+                    'name' => $cafe->name.' - Kiosk Utama',
                     'device_key' => $cafe->code,
-                    'platform'   => 'android',
-                    'status'     => 'active',
+                    'platform' => 'android',
+                    'status' => 'active',
                 ]);
             }
         });
@@ -96,6 +96,11 @@ class Cafe extends Model
     public function withdrawals(): HasMany
     {
         return $this->hasMany(Withdrawal::class);
+    }
+
+    public function vouchers(): HasMany
+    {
+        return $this->hasMany(Voucher::class);
     }
 
     public function activityLogs(): HasMany
@@ -164,6 +169,7 @@ class Cafe extends Model
     public function getAvailableBalanceAttribute(): int
     {
         $available = $this->net_revenue - $this->total_withdrawn - $this->pending_withdrawal;
+
         return max(0, $available);
     }
 
@@ -175,6 +181,7 @@ class Cafe extends Model
         if ($this->subscription_end_at === null) {
             return true; // Unlimited / Lifetime
         }
+
         return $this->subscription_end_at->isFuture();
     }
 
@@ -186,6 +193,6 @@ class Cafe extends Model
     public function getDeviceUsageLabelAttribute(): string
     {
         return $this->devices()->whereNotNull('installation_id')->count()
-            . ' / ' . max(1, (int) $this->device_limit);
+            .' / '.max(1, (int) $this->device_limit);
     }
 }

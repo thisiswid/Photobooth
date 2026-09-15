@@ -5,9 +5,9 @@ namespace App\Filament\SuperAdmin\Resources;
 use App\Filament\SuperAdmin\Resources\GlobalPaymentResource\Pages;
 use App\Models\Payment;
 use Filament\Actions\ViewAction;
-use Filament\Schemas\Components\Section;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Resources\Resource;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -17,11 +17,30 @@ class GlobalPaymentResource extends Resource
 {
     protected static ?string $model = Payment::class;
 
-    public static function getNavigationIcon(): string { return 'heroicon-o-banknotes'; }
-    public static function getNavigationGroup(): string { return 'Finance & Analytics'; }
-    public static function getNavigationSort(): int { return 3; }
-    public static function getModelLabel(): string { return 'Transaksi Global'; }
-    public static function getPluralModelLabel(): string { return 'Semua Transaksi & Omset'; }
+    public static function getNavigationIcon(): string
+    {
+        return 'heroicon-o-banknotes';
+    }
+
+    public static function getNavigationGroup(): string
+    {
+        return 'Finance & Analytics';
+    }
+
+    public static function getNavigationSort(): int
+    {
+        return 3;
+    }
+
+    public static function getModelLabel(): string
+    {
+        return 'Transaksi Global';
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return 'Semua Transaksi & Omset';
+    }
 
     public static function form(Schema $schema): Schema
     {
@@ -36,6 +55,9 @@ class GlobalPaymentResource extends Resource
                 TextEntry::make('session.cafe.name')->label('Tenant / Cafe')->badge()->color('primary')->placeholder('Tanpa Cafe'),
                 TextEntry::make('session.device.name')->label('Mesin Booth')->placeholder('-'),
                 TextEntry::make('amount')->label('Nominal Transaksi')->money('IDR', locale: 'id'),
+                TextEntry::make('original_amount')->label('Harga Awal')->money('IDR', locale: 'id'),
+                TextEntry::make('discount_amount')->label('Diskon Voucher')->money('IDR', locale: 'id'),
+                TextEntry::make('voucher.code')->label('Kode Voucher')->badge()->placeholder('-'),
                 TextEntry::make('is_simulated')->label('Jenis Dana')->badge()
                     ->formatStateUsing(fn ($state) => $state ? 'Dana Simulasi' : 'Dana Asli')
                     ->color(fn ($state) => $state ? 'warning' : 'success'),
@@ -45,11 +67,11 @@ class GlobalPaymentResource extends Resource
                     ->badge()
                     ->color('success'),
                 TextEntry::make('status')->label('Status')->badge()
-                    ->color(fn ($state) => match($state) {
-                        'paid'    => 'success',
+                    ->color(fn ($state) => match ($state) {
+                        'paid' => 'success',
                         'pending' => 'warning',
-                        'failed'  => 'danger',
-                        default   => 'gray',
+                        'failed' => 'danger',
+                        default => 'gray',
                     }),
                 TextEntry::make('payment_method')->label('Metode Pembayaran')->default('QRIS Instant'),
                 TextEntry::make('xendit_payment_id')->label('ID Referensi Gateway / QRIS')->copyable()->placeholder('-'),
@@ -63,10 +85,10 @@ class GlobalPaymentResource extends Resource
                 TextEntry::make('session.frame.name')->label('Frame Terpilih')->placeholder('-'),
                 TextEntry::make('session.filter.name')->label('Filter Terpilih')->placeholder('Original'),
                 TextEntry::make('session.status')->label('Status Sesi')->badge()
-                    ->color(fn ($state) => match($state) {
+                    ->color(fn ($state) => match ($state) {
                         'finished' => 'success',
-                        'active'   => 'info',
-                        default    => 'gray',
+                        'active' => 'info',
+                        default => 'gray',
                     }),
             ])->columns(3),
         ]);
@@ -98,6 +120,8 @@ class GlobalPaymentResource extends Resource
                     ->label('Nominal Transaksi')
                     ->money('IDR', locale: 'id')
                     ->sortable(),
+                TextColumn::make('discount_amount')->label('Diskon')->money('IDR', locale: 'id')->toggleable(),
+                TextColumn::make('voucher.code')->label('Voucher')->badge()->placeholder('-')->searchable(),
                 TextColumn::make('is_simulated')->label('Jenis Dana')->badge()
                     ->formatStateUsing(fn ($state) => $state ? 'Simulasi' : 'Asli')
                     ->color(fn ($state) => $state ? 'warning' : 'success'),
@@ -109,11 +133,11 @@ class GlobalPaymentResource extends Resource
                 TextColumn::make('status')
                     ->label('Status')
                     ->badge()
-                    ->color(fn ($state) => match($state) {
-                        'paid'    => 'success',
+                    ->color(fn ($state) => match ($state) {
+                        'paid' => 'success',
                         'pending' => 'warning',
-                        'failed'  => 'danger',
-                        default   => 'gray',
+                        'failed' => 'danger',
+                        default => 'gray',
                     }),
                 TextColumn::make('paid_at')
                     ->label('Waktu Bayar')
@@ -124,9 +148,9 @@ class GlobalPaymentResource extends Resource
             ->filters([
                 SelectFilter::make('status')
                     ->options([
-                        'paid'    => 'Paid (Sukses)',
+                        'paid' => 'Paid (Sukses)',
                         'pending' => 'Pending',
-                        'failed'  => 'Failed',
+                        'failed' => 'Failed',
                     ]),
                 SelectFilter::make('is_simulated')->label('Jenis Dana')
                     ->options(['0' => 'Dana Asli', '1' => 'Dana Simulasi']),
