@@ -70,8 +70,9 @@ class VoucherResource extends Resource
                 Select::make('event_id')->label('Khusus Event')->options(fn () => Event::where('cafe_id', auth()->user()?->cafe_id)->pluck('name', 'id'))
                     ->searchable()->placeholder('Semua event cafe'),
                 TextInput::make('quota')->label('Kuota Total')->numeric()->minValue(1)->helperText('Kosong berarti tanpa batas.'),
-                TextInput::make('per_device_limit')->label('Batas per Perangkat')->numeric()->minValue(1)->default(1)
-                    ->helperText('Kosong berarti tanpa batas per perangkat.'),
+                TextInput::make('per_device_limit')->label('Batas per Perangkat')->numeric()->minValue(1)
+                    ->placeholder('Tanpa batas')
+                    ->helperText('Sebaiknya dikosongkan untuk kiosk bersama. Isi hanya jika satu mesin memang perlu dibatasi.'),
                 DateTimePicker::make('starts_at')->label('Mulai Berlaku')->native(false),
                 DateTimePicker::make('expires_at')->label('Berakhir')->native(false),
                 Toggle::make('is_active')->label('Voucher Aktif')->default(true),

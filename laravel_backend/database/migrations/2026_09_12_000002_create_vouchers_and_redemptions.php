@@ -21,7 +21,7 @@ return new class extends Migration
             $table->unsignedBigInteger('minimum_purchase')->default(0);
             $table->unsignedInteger('quota')->nullable();
             $table->unsignedInteger('used_count')->default(0);
-            $table->unsignedInteger('per_device_limit')->nullable()->default(1);
+            $table->unsignedInteger('per_device_limit')->nullable();
             $table->timestamp('starts_at')->nullable();
             $table->timestamp('expires_at')->nullable();
             $table->boolean('is_active')->default(true);

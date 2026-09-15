@@ -24,9 +24,8 @@ final class DioClient {
     if (_initialized) return;
     _initialized = true;
 
-    final baseUrl = isProduction
-        ? AppConstants.apiBaseUrlProd
-        : AppConstants.apiBaseUrlDev;
+    final baseUrl =
+        isProduction ? AppConstants.apiBaseUrlProd : AppConstants.apiBaseUrlDev;
 
     _dio = Dio(
       BaseOptions(
@@ -85,8 +84,7 @@ class _AuthInterceptor extends Interceptor {
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
-    final token =
-        await _storage.read(key: AppConstants.secureKeyAuthToken);
+    final token = await _storage.read(key: AppConstants.secureKeyAuthToken);
     if (token != null) {
       options.headers['Authorization'] = 'Bearer $token';
     }
@@ -118,8 +116,7 @@ class _RetryInterceptor extends Interceptor {
     DioException err,
     ErrorInterceptorHandler handler,
   ) async {
-    final retryCount =
-        (err.requestOptions.extra[_retryKey] as int?) ?? 0;
+    final retryCount = (err.requestOptions.extra[_retryKey] as int?) ?? 0;
 
     final shouldRetry = retryCount < maxRetries &&
         _isRetryable(err) &&
@@ -148,8 +145,7 @@ class _RetryInterceptor extends Interceptor {
       DioExceptionType.receiveTimeout => true,
       DioExceptionType.connectionError => true,
       DioExceptionType.badResponse =>
-        err.response?.statusCode == 503 ||
-            err.response?.statusCode == 502,
+        err.response?.statusCode == 503 || err.response?.statusCode == 502,
       _ => false,
     };
   }
@@ -183,21 +179,33 @@ class _LoggingInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
-    _logger.e(
-      '✗ ${err.requestOptions.method} ${err.requestOptions.uri}\n'
-      'Status: ${err.response?.statusCode}\n'
-      'Error: ${err.message}',
-    );
+    final statusCode = err.response?.statusCode;
+    final responseData = err.response?.data;
+    final message = '✗ ${err.requestOptions.method} ${err.requestOptions.uri}\n'
+        'Status: $statusCode\n'
+        'Response: $responseData\n'
+        'Error: ${err.message}';
+
+    // 4xx adalah respons valid dari server (misalnya voucher habis / tidak
+    // berlaku), bukan kerusakan jaringan. Tetap tampilkan alasannya di
+    // console tanpa mengirim false alarm ke pusat error.
+    final isClientResponse =
+        statusCode != null && statusCode >= 400 && statusCode < 500;
+    if (isClientResponse) {
+      _logger.w(message);
+    } else {
+      _logger.e(message);
+    }
 
     // Skip logging calls to /logs to prevent recursive loop
-    if (!err.requestOptions.path.contains('/logs')) {
+    if (!isClientResponse && !err.requestOptions.path.contains('/logs')) {
       ErrorLogger.instance.logNetworkError(
         endpoint: '${err.requestOptions.method} ${err.requestOptions.path}',
         message: err.message ?? 'Unknown network failure',
-        statusCode: err.response?.statusCode,
+        statusCode: statusCode,
         extra: {
           'type': err.type.name,
-          'responseData': err.response?.data,
+          'responseData': responseData,
         },
         stackTrace: err.stackTrace,
       );

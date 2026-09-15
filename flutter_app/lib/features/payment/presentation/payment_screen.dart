@@ -250,6 +250,14 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         _discountAmount = 0;
         _totalAmount = _originalAmount;
       });
+    } else if (_appliedVoucherCode == null && _voucherMessage != null) {
+      setState(() {
+        _voucherMessage = null;
+        _discountAmount = 0;
+        _totalAmount = _originalAmount;
+      });
+    } else {
+      setState(() {});
     }
   }
 
@@ -675,13 +683,6 @@ class _QrisMainCard extends StatelessWidget {
           color: AppColors.ink,
           width: AppGeometry.hairline,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.ink.withValues(alpha: 0.06),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
       ),
       child: Container(
         decoration: BoxDecoration(
@@ -716,193 +717,43 @@ class _QrisMainCard extends StatelessWidget {
             Container(height: AppGeometry.hairline, color: AppColors.ink),
             SizedBox(height: 12.h),
 
-            // ── Logo QRIS dari Asset ──────────────────────────────────
-            Image.asset(
-              'assets/images/qris.webp',
-              height: isCompact ? 32.h : 38.h,
-              fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => Text(
-                'QRIS',
-                style: AppFonts.display(
-                  fontSize: 20.sp,
-                  fontWeight: FontWeight.w900,
-                  color: AppColors.ink,
-                  letterSpacing: 2.0,
-                ),
+            if (!paymentStarted)
+              _VoucherCheckoutPanel(
+                price: price,
+                originalPrice: originalPrice,
+                discountPrice: discountPrice,
+                voucherController: voucherController,
+                isValidatingVoucher: isValidatingVoucher,
+                voucherApplied: voucherApplied,
+                voucherMessage: voucherMessage,
+                onApplyVoucher: onApplyVoucher,
+                onProceed: onProceed,
+                onVoucherChanged: onVoucherChanged,
+                isCompact: isCompact,
+              )
+            else ...[
+              _QrisPaymentPanel(
+                qrString: qrString,
+                qrSize: qrSize,
+                isLoading: isLoading,
+                timeoutText: timeoutText,
+                orderId: orderId,
+                onRefresh: onRefresh,
+                isCompact: isCompact,
               ),
-            ),
-            SizedBox(height: 14.h),
-
-            // ── Voucher / Area Kode QRIS ───────────────────────────────
-            Container(
-              padding: EdgeInsets.all(12.r),
-              decoration: BoxDecoration(
-                color: AppColors.white,
-                border: Border.all(color: AppColors.ink, width: 1.5),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.ink.withValues(alpha: 0.05),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+              SizedBox(height: 16.h),
+              _PaymentTotal(
+                price: price,
+                originalPrice: originalPrice,
+                discountPrice: discountPrice,
+                voucherApplied: voucherApplied,
+                isCompact: isCompact,
               ),
-              child: SizedBox(
-                width: qrSize,
-                height: paymentStarted ? qrSize : null,
-                child: !paymentStarted
-                    ? Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.local_activity_outlined,
-                              size: 38.r, color: AppColors.ink70),
-                          SizedBox(height: 10.h),
-                          Text('PUNYA KODE VOUCHER?',
-                              style: AppFonts.ui(
-                                  fontSize: 11.sp,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.ink)),
-                          SizedBox(height: 10.h),
-                          Row(children: [
-                            Expanded(
-                              child: TextField(
-                                controller: voucherController,
-                                onChanged: onVoucherChanged,
-                                textCapitalization:
-                                    TextCapitalization.characters,
-                                decoration: const InputDecoration(
-                                  hintText: 'Masukkan kode',
-                                  isDense: true,
-                                  border: OutlineInputBorder(),
-                                ),
-                              ),
-                            ),
-                            SizedBox(width: 8.w),
-                            FilledButton(
-                              onPressed:
-                                  isValidatingVoucher ? null : onApplyVoucher,
-                              child: isValidatingVoucher
-                                  ? const SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(
-                                          strokeWidth: 2))
-                                  : const Text('Gunakan'),
-                            ),
-                          ]),
-                          if (voucherMessage != null) ...[
-                            SizedBox(height: 8.h),
-                            Text(
-                              voucherMessage!,
-                              textAlign: TextAlign.center,
-                              style: AppFonts.ui(
-                                  fontSize: 10.sp,
-                                  fontWeight: FontWeight.w600,
-                                  color: voucherApplied
-                                      ? AppColors.inkGreen
-                                      : AppColors.inkOxide),
-                            ),
-                          ],
-                          SizedBox(height: 14.h),
-                          SizedBox(
-                            width: double.infinity,
-                            child: FilledButton.icon(
-                              onPressed: isValidatingVoucher ? null : onProceed,
-                              icon: const Icon(Icons.qr_code_2),
-                              label: Text(price == 'Rp 0'
-                                  ? 'GUNAKAN VOUCHER GRATIS'
-                                  : 'LANJUT KE PEMBAYARAN'),
-                            ),
-                          ),
-                        ],
-                      )
-                    : isLoading
-                        ? Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const CircularProgressIndicator(
-                                  color: AppColors.ink,
-                                  strokeWidth: 2.0,
-                                ),
-                                SizedBox(height: 10.h),
-                                Text(
-                                  'Membuat kode QRIS...',
-                                  style: AppFonts.ui(
-                                    fontSize: 10.sp,
-                                    color: AppColors.ink70,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                        : (qrString != null && qrString!.isNotEmpty)
-                            ? QrImageView(
-                                data: qrString!,
-                                version: QrVersions.auto,
-                                size: qrSize,
-                                gapless: true,
-                                errorCorrectionLevel: QrErrorCorrectLevel.M,
-                                backgroundColor: Colors.white,
-                                eyeStyle: const QrEyeStyle(
-                                  eyeShape: QrEyeShape.square,
-                                  color: Colors.black,
-                                ),
-                                dataModuleStyle: const QrDataModuleStyle(
-                                  dataModuleShape: QrDataModuleShape.square,
-                                  color: Colors.black,
-                                ),
-                              )
-                            : Center(
-                                child: IconButton(
-                                  icon: const Icon(Icons.refresh,
-                                      color: AppColors.ink, size: 36),
-                                  onPressed: onRefresh,
-                                ),
-                              ),
-              ),
-            ),
-            SizedBox(height: 16.h),
-            Container(height: AppGeometry.hairline, color: AppColors.ink),
-            SizedBox(height: 12.h),
-
-            // ── Total Bayar ───────────────────────────────────────────
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'TOTAL BAYAR',
-                  textAlign: TextAlign.center,
-                  style: AppFonts.ui(
-                    fontSize: 11.sp,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.ink40,
-                    letterSpacing: 2.0,
-                  ),
-                ),
-                SizedBox(height: 4.h),
-                if (voucherApplied) ...[
-                  Text('Harga awal $originalPrice  •  Diskon -$discountPrice',
-                      style:
-                          AppFonts.ui(fontSize: 10.sp, color: AppColors.ink70)),
-                  SizedBox(height: 3.h),
-                ],
-                Text(
-                  price,
-                  textAlign: TextAlign.center,
-                  style: AppFonts.display(
-                    fontSize: isCompact ? 26.sp : 32.sp,
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.ink,
-                    height: 1.1,
-                  ),
-                ),
-              ],
-            ),
+            ],
             SizedBox(height: 16.h),
 
             // ── Tombol Simulator Testing (Demo/Kasir) ──────────────────
-            if (showSimulator) ...[
+            if (paymentStarted && showSimulator) ...[
               GestureDetector(
                 onTap: onSimulator,
                 child: Container(
@@ -957,6 +808,548 @@ class _QrisMainCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _VoucherCheckoutPanel extends StatelessWidget {
+  const _VoucherCheckoutPanel({
+    required this.price,
+    required this.originalPrice,
+    required this.discountPrice,
+    required this.voucherController,
+    required this.isValidatingVoucher,
+    required this.voucherApplied,
+    required this.onApplyVoucher,
+    required this.onProceed,
+    required this.onVoucherChanged,
+    required this.isCompact,
+    this.voucherMessage,
+  });
+
+  final String price;
+  final String originalPrice;
+  final String discountPrice;
+  final TextEditingController voucherController;
+  final bool isValidatingVoucher;
+  final bool voucherApplied;
+  final String? voucherMessage;
+  final VoidCallback onApplyVoucher;
+  final VoidCallback onProceed;
+  final ValueChanged<String> onVoucherChanged;
+  final bool isCompact;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'CHECKOUT SESI FOTO',
+          style: AppFonts.ui(
+            fontSize: 10.sp,
+            fontWeight: FontWeight.w800,
+            color: AppColors.ink40,
+            letterSpacing: 2,
+          ),
+        ),
+        SizedBox(height: 4.h),
+        Text(
+          'Periksa total sebelum membuat QRIS',
+          style: AppFonts.ui(fontSize: 11.sp, color: AppColors.ink70),
+        ),
+        SizedBox(height: 16.h),
+        Container(
+          width: double.infinity,
+          padding: EdgeInsets.all(16.r),
+          color: AppColors.paperDeep,
+          child: Column(
+            children: [
+              _PriceRow(label: 'Harga sesi', value: originalPrice),
+              if (voucherApplied) ...[
+                SizedBox(height: 8.h),
+                _PriceRow(
+                  label: 'Potongan voucher',
+                  value: '-$discountPrice',
+                  valueColor: AppColors.inkGreen,
+                ),
+              ],
+              SizedBox(height: 12.h),
+              Container(height: AppGeometry.hairline, color: AppColors.ink40),
+              SizedBox(height: 12.h),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    'TOTAL BAYAR',
+                    style: AppFonts.ui(
+                      fontSize: 10.sp,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.ink70,
+                      letterSpacing: 1.4,
+                    ),
+                  ),
+                  Text(
+                    price,
+                    style: AppFonts.display(
+                      fontSize: isCompact ? 25.sp : 29.sp,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.ink,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: 12.h),
+        Container(
+          width: double.infinity,
+          padding: EdgeInsets.all(14.r),
+          decoration: BoxDecoration(
+            color: AppColors.paperBright,
+            border: Border.all(
+              color: voucherApplied
+                  ? AppColors.inkGreen
+                  : voucherMessage != null
+                      ? AppColors.inkOxide
+                      : AppColors.ink15,
+              width: voucherApplied || voucherMessage != null
+                  ? AppGeometry.ruleSelected
+                  : AppGeometry.hairline,
+            ),
+            borderRadius: BorderRadius.circular(AppGeometry.radiusCard.r),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 32.r,
+                    height: 32.r,
+                    decoration: BoxDecoration(
+                      color: voucherApplied
+                          ? AppColors.inkGreen
+                          : AppColors.paperDeep,
+                      borderRadius:
+                          BorderRadius.circular(AppGeometry.radiusCard.r),
+                    ),
+                    child: Icon(
+                      voucherApplied
+                          ? Icons.check_rounded
+                          : Icons.local_activity_outlined,
+                      size: 18.r,
+                      color: voucherApplied
+                          ? AppColors.paperBright
+                          : AppColors.ink70,
+                    ),
+                  ),
+                  SizedBox(width: 10.w),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          voucherApplied
+                              ? 'VOUCHER TERPASANG'
+                              : 'PUNYA KODE VOUCHER?',
+                          style: AppFonts.ui(
+                            fontSize: 10.sp,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.ink,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                        Text(
+                          voucherApplied
+                              ? 'Diskon sudah dihitung ke total'
+                              : 'Masukkan kode promo dari cafe',
+                          style: AppFonts.ui(
+                            fontSize: 9.5.sp,
+                            color: AppColors.ink70,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 12.h),
+              Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 48.h,
+                      child: TextField(
+                        controller: voucherController,
+                        onChanged: onVoucherChanged,
+                        textCapitalization: TextCapitalization.characters,
+                        style: AppFonts.ui(
+                          fontSize: 12.sp,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.ink,
+                          letterSpacing: 1.2,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'CONTOH: HEMAT10',
+                          hintStyle: AppFonts.ui(
+                            fontSize: 10.sp,
+                            color: AppColors.ink40,
+                            letterSpacing: .8,
+                          ),
+                          filled: true,
+                          fillColor: AppColors.paper,
+                          contentPadding:
+                              EdgeInsets.symmetric(horizontal: 12.w),
+                          enabledBorder: const OutlineInputBorder(
+                            borderSide: BorderSide(color: AppColors.ink15),
+                          ),
+                          focusedBorder: const OutlineInputBorder(
+                            borderSide: BorderSide(
+                              color: AppColors.ink,
+                              width: AppGeometry.ruleSelected,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 8.w),
+                  GestureDetector(
+                    onTap: isValidatingVoucher ? null : onApplyVoucher,
+                    child: Container(
+                      height: 48.h,
+                      padding: EdgeInsets.symmetric(horizontal: 14.w),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: isValidatingVoucher
+                            ? AppColors.ink15
+                            : AppColors.paperDeep,
+                        border: Border.all(color: AppColors.ink40),
+                        borderRadius:
+                            BorderRadius.circular(AppGeometry.radiusCard.r),
+                      ),
+                      child: isValidatingVoucher
+                          ? SizedBox(
+                              width: 17.r,
+                              height: 17.r,
+                              child: const CircularProgressIndicator(
+                                color: AppColors.ink,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : Text(
+                              voucherApplied ? 'CEK ULANG' : 'GUNAKAN',
+                              style: AppFonts.ui(
+                                fontSize: 9.5.sp,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.ink,
+                                letterSpacing: .7,
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+              if (voucherMessage != null) ...[
+                SizedBox(height: 9.h),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      voucherApplied
+                          ? Icons.check_circle_outline
+                          : Icons.info_outline,
+                      size: 14.r,
+                      color: voucherApplied
+                          ? AppColors.inkGreen
+                          : AppColors.inkOxide,
+                    ),
+                    SizedBox(width: 6.w),
+                    Expanded(
+                      child: Text(
+                        voucherMessage!,
+                        style: AppFonts.ui(
+                          fontSize: 9.5.sp,
+                          fontWeight: FontWeight.w600,
+                          color: voucherApplied
+                              ? AppColors.inkGreen
+                              : AppColors.inkOxide,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+        SizedBox(height: 14.h),
+        GestureDetector(
+          onTap: isValidatingVoucher ? null : onProceed,
+          child: Container(
+            width: double.infinity,
+            height: 56.h,
+            padding: EdgeInsets.symmetric(horizontal: 18.w),
+            decoration: BoxDecoration(
+              color: isValidatingVoucher ? AppColors.ink40 : AppColors.ink,
+              borderRadius: BorderRadius.circular(AppGeometry.radiusCard.r),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  price == 'Rp 0' ? Icons.redeem_outlined : Icons.qr_code_2,
+                  color: AppColors.paperBright,
+                  size: 20.r,
+                ),
+                SizedBox(width: 10.w),
+                Text(
+                  price == 'Rp 0'
+                      ? 'MULAI DENGAN VOUCHER'
+                      : 'BUAT QRIS PEMBAYARAN',
+                  style: AppFonts.ui(
+                    fontSize: 11.sp,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.paperBright,
+                    letterSpacing: 1.1,
+                  ),
+                ),
+                SizedBox(width: 8.w),
+                Icon(Icons.arrow_forward_rounded,
+                    color: AppColors.paperBright, size: 17.r),
+              ],
+            ),
+          ),
+        ),
+        SizedBox(height: 8.h),
+        Text(
+          voucherController.text.trim().isEmpty
+              ? 'Tidak punya voucher? Langsung lanjutkan pembayaran.'
+              : 'Kode akan diperiksa kembali sebelum transaksi dibuat.',
+          textAlign: TextAlign.center,
+          style: AppFonts.ui(fontSize: 9.sp, color: AppColors.ink40),
+        ),
+      ],
+    );
+  }
+}
+
+class _QrisPaymentPanel extends StatelessWidget {
+  const _QrisPaymentPanel({
+    required this.qrString,
+    required this.qrSize,
+    required this.isLoading,
+    required this.timeoutText,
+    required this.orderId,
+    required this.onRefresh,
+    required this.isCompact,
+  });
+
+  final String? qrString;
+  final double qrSize;
+  final bool isLoading;
+  final String timeoutText;
+  final String? orderId;
+  final VoidCallback onRefresh;
+  final bool isCompact;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Image.asset(
+          'assets/images/qris.webp',
+          height: isCompact ? 30.h : 36.h,
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => Text(
+            'QRIS',
+            style: AppFonts.display(
+              fontSize: 20.sp,
+              fontWeight: FontWeight.w900,
+              color: AppColors.ink,
+              letterSpacing: 2,
+            ),
+          ),
+        ),
+        SizedBox(height: 6.h),
+        Text(
+          'Pindai QR untuk menyelesaikan pembayaran',
+          style: AppFonts.ui(fontSize: 10.sp, color: AppColors.ink70),
+        ),
+        SizedBox(height: 12.h),
+        Container(
+          padding: EdgeInsets.all(12.r),
+          color: AppColors.white,
+          child: Container(
+            width: qrSize,
+            height: qrSize,
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: AppColors.ink,
+                width: AppGeometry.ruleSelected,
+              ),
+            ),
+            child: isLoading
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircularProgressIndicator(
+                          color: AppColors.ink,
+                          strokeWidth: 2,
+                        ),
+                        SizedBox(height: 10.h),
+                        Text(
+                          'Menyiapkan QRIS...',
+                          style: AppFonts.ui(
+                              fontSize: 10.sp, color: AppColors.ink70),
+                        ),
+                      ],
+                    ),
+                  )
+                : (qrString != null && qrString!.isNotEmpty)
+                    ? QrImageView(
+                        data: qrString!,
+                        version: QrVersions.auto,
+                        size: qrSize,
+                        gapless: true,
+                        errorCorrectionLevel: QrErrorCorrectLevel.M,
+                        backgroundColor: AppColors.white,
+                        eyeStyle: const QrEyeStyle(
+                          eyeShape: QrEyeShape.square,
+                          color: Colors.black,
+                        ),
+                        dataModuleStyle: const QrDataModuleStyle(
+                          dataModuleShape: QrDataModuleShape.square,
+                          color: Colors.black,
+                        ),
+                      )
+                    : Center(
+                        child: TextButton.icon(
+                          onPressed: onRefresh,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Buat ulang QRIS'),
+                        ),
+                      ),
+          ),
+        ),
+        SizedBox(height: 10.h),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.schedule, size: 14, color: AppColors.ink70),
+            SizedBox(width: 5.w),
+            Text(
+              'Batas waktu $timeoutText',
+              style: AppFonts.ui(
+                fontSize: 10.sp,
+                fontWeight: FontWeight.w700,
+                color: AppColors.ink70,
+              ),
+            ),
+            if (orderId != null) ...[
+              SizedBox(width: 8.w),
+              Container(width: 1, height: 12.h, color: AppColors.ink15),
+              SizedBox(width: 8.w),
+              Flexible(
+                child: Text(
+                  orderId!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppFonts.ui(fontSize: 8.5.sp, color: AppColors.ink40),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _PaymentTotal extends StatelessWidget {
+  const _PaymentTotal({
+    required this.price,
+    required this.originalPrice,
+    required this.discountPrice,
+    required this.voucherApplied,
+    required this.isCompact,
+  });
+
+  final String price;
+  final String originalPrice;
+  final String discountPrice;
+  final bool voucherApplied;
+  final bool isCompact;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(height: AppGeometry.hairline, color: AppColors.ink),
+        SizedBox(height: 12.h),
+        Text(
+          'TOTAL BAYAR',
+          style: AppFonts.ui(
+            fontSize: 10.sp,
+            fontWeight: FontWeight.w800,
+            color: AppColors.ink40,
+            letterSpacing: 2,
+          ),
+        ),
+        if (voucherApplied) ...[
+          SizedBox(height: 3.h),
+          Text(
+            '$originalPrice  −  $discountPrice',
+            style: AppFonts.ui(fontSize: 9.5.sp, color: AppColors.inkGreen),
+          ),
+        ],
+        SizedBox(height: 3.h),
+        Text(
+          price,
+          style: AppFonts.display(
+            fontSize: isCompact ? 27.sp : 32.sp,
+            fontWeight: FontWeight.w900,
+            color: AppColors.ink,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PriceRow extends StatelessWidget {
+  const _PriceRow({
+    required this.label,
+    required this.value,
+    this.valueColor = AppColors.ink,
+  });
+
+  final String label;
+  final String value;
+  final Color valueColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label,
+            style: AppFonts.ui(fontSize: 10.5.sp, color: AppColors.ink70)),
+        Text(
+          value,
+          style: AppFonts.ui(
+            fontSize: 11.sp,
+            fontWeight: FontWeight.w800,
+            color: valueColor,
+          ),
+        ),
+      ],
     );
   }
 }

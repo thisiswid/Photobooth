@@ -158,6 +158,47 @@ class VoucherPaymentTest extends TestCase
             ->assertJsonValidationErrors('voucher_code');
     }
 
+    public function test_shared_kiosk_can_reuse_a_voucher_until_total_quota_is_exhausted(): void
+    {
+        [$cafe, $device, $credentials] = $this->activeDevice('SHARED-KIOSK');
+        Voucher::create([
+            'cafe_id' => $cafe->id,
+            'name' => 'Dua Pelanggan',
+            'code' => 'DUAKALI',
+            'type' => 'full',
+            'quota' => 2,
+            'per_device_limit' => null,
+            'is_active' => true,
+        ]);
+
+        $this->postJson('/api/payments', [...$credentials, 'voucher_code' => 'DUAKALI'])->assertCreated();
+        $this->postJson('/api/payments', [...$credentials, 'voucher_code' => 'DUAKALI'])->assertCreated();
+        $this->postJson('/api/payments', [...$credentials, 'voucher_code' => 'DUAKALI'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('voucher_code');
+    }
+
+    public function test_using_one_voucher_does_not_block_a_different_voucher_on_the_same_kiosk(): void
+    {
+        [$cafe, $device, $credentials] = $this->activeDevice('MULTI-VOUCHER');
+        foreach (['PERTAMA', 'KEDUA'] as $code) {
+            Voucher::create([
+                'cafe_id' => $cafe->id,
+                'name' => $code,
+                'code' => $code,
+                'type' => 'full',
+                'quota' => 1,
+                'per_device_limit' => null,
+                'is_active' => true,
+            ]);
+        }
+
+        $this->postJson('/api/payments', [...$credentials, 'voucher_code' => 'PERTAMA'])->assertCreated();
+        $this->postJson('/api/payments', [...$credentials, 'voucher_code' => 'KEDUA'])
+            ->assertCreated()
+            ->assertJsonPath('data.voucher_code', 'KEDUA');
+    }
+
     private function activeDevice(string $code): array
     {
         $cafe = Cafe::create([
