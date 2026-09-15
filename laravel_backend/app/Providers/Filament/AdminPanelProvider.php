@@ -2,16 +2,8 @@
 
 namespace App\Providers\Filament;
 
-use App\Filament\Resources\DeviceResource;
-use App\Filament\Resources\EventResource;
-use App\Filament\Resources\FilterResource;
-use App\Filament\Resources\FrameResource;
-use App\Filament\Resources\PaymentResource;
-use App\Filament\Resources\PrintJobResource;
-use App\Filament\Resources\ResultResource;
-use App\Filament\Resources\ScreenConfigResource;
-use App\Filament\Resources\SessionResource;
-use App\Filament\Resources\UserResource;
+use App\Filament\Shared\Widgets\DashboardCopyrightWidget;
+use App\Filament\Widgets\LatestErrorLogsWidget;
 use App\Filament\Widgets\SessionChartWidget;
 use App\Filament\Widgets\StatsOverviewWidget;
 use Filament\Http\Middleware\Authenticate;
@@ -27,8 +19,8 @@ use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\AuthenticateSession;
 use Illuminate\Session\Middleware\StartSession;
-use Illuminate\View\Middleware\ShareErrorsFromSession;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -49,7 +41,7 @@ class AdminPanelProvider extends PanelProvider
             ->login()
             ->colors([
                 'primary' => Color::Amber,
-                'gray'    => Color::Stone,
+                'gray' => Color::Stone,
             ])
             ->brandName(fn () => auth()->user()?->cafe?->name ?? 'Photobooth Cafe Admin')
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
@@ -59,7 +51,8 @@ class AdminPanelProvider extends PanelProvider
             ->widgets([
                 StatsOverviewWidget::class,
                 SessionChartWidget::class,
-                \App\Filament\Widgets\LatestErrorLogsWidget::class,
+                LatestErrorLogsWidget::class,
+                DashboardCopyrightWidget::class,
             ])
             ->middleware([
                 EncryptCookies::class,

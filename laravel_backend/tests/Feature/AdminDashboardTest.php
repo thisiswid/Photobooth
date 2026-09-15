@@ -35,6 +35,24 @@ class AdminDashboardTest extends TestCase
             ->assertSee('Penarikan Manual')
             ->assertSee('Penarikan Otomatis')
             ->assertSee('Rp 500.000')
-            ->assertSee('Rp 7.000');
+            ->assertSee('Rp 7.000')
+            ->assertSee('SnapTechBooth')
+            ->assertSee((string) now()->year);
+    }
+
+    public function test_super_admin_sees_snaptechbooth_copyright_on_dashboard(): void
+    {
+        $superAdmin = User::create([
+            'name' => 'Super Admin Dashboard',
+            'email' => 'super-admin-dashboard@example.test',
+            'password' => 'password',
+            'role' => 'super_admin',
+        ]);
+
+        $this->actingAs($superAdmin)
+            ->get(route('filament.super_admin.pages.dashboard'))
+            ->assertOk()
+            ->assertSee('SnapTechBooth')
+            ->assertSee((string) now()->year);
     }
 }
