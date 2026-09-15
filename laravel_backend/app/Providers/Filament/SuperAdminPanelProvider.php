@@ -2,8 +2,11 @@
 
 namespace App\Providers\Filament;
 
-use App\Filament\SuperAdmin\Widgets\GlobalStatsOverviewWidget;
+use App\Filament\Shared\Widgets\DashboardCopyrightWidget;
 use App\Filament\SuperAdmin\Widgets\CafePerformanceWidget;
+use App\Filament\SuperAdmin\Widgets\GlobalLatestErrorLogsWidget;
+use App\Filament\SuperAdmin\Widgets\GlobalStatsOverviewWidget;
+use App\Filament\SuperAdmin\Widgets\ServerHealthWidget;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
@@ -17,8 +20,8 @@ use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\AuthenticateSession;
 use Illuminate\Session\Middleware\StartSession;
-use Illuminate\View\Middleware\ShareErrorsFromSession;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 class SuperAdminPanelProvider extends PanelProvider
 {
@@ -38,7 +41,7 @@ class SuperAdminPanelProvider extends PanelProvider
             ->login()
             ->colors([
                 'primary' => Color::Indigo,
-                'gray'    => Color::Slate,
+                'gray' => Color::Slate,
             ])
             ->brandName('Photobooth Platform Owner')
             ->discoverResources(in: app_path('Filament/SuperAdmin/Resources'), for: 'App\\Filament\\SuperAdmin\\Resources')
@@ -49,9 +52,10 @@ class SuperAdminPanelProvider extends PanelProvider
             ->discoverWidgets(in: app_path('Filament/SuperAdmin/Widgets'), for: 'App\\Filament\\SuperAdmin\\Widgets')
             ->widgets([
                 GlobalStatsOverviewWidget::class,
-                \App\Filament\SuperAdmin\Widgets\ServerHealthWidget::class,
+                ServerHealthWidget::class,
                 CafePerformanceWidget::class,
-                \App\Filament\SuperAdmin\Widgets\GlobalLatestErrorLogsWidget::class,
+                GlobalLatestErrorLogsWidget::class,
+                DashboardCopyrightWidget::class,
             ])
             ->middleware([
                 EncryptCookies::class,
