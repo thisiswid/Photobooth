@@ -9,8 +9,13 @@ use Illuminate\Support\Carbon;
 class SessionChartWidget extends ChartWidget
 {
     protected ?string $heading = 'Sesi per Hari (7 Hari Terakhir)';
+
     protected int|string|array $columnSpan = 'full';
-    public static function getSort(): int { return 2; }
+
+    public static function getSort(): int
+    {
+        return 3;
+    }
 
     protected function getData(): array
     {
@@ -20,7 +25,7 @@ class SessionChartWidget extends ChartWidget
             $date = Carbon::today()->subDays($daysAgo);
             $query = Session::whereDate('created_at', $date);
             if ($cafeId) {
-                $query->where(fn($q) => $q->where('cafe_id', $cafeId)->orWhereHas('event', fn($eq) => $eq->where('cafe_id', $cafeId)));
+                $query->where(fn ($q) => $q->where('cafe_id', $cafeId)->orWhereHas('event', fn ($eq) => $eq->where('cafe_id', $cafeId)));
             }
 
             return [
@@ -31,10 +36,10 @@ class SessionChartWidget extends ChartWidget
 
         return [
             'datasets' => [[
-                'label'           => 'Jumlah Sesi',
-                'data'            => $data->pluck('count')->toArray(),
+                'label' => 'Jumlah Sesi',
+                'data' => $data->pluck('count')->toArray(),
                 'backgroundColor' => '#6366f1',
-                'borderColor'     => '#6366f1',
+                'borderColor' => '#6366f1',
             ]],
             'labels' => $data->pluck('label')->toArray(),
         ];

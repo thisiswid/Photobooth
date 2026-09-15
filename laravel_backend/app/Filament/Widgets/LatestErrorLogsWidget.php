@@ -10,8 +10,13 @@ use Filament\Widgets\TableWidget as BaseWidget;
 class LatestErrorLogsWidget extends BaseWidget
 {
     protected static ?string $heading = '🚨 Status & Log Masalah Mesin Terbaru';
-    protected int | string | array $columnSpan = 'full';
-    public static function getSort(): int { return 3; }
+
+    protected int|string|array $columnSpan = 'full';
+
+    public static function getSort(): int
+    {
+        return 4;
+    }
 
     public function table(Table $table): Table
     {
@@ -19,7 +24,7 @@ class LatestErrorLogsWidget extends BaseWidget
         $query = ErrorLog::query()->latest();
 
         if ($cafeId) {
-            $query->where(fn($q) => $q->where('cafe_id', $cafeId)->orWhereHas('event', fn($eq) => $eq->where('cafe_id', $cafeId)));
+            $query->where(fn ($q) => $q->where('cafe_id', $cafeId)->orWhereHas('event', fn ($eq) => $eq->where('cafe_id', $cafeId)));
         }
 
         return $table
@@ -37,19 +42,19 @@ class LatestErrorLogsWidget extends BaseWidget
                     ->badge()
                     ->color(fn ($state) => match ($state) {
                         'critical' => 'danger',
-                        'error'    => 'danger',
-                        'warning'  => 'warning',
-                        default    => 'info',
+                        'error' => 'danger',
+                        'warning' => 'warning',
+                        default => 'info',
                     }),
                 TextColumn::make('category')
                     ->label('Kategori')
                     ->badge()
                     ->formatStateUsing(fn ($state) => match ($state) {
-                        'network'   => '📶 Jaringan',
-                        'payment'   => '💳 Pembayaran',
-                        'camera'    => '📷 Kamera',
-                        'hardware'  => '🖥️ Hardware / Printer',
-                        default     => '⚙️ Sistem',
+                        'network' => '📶 Jaringan',
+                        'payment' => '💳 Pembayaran',
+                        'camera' => '📷 Kamera',
+                        'hardware' => '🖥️ Hardware / Printer',
+                        default => '⚙️ Sistem',
                     }),
                 TextColumn::make('title')
                     ->label('Detail Kendala')
