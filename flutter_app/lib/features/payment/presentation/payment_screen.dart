@@ -18,6 +18,7 @@ import '../../../core/theme/app_fonts.dart';
 import '../../../core/theme/app_geometry.dart';
 import '../../../features/provisioning/providers/tenant_provider.dart';
 import '../../../features/session/providers/session_provider.dart';
+import '../../../shared/widgets/hidden_exit_gesture.dart';
 import '../../../shared/widgets/photobooth_layout.dart';
 import '../../../shared/widgets/print_furniture.dart';
 import '../../../shared/widgets/responsive_layout_builder.dart';
@@ -411,6 +412,13 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     );
   }
 
+  void _goBackToWelcome() {
+    if (_paymentStarted || _isLoading || _isProcessing || _isSuccess) return;
+    _timeoutTimer?.cancel();
+    _pollTimer?.cancel();
+    context.go(AppRoutes.welcome);
+  }
+
   @override
   Widget build(BuildContext context) {
     final isMobile = context.isMobile;
@@ -580,44 +588,54 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
     final formattedPrice = _formatPrice(_totalAmount);
 
-    return PhotoboothLayout(
-      showHeader: false,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          _PaymentBackground(isCompact: isCompact),
-          Center(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.symmetric(
-                horizontal: isCompact ? 16.w : 32.w,
-                vertical: isCompact ? 12.h : 20.h,
-              ),
-              child: _QrisMainCard(
-                cafeName: cafeName,
-                price: formattedPrice,
-                qrString: _qrString,
-                orderId: _orderId,
-                isLoading: _isLoading,
-                timeoutText: _formatTime(_timeoutLeft),
-                isCompact: isCompact,
-                onRefresh: () =>
-                    _initiatePayment(voucherCode: _appliedVoucherCode),
-                onSimulator: _showSimulator,
-                showSimulator: tenant?.cafe.paymentSimulationEnabled ?? false,
-                paymentStarted: _paymentStarted,
-                voucherController: _voucherController,
-                isValidatingVoucher: _isValidatingVoucher,
-                voucherMessage: _voucherMessage,
-                voucherApplied: _appliedVoucherCode != null,
-                originalPrice: _formatPrice(_originalAmount),
-                discountPrice: _formatPrice(_discountAmount),
-                onApplyVoucher: _validateVoucher,
-                onProceed: _proceedToPayment,
-                onVoucherChanged: _resetVoucherWhenEdited,
-              ).animate().fadeIn(duration: 350.ms).slideY(begin: 0.04),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _goBackToWelcome();
+      },
+      child: PhotoboothLayout(
+        showHeader: false,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            HiddenExitGesture(
+              enabled: !_paymentStarted && !_isLoading,
+              onTriggered: _goBackToWelcome,
+              child: _PaymentBackground(isCompact: isCompact),
             ),
-          ),
-        ],
+            Center(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.symmetric(
+                  horizontal: isCompact ? 16.w : 32.w,
+                  vertical: isCompact ? 12.h : 20.h,
+                ),
+                child: _QrisMainCard(
+                  cafeName: cafeName,
+                  price: formattedPrice,
+                  qrString: _qrString,
+                  orderId: _orderId,
+                  isLoading: _isLoading,
+                  timeoutText: _formatTime(_timeoutLeft),
+                  isCompact: isCompact,
+                  onRefresh: () =>
+                      _initiatePayment(voucherCode: _appliedVoucherCode),
+                  onSimulator: _showSimulator,
+                  showSimulator: tenant?.cafe.paymentSimulationEnabled ?? false,
+                  paymentStarted: _paymentStarted,
+                  voucherController: _voucherController,
+                  isValidatingVoucher: _isValidatingVoucher,
+                  voucherMessage: _voucherMessage,
+                  voucherApplied: _appliedVoucherCode != null,
+                  originalPrice: _formatPrice(_originalAmount),
+                  discountPrice: _formatPrice(_discountAmount),
+                  onApplyVoucher: _validateVoucher,
+                  onProceed: _proceedToPayment,
+                  onVoucherChanged: _resetVoucherWhenEdited,
+                ).animate().fadeIn(duration: 350.ms).slideY(begin: 0.04),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1100,12 +1118,14 @@ class _VoucherCheckoutPanel extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  price == 'Rp 0' ? Icons.redeem_outlined : Icons.qr_code_2,
-                  color: AppColors.paperBright,
-                  size: 20.r,
-                ),
-                SizedBox(width: 10.w),
+                if (price == 'Rp 0') ...[
+                  Icon(
+                    Icons.redeem_outlined,
+                    color: AppColors.paperBright,
+                    size: 20.r,
+                  ),
+                  SizedBox(width: 10.w),
+                ],
                 Text(
                   price == 'Rp 0'
                       ? 'MULAI DENGAN VOUCHER'

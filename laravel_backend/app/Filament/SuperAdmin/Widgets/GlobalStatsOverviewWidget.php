@@ -31,6 +31,7 @@ class GlobalStatsOverviewWidget extends BaseWidget
 
         $cafes = Cafe::all();
         $outstandingCafeBalance = $cafes->sum(fn (Cafe $cafe) => $cafe->available_balance);
+        $pendingSettlementBalance = $cafes->sum(fn (Cafe $cafe) => $cafe->pending_settlement_balance);
         $pendingWithdrawals = $cafes->sum(fn (Cafe $cafe) => $cafe->pending_withdrawal);
 
         $unresolvedErrors = ErrorLog::whereDate('created_at', today())->whereIn('level', ['critical', 'error'])->count();
@@ -52,7 +53,7 @@ class GlobalStatsOverviewWidget extends BaseWidget
                 ->color('success'),
 
             Stat::make('Saldo Seluruh Cafe', 'Rp '.number_format($outstandingCafeBalance, 0, ',', '.'))
-                ->description('Pending pencairan: Rp '.number_format($pendingWithdrawals, 0, ',', '.'))
+                ->description('Settlement tertunda Rp '.number_format($pendingSettlementBalance, 0, ',', '.').' • pencairan pending Rp '.number_format($pendingWithdrawals, 0, ',', '.'))
                 ->icon('heroicon-o-wallet')
                 ->color('warning'),
 

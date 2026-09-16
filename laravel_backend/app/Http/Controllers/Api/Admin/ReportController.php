@@ -79,6 +79,8 @@ class ReportController extends Controller
                     'platform_fee' => $cafe->platform_fee,
                     'pakasir_fee' => $cafe->pakasir_fee,
                     'net_revenue' => $cafe->net_revenue,
+                    'settled_revenue' => $cafe->settled_revenue,
+                    'pending_settlement' => $cafe->pending_settlement_balance,
                     'withdrawn' => $cafe->total_withdrawn,
                     'pending_withdrawal' => $cafe->pending_withdrawal,
                     'available_balance' => $cafe->available_balance,

@@ -11,6 +11,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_fonts.dart';
 import '../../../core/theme/app_geometry.dart';
 import '../../../core/theme/app_motion.dart';
+import '../../../shared/widgets/hidden_exit_gesture.dart';
 import '../../../shared/widgets/photobooth_layout.dart';
 import '../../../shared/widgets/print_furniture.dart';
 import '../../../shared/widgets/responsive_button.dart';
@@ -56,26 +57,35 @@ class TutorialScreen extends ConsumerWidget {
     final priceText = 'Rp ${NumberFormat('#,###', 'id_ID').format(price)}';
     final serial = 'No. ${DateFormat('yyyyMMdd').format(DateTime.now())}';
 
-    return PhotoboothLayout(
-      showHeader: false,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          _TutorialBackground(isCompact: isMobile || isPortrait),
-          Center(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.all(AppGeometry.s24.r),
-              child: _Ticket(
-                cafeName: cafeName,
-                priceText: priceText,
-                serial: serial,
-                steps: _steps,
-                stacked: isMobile || isPortrait,
-                onPay: () => context.go(AppRoutes.payment),
-              ).animate().fadeIn(duration: AppMotion.reveal),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) context.go(AppRoutes.welcome);
+      },
+      child: PhotoboothLayout(
+        showHeader: false,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            HiddenExitGesture(
+              onTriggered: () => context.go(AppRoutes.welcome),
+              child: _TutorialBackground(isCompact: isMobile || isPortrait),
             ),
-          ),
-        ],
+            Center(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.all(AppGeometry.s24.r),
+                child: _Ticket(
+                  cafeName: cafeName,
+                  priceText: priceText,
+                  serial: serial,
+                  steps: _steps,
+                  stacked: isMobile || isPortrait,
+                  onPay: () => context.go(AppRoutes.payment),
+                ).animate().fadeIn(duration: AppMotion.reveal),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -412,9 +422,7 @@ class _TicketStub extends StatelessWidget {
               height: 1.05,
             ),
           ),
-
           SizedBox(height: AppGeometry.s24.h),
-
           ResponsiveButton(
             label: 'Bayar',
             onPressed: onPay,
@@ -671,7 +679,8 @@ class _RegistrationMarkPainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
     canvas.drawCircle(center, size.width / 2 - 2, paint);
     canvas.drawLine(Offset(0, center.dy), Offset(size.width, center.dy), paint);
-    canvas.drawLine(Offset(center.dx, 0), Offset(center.dx, size.height), paint);
+    canvas.drawLine(
+        Offset(center.dx, 0), Offset(center.dx, size.height), paint);
   }
 
   @override

@@ -5,6 +5,7 @@ namespace App\Filament\Resources\WithdrawalResource\Pages;
 use App\Filament\Resources\WithdrawalResource;
 use App\Models\Cafe;
 use App\Models\User;
+use App\Services\WithdrawalPolicyService;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Database\Eloquent\Model;
@@ -19,7 +20,7 @@ class CreateWithdrawal extends CreateRecord
         $user = auth()->user();
         $cafe = $user?->cafe;
 
-        if (!$cafe) {
+        if (! $cafe) {
             Notification::make()
                 ->title('Gagal Mengajukan Penarikan')
                 ->body('Data Cafe tidak ditemukan untuk akun Anda.')
@@ -29,10 +30,10 @@ class CreateWithdrawal extends CreateRecord
             $this->halt();
         }
 
-        if ($data['amount'] > $cafe->available_balance) {
+        if ($error = WithdrawalPolicyService::requestError($cafe, $data['type'], (int) $data['amount'])) {
             Notification::make()
-                ->title('Saldo Tidak Cukup')
-                ->body('Nominal penarikan melebihi saldo yang tersedia (Rp ' . number_format($cafe->available_balance, 0, ',', '.') . ').')
+                ->title('Pengajuan Tidak Memenuhi Ketentuan')
+                ->body($error)
                 ->danger()
                 ->send();
 
@@ -58,10 +59,10 @@ class CreateWithdrawal extends CreateRecord
         return DB::transaction(function () use ($data) {
             $cafe = Cafe::query()->lockForUpdate()->findOrFail($data['cafe_id']);
 
-            if ((int) $data['amount'] > $cafe->available_balance) {
+            if ($error = WithdrawalPolicyService::requestError($cafe, $data['type'], (int) $data['amount'])) {
                 Notification::make()
-                    ->title('Saldo Sudah Berubah')
-                    ->body('Pengajuan dibatalkan karena saldo tersedia tidak lagi mencukupi.')
+                    ->title('Pengajuan Tidak Dapat Diproses')
+                    ->body($error)
                     ->danger()
                     ->send();
 
@@ -78,13 +79,13 @@ class CreateWithdrawal extends CreateRecord
 
         Notification::make()
             ->title('Pengajuan pencairan baru')
-            ->body("{$record->cafe->name} mengajukan {$record->reference_no} sebesar Rp " . number_format($record->amount, 0, ',', '.') . '.')
+            ->body("{$record->cafe->name} mengajukan {$record->reference_no} ({$record->type}) sebesar Rp ".number_format($record->amount, 0, ',', '.').'. Dana diterima Rp '.number_format($record->net_amount, 0, ',', '.').'.')
             ->warning()
             ->sendToDatabase(User::query()->where('role', 'super_admin')->get());
 
         Notification::make()
             ->title('Pengajuan pencairan diterima')
-            ->body("{$record->reference_no} berstatus pending dan sedang menunggu respons Super Admin.")
+            ->body("{$record->reference_no} berstatus pending. Biaya Rp ".number_format($record->admin_fee, 0, ',', '.').' dan estimasi diterima Rp '.number_format($record->net_amount, 0, ',', '.').'.')
             ->warning()
             ->sendToDatabase(auth()->user());
     }

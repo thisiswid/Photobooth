@@ -5,13 +5,17 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\WithdrawalResource\Pages;
 use App\Filament\Resources\WithdrawalResource\Widgets\WithdrawalOverviewWidget;
 use App\Models\Withdrawal;
+use App\Services\WithdrawalPolicyService;
 use Filament\Actions\ViewAction;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Infolists\Components\ImageEntry;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -65,14 +69,39 @@ class WithdrawalResource extends Resource
             Section::make('Form Pengajuan Penarikan Saldo')
                 ->description('Saldo yang dapat ditarik saat ini: Rp '.number_format($maxBalance, 0, ',', '.'))
                 ->schema([
+                    Select::make('type')
+                        ->label('Jenis Penarikan')
+                        ->options([
+                            WithdrawalPolicyService::TYPE_MANUAL => 'Manual — gratis, khusus Jumat',
+                            WithdrawalPolicyService::TYPE_AUTOMATIC => 'Otomatis — berbiaya, Senin–Sabtu',
+                        ])
+                        ->default(WithdrawalPolicyService::TYPE_MANUAL)
+                        ->live()
+                        ->required()
+                        ->helperText('Transfer otomatis tetap menunggu konfirmasi karena Pakasir belum menyediakan API payout publik.'),
+
                     TextInput::make('amount')
-                        ->label('Nominal Penarikan (Rp)')
+                        ->label('Saldo yang Dipotong (Rp)')
                         ->numeric()
                         ->prefix('Rp')
-                        ->minValue(50000)
-                        ->maxValue($maxBalance)
+                        ->minValue(fn (Get $get) => $get('type') === WithdrawalPolicyService::TYPE_AUTOMATIC ? 15000 : 50000)
+                        ->maxValue(fn (Get $get) => $get('type') === WithdrawalPolicyService::TYPE_MANUAL ? min($maxBalance, 500000) : $maxBalance)
+                        ->live(onBlur: true)
                         ->required()
-                        ->helperText('Minimal penarikan Rp 50.000 (Maksimal: Rp '.number_format($maxBalance, 0, ',', '.').')'),
+                        ->helperText(fn (Get $get) => $get('type') === WithdrawalPolicyService::TYPE_AUTOMATIC
+                            ? 'Minimal Rp 15.000. Biaya dipotong dari nominal ini.'
+                            : 'Rp 50.000–Rp 500.000, tanpa biaya admin.'),
+
+                    Placeholder::make('withdrawal_summary')
+                        ->label('Estimasi Dana Diterima')
+                        ->content(function (Get $get): string {
+                            $type = $get('type') ?: WithdrawalPolicyService::TYPE_MANUAL;
+                            $amount = (int) ($get('amount') ?: 0);
+                            $fee = WithdrawalPolicyService::adminFee($type, $amount);
+                            $net = WithdrawalPolicyService::netAmount($type, $amount);
+
+                            return 'Biaya Rp '.number_format($fee, 0, ',', '.').' • diterima Rp '.number_format($net, 0, ',', '.');
+                        }),
 
                     TextInput::make('bank_name')
                         ->label('Nama Bank Tujuan')
@@ -105,7 +134,12 @@ class WithdrawalResource extends Resource
         return $schema->components([
             Section::make('Rincian Penarikan Dana')->schema([
                 TextEntry::make('reference_no')->label('Nomor Referensi')->copyable(),
-                TextEntry::make('amount')->label('Nominal Penarikan')->money('IDR'),
+                TextEntry::make('type')->label('Jenis')->badge()
+                    ->formatStateUsing(fn ($state) => $state === WithdrawalPolicyService::TYPE_AUTOMATIC ? 'Otomatis' : 'Manual')
+                    ->color(fn ($state) => $state === WithdrawalPolicyService::TYPE_AUTOMATIC ? 'info' : 'success'),
+                TextEntry::make('amount')->label('Saldo Dipotong')->money('IDR'),
+                TextEntry::make('admin_fee')->label('Biaya Admin')->money('IDR')->color('danger'),
+                TextEntry::make('net_amount')->label('Dana Diterima')->money('IDR')->color('success'),
                 TextEntry::make('status')->label('Status')->badge()
                     ->color(fn ($state) => match ($state) {
                         'approved' => 'success',
@@ -142,9 +176,14 @@ class WithdrawalResource extends Resource
                     ->copyable()
                     ->sortable(),
                 TextColumn::make('amount')
-                    ->label('Nominal')
+                    ->label('Saldo Dipotong')
                     ->money('IDR')
                     ->sortable(),
+                TextColumn::make('type')->label('Jenis')->badge()
+                    ->formatStateUsing(fn ($state) => $state === WithdrawalPolicyService::TYPE_AUTOMATIC ? 'Otomatis' : 'Manual')
+                    ->color(fn ($state) => $state === WithdrawalPolicyService::TYPE_AUTOMATIC ? 'info' : 'success'),
+                TextColumn::make('admin_fee')->label('Biaya')->money('IDR')->color('danger'),
+                TextColumn::make('net_amount')->label('Diterima')->money('IDR')->color('success'),
                 TextColumn::make('bank_name')
                     ->label('Bank')
                     ->badge()

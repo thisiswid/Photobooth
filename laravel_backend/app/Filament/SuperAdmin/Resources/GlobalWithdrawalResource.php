@@ -5,6 +5,7 @@ namespace App\Filament\SuperAdmin\Resources;
 use App\Filament\SuperAdmin\Resources\GlobalWithdrawalResource\Pages;
 use App\Models\User;
 use App\Models\Withdrawal;
+use App\Services\WithdrawalPolicyService;
 use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\FileUpload;
@@ -61,7 +62,12 @@ class GlobalWithdrawalResource extends Resource
                 TextEntry::make('reference_no')->label('Nomor Referensi')->copyable(),
                 TextEntry::make('cafe.name')->label('Tenant / Cafe')->badge()->color('primary'),
                 TextEntry::make('user.name')->label('Diajukan Oleh'),
-                TextEntry::make('amount')->label('Nominal Pencairan')->money('IDR', locale: 'id'),
+                TextEntry::make('type')->label('Jenis')->badge()
+                    ->formatStateUsing(fn ($state) => $state === WithdrawalPolicyService::TYPE_AUTOMATIC ? 'Otomatis' : 'Manual')
+                    ->color(fn ($state) => $state === WithdrawalPolicyService::TYPE_AUTOMATIC ? 'info' : 'success'),
+                TextEntry::make('amount')->label('Saldo Dipotong')->money('IDR', locale: 'id'),
+                TextEntry::make('admin_fee')->label('Biaya Admin')->money('IDR', locale: 'id')->color('danger'),
+                TextEntry::make('net_amount')->label('Dana Diterima')->money('IDR', locale: 'id')->color('success'),
                 TextEntry::make('status')->label('Status')->badge()
                     ->color(fn ($state) => match ($state) {
                         'approved' => 'success',
@@ -104,9 +110,14 @@ class GlobalWithdrawalResource extends Resource
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('amount')
-                    ->label('Nominal')
+                    ->label('Saldo Dipotong')
                     ->money('IDR', locale: 'id')
                     ->sortable(),
+                TextColumn::make('type')->label('Jenis')->badge()
+                    ->formatStateUsing(fn ($state) => $state === WithdrawalPolicyService::TYPE_AUTOMATIC ? 'Otomatis' : 'Manual')
+                    ->color(fn ($state) => $state === WithdrawalPolicyService::TYPE_AUTOMATIC ? 'info' : 'success'),
+                TextColumn::make('admin_fee')->label('Biaya')->money('IDR', locale: 'id')->color('danger'),
+                TextColumn::make('net_amount')->label('Diterima')->money('IDR', locale: 'id')->color('success'),
                 TextColumn::make('cafe.total_revenue')
                     ->label('Omzet Cafe')
                     ->state(fn (Withdrawal $record) => $record->cafe?->total_revenue ?? 0)
@@ -169,6 +180,20 @@ class GlobalWithdrawalResource extends Resource
                     ])
                     ->requiresConfirmation()
                     ->action(function (Withdrawal $record, array $data): void {
+                        $processingError = $record->type === WithdrawalPolicyService::TYPE_MANUAL
+                            ? WithdrawalPolicyService::manualProcessingError()
+                            : null;
+
+                        if ($processingError) {
+                            Notification::make()
+                                ->title('Belum Memasuki Jadwal Proses Manual')
+                                ->body($processingError)
+                                ->warning()
+                                ->send();
+
+                            return;
+                        }
+
                         $processed = DB::transaction(function () use ($record, $data): bool {
                             $locked = Withdrawal::query()->lockForUpdate()->findOrFail($record->id);
                             if (! $locked->isPending()) {
@@ -194,7 +219,7 @@ class GlobalWithdrawalResource extends Resource
                         $record->refresh();
                         Notification::make()
                             ->title('Pencairan berhasil ditransfer')
-                            ->body("{$record->reference_no} sebesar Rp ".number_format($record->amount, 0, ',', '.').' telah disetujui. Bukti transfer tersedia di riwayat pencairan.')
+                            ->body("{$record->reference_no} telah disetujui. Dana diterima Rp ".number_format($record->net_amount, 0, ',', '.').' setelah biaya Rp '.number_format($record->admin_fee, 0, ',', '.').'. Bukti transfer tersedia di riwayat pencairan.')
                             ->success()
                             ->sendToDatabase(User::query()->where('cafe_id', $record->cafe_id)->get());
 

@@ -133,7 +133,7 @@ class DeviceLicenseAndFrameIsolationTest extends TestCase
             ->assertJsonCount(0, 'data');
     }
 
-    public function test_withdrawal_balance_uses_full_cafe_revenue_without_percentage_deduction(): void
+    public function test_withdrawal_balance_uses_settled_net_revenue_without_percentage_deduction(): void
     {
         $cafe = Cafe::create([
             'name' => 'Cafe Saldo',
@@ -150,7 +150,12 @@ class DeviceLicenseAndFrameIsolationTest extends TestCase
             'role' => 'admin',
         ]);
         $session = Session::create(['cafe_id' => $cafe->id, 'status' => 'finished']);
-        Payment::create(['session_id' => $session->id, 'amount' => 100000, 'status' => 'paid']);
+        $payment = Payment::create([
+            'session_id' => $session->id,
+            'amount' => 100000,
+            'status' => 'paid',
+            'paid_at' => now()->subDays(2),
+        ]);
 
         foreach ([['approved', 20000], ['pending', 30000], ['rejected', 40000]] as [$status, $amount]) {
             Withdrawal::create([
@@ -165,6 +170,7 @@ class DeviceLicenseAndFrameIsolationTest extends TestCase
         }
 
         $cafe->refresh();
+        $this->assertSame('settled', $payment->settlement_status);
         $this->assertSame(100000, $cafe->total_revenue);
         $this->assertSame(0, $cafe->platform_fee);
         $this->assertSame(1010, $cafe->pakasir_fee);

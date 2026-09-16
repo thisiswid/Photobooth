@@ -160,6 +160,27 @@ class Cafe extends Model
     }
 
     /**
+     * Dana bersih yang sudah melewati settlement H+1 dan boleh ditarik.
+     */
+    public function getSettledRevenueAttribute(): int
+    {
+        return (int) $this->payments()
+            ->where('payments.status', 'paid')
+            ->where('payments.is_simulated', false)
+            ->whereIn('payments.settlement_status', ['settled', 'not_applicable'])
+            ->sum('net_amount');
+    }
+
+    public function getPendingSettlementBalanceAttribute(): int
+    {
+        return (int) $this->payments()
+            ->where('payments.status', 'paid')
+            ->where('payments.is_simulated', false)
+            ->where('payments.settlement_status', 'pending')
+            ->sum('net_amount');
+    }
+
+    /**
      * Total dana yang sudah berhasil dicairkan (status 'approved')
      */
     public function getTotalWithdrawnAttribute(): int
@@ -180,7 +201,7 @@ class Cafe extends Model
      */
     public function getAvailableBalanceAttribute(): int
     {
-        $available = $this->net_revenue - $this->total_withdrawn - $this->pending_withdrawal;
+        $available = $this->settled_revenue - $this->total_withdrawn - $this->pending_withdrawal;
 
         return max(0, $available);
     }
