@@ -39,6 +39,7 @@ class StatsOverviewWidget extends BaseWidget
         $todayNetRevenue = (clone $paymentQuery)->where('status', 'paid')->where('is_simulated', false)->whereDate('created_at', today())->sum('net_amount');
         $simulationRevenue = (clone $paymentQuery)->where('status', 'paid')->where('is_simulated', true)->whereDate('created_at', today())->sum('amount');
         $cafe = $cafeId ? Cafe::find($cafeId) : null;
+        $pendingSettlement = $cafe?->pending_settlement_balance ?? 0;
 
         return [
             Stat::make('Total Sesi Hari Ini', $todaySessions)
@@ -58,9 +59,7 @@ class StatsOverviewWidget extends BaseWidget
                 ->icon('heroicon-o-banknotes')
                 ->color('success'),
             Stat::make('Saldo Siap Ditarik', 'Rp '.number_format($cafe?->available_balance ?? 0, 0, ',', '.'))
-                ->description($cafe && $cafe->pending_withdrawal > 0
-                    ? 'Pending: Rp '.number_format($cafe->pending_withdrawal, 0, ',', '.')
-                    : 'Sesuai data transaksi dan pencairan')
+                ->description('Settlement tertunda Rp '.number_format($pendingSettlement, 0, ',', '.').' • pengajuan tarik Rp '.number_format($cafe?->pending_withdrawal ?? 0, 0, ',', '.'))
                 ->icon('heroicon-o-wallet')
                 ->color('success'),
             Stat::make('Status Sistem & Error', $todayErrors > 0 ? "{$todayErrors} Insiden Hari Ini" : 'Semua Berjalan Normal')

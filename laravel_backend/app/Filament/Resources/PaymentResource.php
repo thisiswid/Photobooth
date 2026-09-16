@@ -63,6 +63,20 @@ class PaymentResource extends Resource
                     ->formatStateUsing(fn ($state) => (int) $state > 0 ? '- Rp '.number_format((float) $state, 0, ',', '.') : 'Rp 0')
                     ->color('danger'),
                 TextEntry::make('net_amount')->label('Neto Diterima Cafe')->money('IDR')->color('success'),
+                TextEntry::make('settlement_status')->label('Settlement')->badge()
+                    ->formatStateUsing(fn ($state) => match ($state) {
+                        'settled' => 'Saldo Tersedia',
+                        'pending' => 'Saldo Tertunda',
+                        default => 'Tidak Berlaku',
+                    })
+                    ->color(fn ($state) => match ($state) {
+                        'settled' => 'success',
+                        'pending' => 'warning',
+                        default => 'gray',
+                    }),
+                TextEntry::make('settlement_due_at')->label('Jadwal Settlement')
+                    ->formatStateUsing(fn ($state) => $state?->timezone('Asia/Jakarta')->format('d M Y H:i').' WIB')
+                    ->placeholder('-'),
                 TextEntry::make('original_amount')->label('Harga Awal')->money('IDR'),
                 TextEntry::make('discount_amount')->label('Diskon Voucher')->money('IDR'),
                 TextEntry::make('voucher.code')->label('Kode Voucher')->badge()->placeholder('-'),
@@ -112,6 +126,20 @@ class PaymentResource extends Resource
                     ->color('danger')
                     ->sortable(),
                 TextColumn::make('net_amount')->label('Neto Cafe')->money('IDR')->color('success')->sortable(),
+                TextColumn::make('settlement_status')->label('Settlement')->badge()
+                    ->formatStateUsing(fn ($state) => match ($state) {
+                        'settled' => 'Tersedia',
+                        'pending' => 'Tertunda',
+                        default => '-',
+                    })
+                    ->color(fn ($state) => match ($state) {
+                        'settled' => 'success',
+                        'pending' => 'warning',
+                        default => 'gray',
+                    }),
+                TextColumn::make('settlement_due_at')->label('Tersedia Pada')
+                    ->formatStateUsing(fn ($state) => $state?->timezone('Asia/Jakarta')->format('d M Y H:i').' WIB')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('discount_amount')->label('Diskon')->money('IDR')->toggleable(),
                 TextColumn::make('voucher.code')->label('Voucher')->badge()->placeholder('-')->searchable(),
                 TextColumn::make('is_simulated')->label('Jenis Dana')->badge()

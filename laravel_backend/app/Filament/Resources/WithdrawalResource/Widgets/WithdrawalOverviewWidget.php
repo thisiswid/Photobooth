@@ -23,10 +23,11 @@ class WithdrawalOverviewWidget extends BaseWidget
         $availableBalance = $cafe->available_balance;
         $totalWithdrawn = $cafe->total_withdrawn;
         $pending = $cafe->pending_withdrawal;
+        $pendingSettlement = $cafe->pending_settlement_balance;
 
         return [
             Stat::make('Saldo Siap Ditarik', 'Rp '.number_format($availableBalance, 0, ',', '.'))
-                ->description($pending > 0 ? 'Pending diajukan: Rp '.number_format($pending, 0, ',', '.') : 'Tersedia untuk dicairkan')
+                ->description('Settlement tertunda Rp '.number_format($pendingSettlement, 0, ',', '.').' • diajukan Rp '.number_format($pending, 0, ',', '.'))
                 ->icon('heroicon-o-wallet')
                 ->color('success'),
 

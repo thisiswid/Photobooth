@@ -61,10 +61,17 @@ class PakasirService
                 return;
             }
 
+            $paidAt = now();
             $lockedPayment->update([
                 'status' => 'paid',
-                'paid_at' => now(),
+                'paid_at' => $paidAt,
                 'is_simulated' => $isSimulated,
+                ...PakasirSettlementService::attributes(
+                    $lockedPayment->amount,
+                    $lockedPayment->payment_method,
+                    $isSimulated,
+                    $paidAt,
+                ),
             ]);
 
             if ($isSimulated) {

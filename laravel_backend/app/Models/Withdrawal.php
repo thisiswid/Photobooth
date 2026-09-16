@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\WithdrawalPolicyService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -15,7 +16,10 @@ class Withdrawal extends Model
         'reference_no',
         'cafe_id',
         'user_id',
+        'type',
         'amount',
+        'admin_fee',
+        'net_amount',
         'bank_name',
         'bank_account_number',
         'bank_account_holder',
@@ -27,7 +31,9 @@ class Withdrawal extends Model
     ];
 
     protected $casts = [
-        'amount'       => 'integer',
+        'amount' => 'integer',
+        'admin_fee' => 'integer',
+        'net_amount' => 'integer',
         'processed_at' => 'datetime',
     ];
 
@@ -35,8 +41,18 @@ class Withdrawal extends Model
     {
         static::creating(function (Withdrawal $withdrawal) {
             if (empty($withdrawal->reference_no)) {
-                $withdrawal->reference_no = 'WD-' . date('Ymd') . '-' . strtoupper(Str::random(5));
+                $withdrawal->reference_no = 'WD-'.date('Ymd').'-'.strtoupper(Str::random(5));
             }
+        });
+
+        static::saving(function (Withdrawal $withdrawal): void {
+            if ($withdrawal->exists && ! $withdrawal->isDirty(['type', 'amount'])) {
+                return;
+            }
+
+            $withdrawal->type = $withdrawal->type ?: WithdrawalPolicyService::TYPE_MANUAL;
+            $withdrawal->admin_fee = WithdrawalPolicyService::adminFee($withdrawal->type, $withdrawal->amount ?? 0);
+            $withdrawal->net_amount = WithdrawalPolicyService::netAmount($withdrawal->type, $withdrawal->amount ?? 0);
         });
     }
 

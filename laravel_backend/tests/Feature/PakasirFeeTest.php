@@ -41,6 +41,15 @@ class PakasirFeeTest extends TestCase
         $this->assertSame(29480, (int) $payment->net_amount);
         $this->assertSame(30000, $cafe->fresh()->total_revenue);
         $this->assertSame(520, $cafe->fresh()->pakasir_fee);
+        $this->assertSame('pending', $payment->settlement_status);
+        $this->assertSame(29480, $cafe->fresh()->pending_settlement_balance);
+        $this->assertSame(0, $cafe->fresh()->available_balance);
+
+        $payment->update(['settlement_due_at' => now()->subMinute()]);
+        $this->artisan('payments:settle-pakasir')->assertSuccessful();
+
+        $this->assertSame('settled', $payment->fresh()->settlement_status);
+        $this->assertSame(0, $cafe->fresh()->pending_settlement_balance);
         $this->assertSame(29480, $cafe->fresh()->available_balance);
     }
 
