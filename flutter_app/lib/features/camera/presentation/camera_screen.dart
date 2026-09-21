@@ -456,6 +456,25 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     });
   }
 
+  /// Preview kecil memakai texture controller yang sama dengan viewfinder
+  /// utama. Tidak ada polling snapshot atau controller kamera kedua.
+  Widget? _buildStripLivePreview() {
+    if (_showUvcView || _isUvcReady) return null;
+    if (!_isCameraReady || _cameraController == null) return null;
+
+    return Transform.flip(
+      flipX: _cameraPreviewFlipX,
+      child: FittedBox(
+        fit: BoxFit.cover,
+        child: SizedBox(
+          width: _cameraController!.value.previewSize?.width ?? 1280,
+          height: _cameraController!.value.previewSize?.height ?? 720,
+          child: CameraPreview(_cameraController!),
+        ),
+      ),
+    );
+  }
+
   /// Nilai flip untuk `CameraPreview`.
   ///
   /// KEBALIKAN dari `_isMirrorEnabled`, dan itu disengaja.
@@ -695,8 +714,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     setState(() {
       _lastCaptured = null;
       _countdown.value = _configuredCountdownSeconds;
-      _step = _CaptureStep.initialPreview;
     });
+    unawaited(_startCountdown());
   }
 
   Future<void> _onNext() async {
@@ -758,8 +777,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
       setState(() {
         _currentPose = nextPoseIndex;
         _countdown.value = _configuredCountdownSeconds;
-        _step = _CaptureStep.initialPreview;
       });
+      await _startCountdown();
     }
   }
 
@@ -798,6 +817,10 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
                       ? [..._capturedPhotos, _lastCaptured]
                       : _capturedPhotos,
                   currentPoseIndex: _currentPose,
+                  liveCameraPreview: _step == _CaptureStep.initialPreview ||
+                          _step == _CaptureStep.countdown
+                      ? _buildStripLivePreview()
+                      : null,
                 ),
               ),
 
@@ -1186,11 +1209,13 @@ class _FrameStripPreview extends StatelessWidget {
     required this.frame,
     required this.capturedPhotos,
     required this.currentPoseIndex,
+    this.liveCameraPreview,
   });
 
   final FrameModel? frame;
   final List<XFile?> capturedPhotos;
   final int currentPoseIndex;
+  final Widget? liveCameraPreview;
 
   @override
   Widget build(BuildContext context) {
@@ -1211,6 +1236,7 @@ class _FrameStripPreview extends StatelessWidget {
         photos: displayPhotos,
         frame: frame,
         activePoseIndex: currentPoseIndex,
+        liveCameraPreview: liveCameraPreview,
       ),
     );
   }
