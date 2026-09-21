@@ -6,6 +6,7 @@ use App\Services\PakasirFeeCalculator;
 use App\Services\PakasirSettlementService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Payment extends Model
@@ -14,6 +15,7 @@ class Payment extends Model
         'session_id', 'voucher_id', 'xendit_payment_id', 'original_amount',
         'discount_amount', 'amount', 'provider_fee', 'net_amount', 'payment_method',
         'settlement_status', 'settlement_due_at', 'settled_at', 'status', 'paid_at', 'is_simulated',
+        'gateway_status', 'reconciliation_status', 'reconciliation_message', 'last_gateway_check_at',
     ];
 
     protected $casts = [
@@ -26,6 +28,7 @@ class Payment extends Model
         'settlement_due_at' => 'datetime',
         'settled_at' => 'datetime',
         'is_simulated' => 'boolean',
+        'last_gateway_check_at' => 'datetime',
     ];
 
     protected static function booted(): void
@@ -76,5 +79,10 @@ class Payment extends Model
     public function voucherRedemption(): HasOne
     {
         return $this->hasOne(VoucherRedemption::class);
+    }
+
+    public function reconciliations(): HasMany
+    {
+        return $this->hasMany(PaymentReconciliation::class);
     }
 }
