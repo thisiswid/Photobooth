@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Payment;
 use App\Services\PakasirService;
-use App\Services\VoucherService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -63,19 +62,24 @@ class WebhookController extends Controller
             return response()->json(['message' => 'Payment not found'], 200);
         }
 
-        if (in_array($status, ['completed', 'paid', 'success'], true)) {
-            // Konfirmasi ke gateway, jangan percaya payload.
-            $confirmed = PakasirService::checkStatus($payment);
+        if (in_array($status, ['completed', 'paid', 'success', 'failed', 'expired', 'cancelled', 'canceled'], true)) {
+            // Konfirmasi semua status terminal ke gateway. Payload webhook tidak
+            // boleh langsung melunasi maupun menggagalkan transaksi lokal.
+            $confirmed = PakasirService::checkStatus($payment, 'webhook', true);
 
-            if ($confirmed !== 'paid') {
+            if (in_array($status, ['completed', 'paid', 'success'], true) && $confirmed !== 'paid') {
                 Log::warning("Pakasir webhook untuk Payment #{$payment->id} tidak terkonfirmasi saat dicek balik ke gateway.");
 
                 return response()->json(['message' => 'Payment not confirmed by gateway'], 202);
             }
-        } elseif (in_array($status, ['failed', 'expired', 'cancelled'], true)) {
-            if ($payment->status === 'pending') {
-                $payment->update(['status' => 'failed']);
-                VoucherService::release($payment);
+
+            if (
+                in_array($status, ['failed', 'expired', 'cancelled', 'canceled'], true)
+                && ! in_array($confirmed, ['failed', 'expired', 'cancelled', 'canceled'], true)
+            ) {
+                Log::warning("Status gagal webhook untuk Payment #{$payment->id} tidak terkonfirmasi saat dicek balik ke gateway.");
+
+                return response()->json(['message' => 'Payment failure not confirmed by gateway'], 202);
             }
         }
 

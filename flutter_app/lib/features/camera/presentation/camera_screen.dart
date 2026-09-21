@@ -131,10 +131,13 @@ _PreparedPhoto? _flipAndEncodeDart(Uint8List bytes) {
 enum _CaptureStep {
   /// Step 1: Live camera view + [ Mirror/No Mirror toggle ] [ Mulai ]
   initialPreview,
+
   /// Step 2: Clean countdown
   countdown,
+
   /// Step 3: Capturing photo
   capturing,
+
   /// Step 4: Reviewing captured photo with [ Retake ] [ Lanjut ]
   result,
 }
@@ -150,23 +153,6 @@ const _cueDuration = Duration(milliseconds: 1600);
 
 /// Nilai penanda tahap aba-aba di dalam [_CameraScreenState._countdown].
 const _cueValue = -1;
-
-/// Tampilkan preview kamera KECIL di dalam strip bingkai kiri.
-///
-/// Dimatikan karena mahal. `_buildLivePreview()` mengembalikan `CameraPreview`
-/// kedua, sehingga DUA tekstur kamera 1080p dirender serentak sepanjang
-/// `initialPreview` dan `countdown` — di atas viewfinder utama yang sudah
-/// menampilkan gambar yang sama persis.
-///
-/// Terukur di perangkat: frame hitungan mundur tertunda 435-1460 ms, sehingga
-/// angka 6 hanya sempat terlihat ~125 ms sebelum diganti 5. Tamu membacanya
-/// sebagai "tahu-tahu sudah 3".
-///
-/// Penjagaan "jangan mount yang kedua" di `_buildLivePreview()` hanya berlaku
-/// untuk jalur UVC Android; di Windows tidak pernah aktif.
-///
-/// Ubah ke `true` untuk mengembalikannya.
-const bool _kStripLivePreview = false;
 
 /// Clean, minimal, vintage, and natural Photobooth Camera Screen.
 class CameraScreen extends ConsumerStatefulWidget {
@@ -184,6 +170,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   // ── Kamera eksternal (HDMI capture card + Sony PTP) ────────────────────────
   /// True bila preview HDMI (UVC) sudah terbuka untuk view di layar ini.
   bool _isUvcReady = false;
+
   /// True begitu kita memutuskan me-render UvcPreview (sebelum open selesai).
   bool _showUvcView = false;
 
@@ -197,6 +184,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
 
   // ── Flow state ────────────────────────────────────────────────────────────
   _CaptureStep _step = _CaptureStep.initialPreview;
+
   /// Nilai hitungan mundur.
   ///
   /// Sengaja `ValueNotifier`, bukan state biasa. Dulu tiap detik memanggil
@@ -206,11 +194,14 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   ///
   int get _configuredCountdownSeconds {
     final tenant = ref.read(tenantNotifierProvider).valueOrNull;
-    return tenant?.timers.cameraCountdownSeconds ?? tenant?.hardware.countdownSeconds ?? 5;
+    return tenant?.timers.cameraCountdownSeconds ??
+        tenant?.hardware.countdownSeconds ??
+        5;
   }
 
   /// Sekarang hanya angka dan lingkaran progresnya yang dibangun ulang.
-  late final ValueNotifier<int> _countdown = ValueNotifier<int>(_configuredCountdownSeconds);
+  late final ValueNotifier<int> _countdown =
+      ValueNotifier<int>(_configuredCountdownSeconds);
   Timer? _countdownTimer;
 
   /// Penanda waktu untuk mengukur jeda antara tombol Lanjut ditekan dan
@@ -236,7 +227,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     // hasil sama-sama mengikuti nilai yang sudah ter-reset itu, sehingga
     // terlihat seperti "tombol mirror tidak berfungsi".
     _isMirrorEnabled = ref.read(sessionNotifierProvider).isMirrorEnabled;
-    debugPrint('🪞 [CameraScreen] Mirror dipulihkan dari sesi: $_isMirrorEnabled');
+    debugPrint(
+        '🪞 [CameraScreen] Mirror dipulihkan dari sesi: $_isMirrorEnabled');
 
     _initExternalCamera();
     // CATATAN: dulu di sini ada Timer.periodic(1 detik) yang memanggil
@@ -464,31 +456,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     });
   }
 
-  /// Live preview: stream HDMI bila tersedia, kalau tidak kamera tablet.
-  ///
-  /// CATATAN: hanya boleh ada SATU UvcPreview yang ter-mount pada satu waktu
-  /// (factory native plugin cuma menyimpan satu referensi view). Karena itu
-  /// widget ini mengembalikan UvcPreview hanya untuk panel utama; strip kecil
-  /// memakai placeholder saat mode HDMI aktif.
-  Widget? _buildLivePreview() {
-    if (_showUvcView || _isUvcReady) {
-      // Panel utama sudah merender UvcPreview — jangan mount yang kedua.
-      return null;
-    }
-    if (!_isCameraReady || _cameraController == null) return null;
-    return Transform.flip(
-      flipX: _cameraPreviewFlipX,
-      child: FittedBox(
-        fit: BoxFit.cover,
-        child: SizedBox(
-          width: _cameraController!.value.previewSize?.width ?? 1280,
-          height: _cameraController!.value.previewSize?.height ?? 720,
-          child: CameraPreview(_cameraController!),
-        ),
-      ),
-    );
-  }
-
   /// Nilai flip untuk `CameraPreview`.
   ///
   /// KEBALIKAN dari `_isMirrorEnabled`, dan itu disengaja.
@@ -606,8 +573,9 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
       });
       return;
     }
-    final rawFile =
-        await _cameraController!.takePicture().timeout(const Duration(seconds: 10));
+    final rawFile = await _cameraController!
+        .takePicture()
+        .timeout(const Duration(seconds: 10));
     if (!mounted) return;
     final processedFile = await _processCapturedPhoto(
       rawFile,
@@ -658,9 +626,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
         // MakerNote yang besar sebelum penanda SOF, sehingga 64 KB pertama
         // belum memuat dimensinya. Dan seluruh potongan stream digabung —
         // `.first` hanya memberi potongan pertama, yang ukurannya tidak dijamin.
-        final head = await file
-            .openRead(0, 262144)
-            .fold<BytesBuilder>(
+        final head = await file.openRead(0, 262144).fold<BytesBuilder>(
               BytesBuilder(),
               (b, d) => b..add(d),
             );
@@ -725,18 +691,21 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   }
 
   void _onRetake() {
+    _countdownTimer?.cancel();
     setState(() {
       _lastCaptured = null;
+      _countdown.value = _configuredCountdownSeconds;
+      _step = _CaptureStep.initialPreview;
     });
-    _startCountdown();
   }
 
   Future<void> _onNext() async {
     if (_isNavigating) return;
-    _perfWatch = Stopwatch()..start();  // ganti penanda untuk pose berikutnya
+    _perfWatch = Stopwatch()..start(); // ganti penanda untuk pose berikutnya
     debugPrint('⏱️ [Perf] Lanjut ditekan');
     final notifier = ref.read(sessionNotifierProvider.notifier);
-    final sessionId = ref.read(sessionNotifierProvider).session?.sessionId.toString() ?? '1';
+    final sessionId =
+        ref.read(sessionNotifierProvider).session?.sessionId.toString() ?? '1';
 
     if (_lastCaptured != null) {
       notifier.addPhoto(PhotoModel(
@@ -788,8 +757,9 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     } else {
       setState(() {
         _currentPose = nextPoseIndex;
+        _countdown.value = _configuredCountdownSeconds;
+        _step = _CaptureStep.initialPreview;
       });
-      _startCountdown();
     }
   }
 
@@ -828,11 +798,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
                       ? [..._capturedPhotos, _lastCaptured]
                       : _capturedPhotos,
                   currentPoseIndex: _currentPose,
-                  liveCameraPreview: _kStripLivePreview &&
-                          (_step == _CaptureStep.initialPreview ||
-                              _step == _CaptureStep.countdown)
-                      ? _buildLivePreview()
-                      : null,
                 ),
               ),
 
@@ -942,13 +907,17 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   /// 720/1280 (potret 9:16). Itulah yang membuat panel kamera berdiri tegak
   /// dan feed 16:9 hanya muncul sebagai pita tipis di tengah.
   double get _viewfinderAspectRatio {
-    if (_showUvcView || _isUvcReady) return _uvcPreviewWidth / _uvcPreviewHeight;
+    if (_showUvcView || _isUvcReady) {
+      return _uvcPreviewWidth / _uvcPreviewHeight;
+    }
 
     // Selama deteksi perangkat belum selesai, _cameraController masih null.
     // Default landscape membuat panel benar sejak frame pertama, tanpa
     // "melompat" dari tegak ke mendatar saat HDMI terbuka.
     final size = _cameraController?.value.previewSize;
-    if (size == null) return _uvcPreviewWidth / _uvcPreviewHeight;
+    if (size == null) {
+      return _uvcPreviewWidth / _uvcPreviewHeight;
+    }
     return size.width / size.height;
   }
 
@@ -989,8 +958,10 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
                     child: FittedBox(
                       fit: BoxFit.cover,
                       child: SizedBox(
-                        width: _cameraController!.value.previewSize?.width ?? 1280,
-                        height: _cameraController!.value.previewSize?.height ?? 720,
+                        width:
+                            _cameraController!.value.previewSize?.width ?? 1280,
+                        height:
+                            _cameraController!.value.previewSize?.height ?? 720,
                         child: CameraPreview(_cameraController!),
                       ),
                     ),
@@ -1215,13 +1186,11 @@ class _FrameStripPreview extends StatelessWidget {
     required this.frame,
     required this.capturedPhotos,
     required this.currentPoseIndex,
-    this.liveCameraPreview,
   });
 
   final FrameModel? frame;
   final List<XFile?> capturedPhotos;
   final int currentPoseIndex;
-  final Widget? liveCameraPreview;
 
   @override
   Widget build(BuildContext context) {
@@ -1242,7 +1211,6 @@ class _FrameStripPreview extends StatelessWidget {
         photos: displayPhotos,
         frame: frame,
         activePoseIndex: currentPoseIndex,
-        liveCameraPreview: liveCameraPreview,
       ),
     );
   }

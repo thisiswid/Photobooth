@@ -6,7 +6,6 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/errors/app_exception.dart';
 import '../../../core/errors/error_handler.dart';
 import '../../../core/router/app_router.dart';
-import '../../../core/services/provisioning_service.dart';
 import '../providers/tenant_provider.dart';
 
 /// Layar Setup Wizard & Aktivasi Perangkat Kiosk SnapTechBooth.
@@ -20,28 +19,14 @@ class ProvisioningScreen extends ConsumerStatefulWidget {
 
 class _ProvisioningScreenState extends ConsumerState<ProvisioningScreen> {
   final _keyController = TextEditingController();
-  final _urlController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
   bool _isLoading = false;
-  bool _showAdvancedSettings = false;
   String? _errorMessage;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadInitialValues();
-  }
-
-  Future<void> _loadInitialValues() async {
-    final customUrl = await ProvisioningService.instance.getCustomBaseUrl();
-    _urlController.text = customUrl ?? AppConstants.apiBaseUrlProd;
-  }
 
   @override
   void dispose() {
     _keyController.dispose();
-    _urlController.dispose();
     super.dispose();
   }
 
@@ -55,12 +40,10 @@ class _ProvisioningScreenState extends ConsumerState<ProvisioningScreen> {
 
     try {
       final deviceKey = _keyController.text.trim().toUpperCase();
-      final customUrl = _urlController.text.trim();
 
       final config =
           await ref.read(tenantNotifierProvider.notifier).activateDevice(
                 deviceKey: deviceKey,
-                customBaseUrl: customUrl.isNotEmpty ? customUrl : null,
               );
 
       if (!mounted) return;
@@ -221,7 +204,7 @@ class _ProvisioningScreenState extends ConsumerState<ProvisioningScreen> {
                     ),
                     SizedBox(height: 6.h),
                     Text(
-                      'Universal Multi-Tenant Kiosk Setup',
+                      'Aktivasi perangkat',
                       style: TextStyle(
                         fontSize: 14.sp,
                         color: const Color(0xFFD97706),
@@ -231,7 +214,7 @@ class _ProvisioningScreenState extends ConsumerState<ProvisioningScreen> {
                     ),
                     SizedBox(height: 12.h),
                     Text(
-                      'Masukkan Device Pairing Key yang terdaftar pada dashboard admin untuk mengaktifkan mesin kiosk ini.',
+                      'Masukkan Device Key untuk menghubungkan mesin ini.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 13.sp,
@@ -357,7 +340,7 @@ class _ProvisioningScreenState extends ConsumerState<ProvisioningScreen> {
                                   ),
                                   SizedBox(width: 16.w),
                                   Text(
-                                    'Menghubungkan ke Server...',
+                                    'Menghubungkan...',
                                     style: TextStyle(
                                       fontSize: 16.sp,
                                       fontWeight: FontWeight.bold,
@@ -368,14 +351,12 @@ class _ProvisioningScreenState extends ConsumerState<ProvisioningScreen> {
                             : Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  const Icon(Icons.bolt_rounded, size: 24),
-                                  SizedBox(width: 10.w),
                                   Text(
-                                    'AKTIFKAN & PASANG MESIN',
+                                    'Aktifkan perangkat',
                                     style: TextStyle(
                                       fontSize: 16.sp,
                                       fontWeight: FontWeight.w900,
-                                      letterSpacing: 1.2,
+                                      letterSpacing: .4,
                                     ),
                                   ),
                                 ],
@@ -413,59 +394,6 @@ class _ProvisioningScreenState extends ConsumerState<ProvisioningScreen> {
                         ],
                       ),
                     ),
-                    SizedBox(height: 16.h),
-
-                    // ── Opsi Pengaturan Server Lanjutan (Advanced Settings) ───
-                    TextButton.icon(
-                      onPressed: () {
-                        setState(() {
-                          _showAdvancedSettings = !_showAdvancedSettings;
-                        });
-                      },
-                      icon: Icon(
-                        _showAdvancedSettings
-                            ? Icons.keyboard_arrow_up_rounded
-                            : Icons.settings_outlined,
-                        size: 18.sp,
-                        color: const Color(0xFF9CA3AF),
-                      ),
-                      label: Text(
-                        _showAdvancedSettings
-                            ? 'Sembunyikan Pengaturan Server'
-                            : 'Pengaturan Server API (Kustom)',
-                        style: TextStyle(
-                          fontSize: 13.sp,
-                          color: const Color(0xFF9CA3AF),
-                        ),
-                      ),
-                    ),
-
-                    if (_showAdvancedSettings) ...[
-                      SizedBox(height: 12.h),
-                      TextFormField(
-                        controller: _urlController,
-                        style:
-                            TextStyle(fontSize: 14.sp, color: Colors.white70),
-                        decoration: InputDecoration(
-                          labelText: 'API Base URL',
-                          labelStyle:
-                              TextStyle(fontSize: 12.sp, color: Colors.white60),
-                          hintText: 'https://snaptechbooth.my.id/api',
-                          hintStyle:
-                              TextStyle(fontSize: 12.sp, color: Colors.white24),
-                          prefixIcon: const Icon(Icons.cloud_outlined,
-                              color: Colors.white60),
-                          filled: true,
-                          fillColor: const Color(0xFF140E0A),
-                          contentPadding: EdgeInsets.symmetric(
-                              horizontal: 16.w, vertical: 14.h),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10.r),
-                            borderSide: const BorderSide(color: Colors.white24),
-                          ),
-                        ),
-                      ),
-                    ],
                   ],
                 ),
               ),

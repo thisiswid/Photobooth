@@ -109,6 +109,11 @@ class Cafe extends Model
         return $this->hasMany(ActivityLog::class);
     }
 
+    public function operationalAlerts(): HasMany
+    {
+        return $this->hasMany(OperationalAlert::class);
+    }
+
     // ─── Financial & Withdrawal Balance Calculations ──────────────────────────
 
     /**

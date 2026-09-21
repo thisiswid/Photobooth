@@ -61,7 +61,9 @@ class GlobalVoucherResource extends Resource
             ])->columns(2),
             Section::make('Pengaturan Voucher')->schema([
                 TextInput::make('name')->label('Nama Promo')->required()->maxLength(255),
-                TextInput::make('code')->label('Kode Voucher')->required()->maxLength(64)->unique(ignoreRecord: true),
+                TextInput::make('code')->label('Kode Voucher')->maxLength(64)->unique(ignoreRecord: true)
+                    ->default(fn () => Voucher::generateUniqueCode())
+                    ->helperText('Kode dibuat otomatis oleh sistem, tetapi tetap bisa diubah.'),
                 Select::make('type')->label('Jenis Diskon')->options([
                     'full' => 'Gratis Penuh', 'fixed' => 'Potongan Nominal', 'percentage' => 'Potongan Persen',
                 ])->required()->default('fixed'),

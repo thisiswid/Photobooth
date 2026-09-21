@@ -4,8 +4,11 @@ namespace App\Filament\SuperAdmin\Resources;
 
 use App\Filament\SuperAdmin\Resources\GlobalPaymentResource\Pages;
 use App\Models\Payment;
+use App\Services\PakasirReconciliationService;
+use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -93,6 +96,13 @@ class GlobalPaymentResource extends Resource
                     }),
                 TextEntry::make('payment_method')->label('Metode Pembayaran')->default('QRIS Instant'),
                 TextEntry::make('xendit_payment_id')->label('ID Referensi Gateway / QRIS')->copyable()->placeholder('-'),
+                TextEntry::make('gateway_status')->label('Status Pakasir')->badge()->placeholder('Belum diperiksa'),
+                TextEntry::make('reconciliation_status')->label('Hasil Rekonsiliasi')->badge()
+                    ->color(fn ($state) => match ($state) {
+                        'matched' => 'success', 'updated' => 'info', 'pending' => 'warning', default => 'danger',
+                    })->placeholder('Belum diperiksa'),
+                TextEntry::make('last_gateway_check_at')->label('Terakhir Diperiksa')->dateTime('d M Y H:i:s')->placeholder('-'),
+                TextEntry::make('reconciliation_message')->label('Catatan Rekonsiliasi')->placeholder('-')->columnSpanFull(),
                 TextEntry::make('paid_at')->label('Waktu Pembayaran Sukses')->dateTime('d M Y H:i:s')->placeholder('-'),
                 TextEntry::make('created_at')->label('Waktu Dibuat')->dateTime('d M Y H:i:s'),
             ])->columns(3),
@@ -181,6 +191,10 @@ class GlobalPaymentResource extends Resource
                         'failed' => 'danger',
                         default => 'gray',
                     }),
+                TextColumn::make('reconciliation_status')->label('Rekonsiliasi')->badge()
+                    ->color(fn ($state) => match ($state) {
+                        'matched' => 'success', 'updated' => 'info', 'pending' => 'warning', default => 'danger',
+                    })->placeholder('Belum dicek'),
                 TextColumn::make('paid_at')
                     ->label('Waktu Bayar')
                     ->dateTime('d M Y, H:i')
@@ -196,9 +210,25 @@ class GlobalPaymentResource extends Resource
                     ]),
                 SelectFilter::make('is_simulated')->label('Jenis Dana')
                     ->options(['0' => 'Dana Asli', '1' => 'Dana Simulasi']),
+                SelectFilter::make('reconciliation_status')->label('Rekonsiliasi')->options([
+                    'matched' => 'Sesuai', 'updated' => 'Diperbarui', 'pending' => 'Pending',
+                    'mismatch' => 'Tidak Cocok', 'error' => 'Error',
+                ]),
             ])
             ->actions([
                 ViewAction::make(),
+                Action::make('reconcile')
+                    ->label('Cek Pakasir')
+                    ->icon('heroicon-o-arrows-right-left')
+                    ->visible(fn ($record) => ! $record->is_simulated && filled($record->xendit_payment_id))
+                    ->action(function ($record, PakasirReconciliationService $service): void {
+                        $result = $service->reconcile($record, 'manual', auth()->id());
+                        Notification::make()
+                            ->title($result?->result === 'error' ? 'Rekonsiliasi gagal' : 'Rekonsiliasi selesai')
+                            ->body($result?->message)
+                            ->color(in_array($result?->result, ['mismatch', 'error'], true) ? 'danger' : 'success')
+                            ->send();
+                    }),
             ]);
     }
 

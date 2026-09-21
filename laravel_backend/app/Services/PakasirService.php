@@ -163,49 +163,16 @@ class PakasirService
      * Cek status transaksi langsung ke API Pakasir.
      * GET https://app.pakasir.com/api/transactiondetail
      */
-    public static function checkStatus(Payment $payment): ?string
-    {
-        $orderId = $payment->xendit_payment_id;
-        $slug = self::getSlug();
-        $apiKey = self::getApiKey();
+    public static function checkStatus(
+        Payment $payment,
+        string $source = 'status_poll',
+        bool $recordHistory = false,
+    ): ?string {
+        app(PakasirReconciliationService::class)->reconcile($payment, $source, recordHistory: $recordHistory);
 
-        if (! $orderId || empty($slug) || empty($apiKey)) {
-            return null;
-        }
+        $freshPayment = $payment->fresh();
 
-        $amount = (int) $payment->amount;
-
-        try {
-            $response = Http::timeout(8)->get('https://app.pakasir.com/api/transactiondetail', [
-                'project' => $slug,
-                'amount' => $amount,
-                'order_id' => $orderId,
-                'api_key' => $apiKey,
-            ]);
-
-            if ($response->successful()) {
-                $transaction = $response->json('transaction') ?? $response->json();
-                $status = strtolower($transaction['status'] ?? '');
-
-                // Nominal yang dilaporkan gateway harus sama dengan yang ditagih.
-                $reportedAmount = (int) ($transaction['amount'] ?? $amount);
-                if ($reportedAmount !== $amount) {
-                    Log::warning("Pakasir amount mismatch for Payment #{$payment->id}: expected {$amount}, got {$reportedAmount}");
-
-                    return null;
-                }
-
-                if (in_array($status, ['completed', 'paid', 'success'], true)) {
-                    self::markPaid($payment);
-
-                    return 'paid';
-                }
-            }
-        } catch (\Throwable $e) {
-            Log::warning("Failed to check Pakasir status for Payment #{$payment->id}: ".$e->getMessage());
-        }
-
-        return null;
+        return $freshPayment->status === 'paid' ? 'paid' : $freshPayment->gateway_status;
     }
 
     /**

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class Voucher extends Model
@@ -30,6 +31,9 @@ class Voucher extends Model
     protected static function booted(): void
     {
         static::saving(function (Voucher $voucher): void {
+            if (blank($voucher->code)) {
+                $voucher->code = self::generateUniqueCode();
+            }
             $voucher->code = strtoupper(trim($voucher->code));
 
             if (! in_array($voucher->type, ['full', 'fixed', 'percentage'], true)) {
@@ -52,6 +56,15 @@ class Voucher extends Model
                 throw ValidationException::withMessages(['event_id' => 'Event harus berasal dari cafe voucher yang sama.']);
             }
         });
+    }
+
+    public static function generateUniqueCode(): string
+    {
+        do {
+            $code = 'STB-'.Str::upper(Str::random(8));
+        } while (self::where('code', $code)->exists());
+
+        return $code;
     }
 
     public function cafe(): BelongsTo
