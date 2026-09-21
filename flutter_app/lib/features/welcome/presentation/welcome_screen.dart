@@ -616,17 +616,6 @@ class _CameraViewfinderOverlay extends StatelessWidget {
             margin: isCompact ? 16.r : 28.r,
             size: isCompact ? 24.r : 36.r,
           ),
-
-          // Crosshair Pusat Kamera
-          Center(
-            child: SizedBox(
-              width: 32.r,
-              height: 32.r,
-              child: CustomPaint(
-                painter: _CenterCrosshairPainter(),
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -722,29 +711,6 @@ class _BracketPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
-
-class _CenterCrosshairPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = AppColors.light30.withValues(alpha: 0.35)
-      ..strokeWidth = 1.0
-      ..style = PaintingStyle.stroke;
-
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    const arm = 6.0;
-
-    canvas.drawLine(Offset(cx - arm, cy), Offset(cx + arm, cy), paint);
-    canvas.drawLine(Offset(cx, cy - arm), Offset(cx, cy + arm), paint);
-    canvas.drawCircle(Offset(cx, cy), 12, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-
 
 class _PrintersMark extends StatelessWidget {
   const _PrintersMark();

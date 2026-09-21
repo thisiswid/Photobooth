@@ -45,6 +45,17 @@ class VoucherAdminPageTest extends TestCase
         $this->actingAs($superAdmin)->get(route('filament.super_admin.resources.global-voucher-redemptions.index'))->assertOk();
     }
 
+    public function test_system_generates_unique_voucher_code_when_code_is_empty(): void
+    {
+        [$cafe] = $this->cafeAndAdmin('Voucher Acak', 'voucher-acak');
+
+        $first = $this->voucher($cafe, '');
+        $second = $this->voucher($cafe, '');
+
+        $this->assertMatchesRegularExpression('/^STB-[A-Z0-9]{8}$/', $first->code);
+        $this->assertNotSame($first->code, $second->code);
+    }
+
     private function cafeAndAdmin(string $name, string $slug): array
     {
         $cafe = Cafe::create(['name' => $name, 'slug' => $slug, 'code' => strtoupper($slug), 'status' => 'active']);

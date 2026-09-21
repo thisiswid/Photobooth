@@ -1059,7 +1059,7 @@ class _VoucherCheckoutPanel extends StatelessWidget {
                               ),
                             )
                           : Text(
-                              voucherApplied ? 'CEK ULANG' : 'GUNAKAN',
+                              voucherApplied ? 'Periksa lagi' : 'Gunakan',
                               style: AppFonts.ui(
                                 fontSize: 9.5.sp,
                                 fontWeight: FontWeight.w800,
@@ -1118,28 +1118,15 @@ class _VoucherCheckoutPanel extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                if (price == 'Rp 0') ...[
-                  Icon(
-                    Icons.redeem_outlined,
-                    color: AppColors.paperBright,
-                    size: 20.r,
-                  ),
-                  SizedBox(width: 10.w),
-                ],
                 Text(
-                  price == 'Rp 0'
-                      ? 'MULAI DENGAN VOUCHER'
-                      : 'BUAT QRIS PEMBAYARAN',
+                  price == 'Rp 0' ? 'Lanjut dengan voucher' : 'Tampilkan QRIS',
                   style: AppFonts.ui(
                     fontSize: 11.sp,
                     fontWeight: FontWeight.w800,
                     color: AppColors.paperBright,
-                    letterSpacing: 1.1,
+                    letterSpacing: .4,
                   ),
                 ),
-                SizedBox(width: 8.w),
-                Icon(Icons.arrow_forward_rounded,
-                    color: AppColors.paperBright, size: 17.r),
               ],
             ),
           ),

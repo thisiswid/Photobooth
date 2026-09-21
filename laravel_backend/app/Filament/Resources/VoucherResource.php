@@ -55,8 +55,9 @@ class VoucherResource extends Resource
         return $schema->components([
             Section::make('Voucher Cafe')->description('Voucher ini hanya dapat digunakan pada aplikasi yang aktif untuk cafe Anda.')->schema([
                 TextInput::make('name')->label('Nama Promo')->required()->maxLength(255),
-                TextInput::make('code')->label('Kode Voucher')->required()->maxLength(64)->unique(ignoreRecord: true)
-                    ->helperText('Kode otomatis disimpan dengan huruf kapital.'),
+                TextInput::make('code')->label('Kode Voucher')->maxLength(64)->unique(ignoreRecord: true)
+                    ->default(fn () => Voucher::generateUniqueCode())
+                    ->helperText('Kode dibuat otomatis oleh sistem, tetapi tetap bisa diubah.'),
                 Select::make('type')->label('Jenis Diskon')->options([
                     'full' => 'Gratis Penuh',
                     'fixed' => 'Potongan Nominal',

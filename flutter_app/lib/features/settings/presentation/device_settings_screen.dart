@@ -9,7 +9,6 @@ import 'package:window_manager/window_manager.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/errors/app_exception.dart';
 import '../../../core/errors/error_handler.dart';
-import '../../../core/network/dio_client.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/services/photobooth_capture_service.dart';
 import '../../../core/services/provisioning_service.dart';
@@ -56,7 +55,7 @@ class _DeviceSettingsScreenState extends ConsumerState<DeviceSettingsScreen>
           onPressed: () => context.go(AppRoutes.welcome),
         ),
         title: Text(
-          'HIDDEN DEVICE SETTINGS',
+          'PENGATURAN PERANGKAT',
           style: AppFonts.display(
             color: AppColors.creamWhite,
             fontSize: 20.sp,
@@ -79,8 +78,8 @@ class _DeviceSettingsScreenState extends ConsumerState<DeviceSettingsScreen>
           labelStyle: AppFonts.ui(fontWeight: FontWeight.w600, fontSize: 13.sp),
           tabs: const [
             Tab(icon: Icon(Icons.print_rounded), text: 'Printer'),
-            Tab(icon: Icon(Icons.camera_alt_rounded), text: 'Camera'),
-            Tab(icon: Icon(Icons.settings_suggest_rounded), text: 'System'),
+            Tab(icon: Icon(Icons.camera_alt_rounded), text: 'Kamera'),
+            Tab(icon: Icon(Icons.settings_suggest_rounded), text: 'Perangkat'),
           ],
         ),
       ),
@@ -105,13 +104,12 @@ class _SystemSettingsTab extends ConsumerWidget {
     final cafeName =
         tenantConfig?.cafe.name ?? AppConstants.defaultCafeBrandName;
     final cafeCode = tenantConfig?.cafe.code ?? '-';
-    final baseUrl = DioClient.instance.baseUrl;
 
     return ListView(
       padding: EdgeInsets.all(16.r),
       children: [
         Text(
-          'INFORMASI SISTEM TENANT',
+          'INFORMASI PERANGKAT',
           style: AppFonts.ui(
               color: AppColors.gold,
               fontWeight: FontWeight.bold,
@@ -127,13 +125,10 @@ class _SystemSettingsTab extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Tenant Cafe: $cafeName ($cafeCode)',
+              Text('$cafeName ($cafeCode)',
                   style: const TextStyle(color: Colors.white)),
               SizedBox(height: 6.h),
-              Text('API Base URL: $baseUrl',
-                  style: TextStyle(color: Colors.white70, fontSize: 12.sp)),
-              SizedBox(height: 6.h),
-              Text('Versi Aplikasi: SnapTechBooth v${AppConstants.appVersion}',
+              Text('SnapTechBooth v${AppConstants.appVersion}',
                   style: TextStyle(color: Colors.white70, fontSize: 12.sp)),
             ],
           ),
@@ -156,11 +151,6 @@ class _SystemSettingsTab extends ConsumerWidget {
               color: AppColors.gold,
               fontWeight: FontWeight.bold,
               fontSize: 12.sp),
-        ),
-        SizedBox(height: 10.h),
-        Text(
-          'Kelola Device Key yang terhubung ke tenant kafe ini. Anda dapat memasukkan key baru atau melepas perangkat.',
-          style: TextStyle(color: Colors.white70, fontSize: 12.sp),
         ),
         SizedBox(height: 10.h),
         SizedBox(
