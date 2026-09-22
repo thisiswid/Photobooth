@@ -40,7 +40,9 @@ class ScreenConfigResource extends Resource
                     titleAttribute: 'name',
                     modifyQueryUsing: fn ($query) => auth()->user()?->cafe_id ? $query->where('cafe_id', auth()->user()->cafe_id) : $query
                 )
-                ->searchable()->preload(),
+                ->searchable()->preload()
+                ->required()
+                ->helperText('Wajib: kiosk hanya menampilkan screen milik event yang dipakainya.'),
             Select::make('screen_type')->label('Tipe Layar')
                 ->options(['welcome' => 'Welcome', 'tutorial' => 'Tutorial'])
                 ->required(),
