@@ -9,7 +9,8 @@ import '../../features/session/domain/models/session_model.dart';
 
 /// Builds the full storage URL for a frame asset path.
 String _storageUrl(String relativePath) {
-  if (relativePath.startsWith('http://') || relativePath.startsWith('https://')) {
+  if (relativePath.startsWith('http://') ||
+      relativePath.startsWith('https://')) {
     return relativePath;
   }
   String clean = relativePath;
@@ -130,29 +131,29 @@ class _PhotoStripWidgetState extends State<PhotoStripWidget> {
     final String layoutType = frame?.layoutType ?? 'single';
 
     // 1. If explicit slots are configured in database
-      if (frame?.slots != null && frame!.slots!.isNotEmpty) {
-        final dbSlots = frame.slots!;
-        double maxRight = 0;
-        double maxBottom = 0;
-        for (final s in dbSlots) {
-          if (s.x + s.w > maxRight) maxRight = s.x + s.w;
-          if (s.y + s.h > maxBottom) maxBottom = s.y + s.h;
-        }
-        final bool isNormalized = maxRight <= 1.05 && maxBottom <= 1.05;
+    if (frame?.slots != null && frame!.slots!.isNotEmpty) {
+      final dbSlots = frame.slots!;
+      double maxRight = 0;
+      double maxBottom = 0;
+      for (final s in dbSlots) {
+        if (s.x + s.w > maxRight) maxRight = s.x + s.w;
+        if (s.y + s.h > maxBottom) maxBottom = s.y + s.h;
+      }
+      final bool isNormalized = maxRight <= 1.05 && maxBottom <= 1.05;
 
-        // Gunakan dimensi asli frame PNG sebagai pembagi.
-        // Kalau _frameAspectRatio masih null (async belum selesai), pakai maxRight/maxBottom
-        // supaya tidak salah bagi — widget akan rebuild otomatis setelah _loadFrameSize selesai.
-        final double refW = isNormalized
-            ? 1.0
-            : (_frameAspectRatio != null && _canvasW > 0
-                ? _canvasW
-                : (maxRight > 500 ? 1200.0 : maxRight));
-        final double refH = isNormalized
-            ? 1.0
-            : (_frameAspectRatio != null && _canvasH > 0
-                ? _canvasH
-                : (maxBottom > 800 ? 1800.0 : maxBottom));
+      // Gunakan dimensi asli frame PNG sebagai pembagi.
+      // Kalau _frameAspectRatio masih null (async belum selesai), pakai maxRight/maxBottom
+      // supaya tidak salah bagi — widget akan rebuild otomatis setelah _loadFrameSize selesai.
+      final double refW = isNormalized
+          ? 1.0
+          : (_frameAspectRatio != null && _canvasW > 0
+              ? _canvasW
+              : (maxRight > 500 ? 1200.0 : maxRight));
+      final double refH = isNormalized
+          ? 1.0
+          : (_frameAspectRatio != null && _canvasH > 0
+              ? _canvasH
+              : (maxBottom > 800 ? 1800.0 : maxBottom));
 
       return List.generate(dbSlots.length, (i) {
         final s = dbSlots[i];
@@ -171,7 +172,8 @@ class _PhotoStripWidgetState extends State<PhotoStripWidget> {
 
     // 2. Double Strip 6 Slots (2 Columns × 3 Rows from 3 Poses)
     if (layoutType == 'double_6' || (slotCount == 6 && poseCount <= 3)) {
-      final rightOrder = frame?.rightColumnOrder ?? [2, 0, 1]; // Default: Pose 3, Pose 1, Pose 2
+      final rightOrder = frame?.rightColumnOrder ??
+          [2, 0, 1]; // Default: Pose 3, Pose 1, Pose 2
       final List<_ResolvedSlot> slots = [];
 
       const double colW = 0.42;
@@ -185,7 +187,8 @@ class _PhotoStripWidgetState extends State<PhotoStripWidget> {
       for (int r = 0; r < 3; r++) {
         final top = topPadding + (r * (slotH + gapY));
         slots.add(_ResolvedSlot(
-          rect: const Rect.fromLTWH(leftColX, 0, colW, slotH).shift(Offset(0, top)),
+          rect: const Rect.fromLTWH(leftColX, 0, colW, slotH)
+              .shift(Offset(0, top)),
           poseIndex: r,
         ));
       }
@@ -193,9 +196,11 @@ class _PhotoStripWidgetState extends State<PhotoStripWidget> {
       // Right Column: Custom Right Order (e.g. 3, 1, 2 -> index 2, 0, 1)
       for (int r = 0; r < 3; r++) {
         final top = topPadding + (r * (slotH + gapY));
-        final mappedPose = (r < rightOrder.length) ? rightOrder[r] : (r % poseCount);
+        final mappedPose =
+            (r < rightOrder.length) ? rightOrder[r] : (r % poseCount);
         slots.add(_ResolvedSlot(
-          rect: const Rect.fromLTWH(rightColX, 0, colW, slotH).shift(Offset(0, top)),
+          rect: const Rect.fromLTWH(rightColX, 0, colW, slotH)
+              .shift(Offset(0, top)),
           poseIndex: mappedPose,
         ));
       }
@@ -204,7 +209,8 @@ class _PhotoStripWidgetState extends State<PhotoStripWidget> {
 
     // 3. Double Strip 8 Slots (2 Columns × 4 Rows from 4 Poses)
     if (layoutType == 'double_8' || (slotCount == 8 && poseCount <= 4)) {
-      final rightOrder = frame?.rightColumnOrder ?? [3, 0, 1, 2]; // Default: Pose 4, 1, 2, 3
+      final rightOrder =
+          frame?.rightColumnOrder ?? [3, 0, 1, 2]; // Default: Pose 4, 1, 2, 3
       final List<_ResolvedSlot> slots = [];
 
       const double colW = 0.42;
@@ -218,7 +224,8 @@ class _PhotoStripWidgetState extends State<PhotoStripWidget> {
       for (int r = 0; r < 4; r++) {
         final top = topPadding + (r * (slotH + gapY));
         slots.add(_ResolvedSlot(
-          rect: const Rect.fromLTWH(leftColX, 0, colW, slotH).shift(Offset(0, top)),
+          rect: const Rect.fromLTWH(leftColX, 0, colW, slotH)
+              .shift(Offset(0, top)),
           poseIndex: r,
         ));
       }
@@ -226,9 +233,11 @@ class _PhotoStripWidgetState extends State<PhotoStripWidget> {
       // Right Column: Custom Right Order
       for (int r = 0; r < 4; r++) {
         final top = topPadding + (r * (slotH + gapY));
-        final mappedPose = (r < rightOrder.length) ? rightOrder[r] : (r % poseCount);
+        final mappedPose =
+            (r < rightOrder.length) ? rightOrder[r] : (r % poseCount);
         slots.add(_ResolvedSlot(
-          rect: const Rect.fromLTWH(rightColX, 0, colW, slotH).shift(Offset(0, top)),
+          rect: const Rect.fromLTWH(rightColX, 0, colW, slotH)
+              .shift(Offset(0, top)),
           poseIndex: mappedPose,
         ));
       }
@@ -252,7 +261,9 @@ class _PhotoStripWidgetState extends State<PhotoStripWidget> {
 
       const double topPadding = 0.025;
       final remainingY = 0.96 - topPadding - (poseCount * slotHeightRel);
-      final gap = poseCount > 1 ? (remainingY / (poseCount - 0.5)).clamp(0.008, 0.035) : 0.02;
+      final gap = poseCount > 1
+          ? (remainingY / (poseCount - 0.5)).clamp(0.008, 0.035)
+          : 0.02;
 
       final List<_ResolvedSlot> slots = [];
       for (int i = 0; i < poseCount; i++) {
@@ -268,21 +279,30 @@ class _PhotoStripWidgetState extends State<PhotoStripWidget> {
     // 5. Standard 4R Card Single Column (2:3 ratio):
     if (poseCount <= 2) {
       return const [
-        _ResolvedSlot(rect: Rect.fromLTWH(0.05, 0.045, 0.90, 0.42), poseIndex: 0),
-        _ResolvedSlot(rect: Rect.fromLTWH(0.05, 0.510, 0.90, 0.42), poseIndex: 1),
+        _ResolvedSlot(
+            rect: Rect.fromLTWH(0.05, 0.045, 0.90, 0.42), poseIndex: 0),
+        _ResolvedSlot(
+            rect: Rect.fromLTWH(0.05, 0.510, 0.90, 0.42), poseIndex: 1),
       ];
     } else if (poseCount == 3) {
       return const [
-        _ResolvedSlot(rect: Rect.fromLTWH(0.05, 0.033, 0.90, 0.263), poseIndex: 0),
-        _ResolvedSlot(rect: Rect.fromLTWH(0.05, 0.318, 0.90, 0.263), poseIndex: 1),
-        _ResolvedSlot(rect: Rect.fromLTWH(0.05, 0.603, 0.90, 0.263), poseIndex: 2),
+        _ResolvedSlot(
+            rect: Rect.fromLTWH(0.05, 0.033, 0.90, 0.263), poseIndex: 0),
+        _ResolvedSlot(
+            rect: Rect.fromLTWH(0.05, 0.318, 0.90, 0.263), poseIndex: 1),
+        _ResolvedSlot(
+            rect: Rect.fromLTWH(0.05, 0.603, 0.90, 0.263), poseIndex: 2),
       ];
     } else {
       return const [
-        _ResolvedSlot(rect: Rect.fromLTWH(0.042, 0.028, 0.916, 0.204), poseIndex: 0),
-        _ResolvedSlot(rect: Rect.fromLTWH(0.042, 0.248, 0.916, 0.204), poseIndex: 1),
-        _ResolvedSlot(rect: Rect.fromLTWH(0.042, 0.468, 0.916, 0.204), poseIndex: 2),
-        _ResolvedSlot(rect: Rect.fromLTWH(0.042, 0.688, 0.916, 0.204), poseIndex: 3),
+        _ResolvedSlot(
+            rect: Rect.fromLTWH(0.042, 0.028, 0.916, 0.204), poseIndex: 0),
+        _ResolvedSlot(
+            rect: Rect.fromLTWH(0.042, 0.248, 0.916, 0.204), poseIndex: 1),
+        _ResolvedSlot(
+            rect: Rect.fromLTWH(0.042, 0.468, 0.916, 0.204), poseIndex: 2),
+        _ResolvedSlot(
+            rect: Rect.fromLTWH(0.042, 0.688, 0.916, 0.204), poseIndex: 3),
       ];
     }
   }
@@ -292,8 +312,15 @@ class _PhotoStripWidgetState extends State<PhotoStripWidget> {
     final frame = widget.frame;
     final resolvedSlots = _resolveSlots();
 
-    final isDoubleCol = (frame?.layoutType == 'double_6' || frame?.layoutType == 'double_8' || (frame?.slotCount ?? 0) >= 6);
-    final aspectRatio = _frameAspectRatio ?? (isDoubleCol ? 2 / 3 : (frame?.poseCount ?? 4) >= 4 ? 1 / 3 : 2 / 3);
+    final isDoubleCol = (frame?.layoutType == 'double_6' ||
+        frame?.layoutType == 'double_8' ||
+        (frame?.slotCount ?? 0) >= 6);
+    final aspectRatio = _frameAspectRatio ??
+        (isDoubleCol
+            ? 2 / 3
+            : (frame?.poseCount ?? 4) >= 4
+                ? 1 / 3
+                : 2 / 3);
 
     return AspectRatio(
       aspectRatio: aspectRatio,
@@ -327,12 +354,14 @@ class _PhotoStripWidgetState extends State<PhotoStripWidget> {
                   ...List.generate(resolvedSlots.length, (i) {
                     final slot = resolvedSlots[i];
                     final mappedPoseIndex = slot.poseIndex;
-                    final photo = mappedPoseIndex < widget.photos.length ? widget.photos[mappedPoseIndex] : null;
+                    final photo = mappedPoseIndex < widget.photos.length
+                        ? widget.photos[mappedPoseIndex]
+                        : null;
 
                     return Positioned(
-                      left:   slot.rect.left * width,
-                      top:    slot.rect.top * height,
-                      width:  slot.rect.width * width,
+                      left: slot.rect.left * width,
+                      top: slot.rect.top * height,
+                      width: slot.rect.width * width,
                       height: slot.rect.height * height,
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(2.r),
@@ -354,10 +383,12 @@ class _PhotoStripWidgetState extends State<PhotoStripWidget> {
                         _storageUrl(frame.assetUrl!),
                         fit: BoxFit.fill,
                         errorBuilder: (ctx, err, stack) {
-                          debugPrint('PhotoStripWidget: Failed to load frame image ${_storageUrl(frame.assetUrl!)} - $err');
+                          debugPrint(
+                              'PhotoStripWidget: Failed to load frame image ${_storageUrl(frame.assetUrl!)} - $err');
                           return Container(
                             decoration: BoxDecoration(
-                              border: Border.all(color: AppColors.darkBrown, width: 2.r),
+                              border: Border.all(
+                                  color: AppColors.darkBrown, width: 2.r),
                             ),
                           );
                         },
@@ -367,7 +398,8 @@ class _PhotoStripWidgetState extends State<PhotoStripWidget> {
                     Positioned.fill(
                       child: Container(
                         decoration: BoxDecoration(
-                          border: Border.all(color: AppColors.darkBrown, width: 2.r),
+                          border: Border.all(
+                              color: AppColors.darkBrown, width: 2.r),
                         ),
                       ),
                     ),
@@ -404,42 +436,6 @@ class _PhotoStripWidgetState extends State<PhotoStripWidget> {
               border: Border.all(color: AppColors.gold, width: 1.5.r),
             ),
           ),
-
-          // Live pill indicator in top-right
-          Positioned(
-            top: 3.r,
-            right: 3.r,
-            child: Container(
-              padding: EdgeInsets.symmetric(horizontal: 4.w, vertical: 1.5.h),
-              decoration: BoxDecoration(
-                color: Colors.red.shade700.withValues(alpha: 0.9),
-                borderRadius: BorderRadius.circular(3.r),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 3.5.r,
-                    height: 3.5.r,
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  SizedBox(width: 2.w),
-                  Text(
-                    'LIVE',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 6.sp,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
         ],
       );
     }
@@ -472,7 +468,8 @@ class _PhotoStripWidgetState extends State<PhotoStripWidget> {
     }
 
     Widget imageWidget;
-    if (photo.fileUrl.startsWith('http://') || photo.fileUrl.startsWith('https://')) {
+    if (photo.fileUrl.startsWith('http://') ||
+        photo.fileUrl.startsWith('https://')) {
       imageWidget = Image.network(
         photo.fileUrl,
         fit: BoxFit.cover, // Ensures photo is NEVER squished/stretched!

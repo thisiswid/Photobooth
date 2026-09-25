@@ -23,7 +23,7 @@ class ScreenConfigController extends Controller
         $this->requireAdmin();
 
         $data = $request->validate([
-            'event_id'       => ['nullable', 'exists:events,id'],
+            'event_id'       => ['required', 'exists:events,id'],
             'screen_type'    => ['required', 'in:welcome,tutorial'],
             'title'          => ['nullable', 'string'],
             'description'    => ['nullable', 'string'],

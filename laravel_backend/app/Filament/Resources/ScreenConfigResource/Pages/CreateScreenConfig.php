@@ -8,4 +8,9 @@ use Filament\Resources\Pages\CreateRecord;
 class CreateScreenConfig extends CreateRecord
 {
     protected static string $resource = ScreenConfigResource::class;
+
+    protected function getRedirectUrl(): string
+    {
+        return $this->getResource()::getUrl('index');
+    }
 }
