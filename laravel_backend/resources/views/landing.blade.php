@@ -3,531 +3,158 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SnapTechBooth — Software Photobooth Self-Service untuk Cafe & Event</title>
-    <meta name="description" content="Software photobooth self-service: Kiosk Android, cetak otomatis 300 DPI, download QR ke smartphone, dan pembayaran QRIS mandiri untuk cafe dan event.">
-    
-    <!-- Fonts -->
+    <meta name="theme-color" content="#f3e7cf">
+    <title>SnapTechBooth — Photobooth Self-Service untuk Cafe & Event</title>
+    <meta name="description" content="Software photobooth self-service dengan QRIS, cetak otomatis, GIF, video, dan download langsung ke HP.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-
-    <!-- Tailwind CSS -->
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Shrikhand&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
-                    },
-                    colors: {
-                        snap: {
-                            teal: '#008B9B',
-                            tealDark: '#035368',
-                            cyan: '#00C4D6',
-                            coral: '#E93C78',
-                            magenta: '#8C206B',
-                            orangeRed: '#FF5841',
-                            orange: '#FFA234',
-                            navy: '#0A2B42',
-                        }
-                    }
-                }
-            }
-        }
+        tailwind.config = { theme: { extend: {
+            fontFamily: { sans: ['DM Sans','sans-serif'], display: ['Shrikhand','serif'] },
+            colors: { ink:'#2c201a', cream:'#f3e7cf', paper:'#fffaf0', tomato:'#d95336', mustard:'#e4aa3a', teal:'#28766f', blush:'#e8a594' }
+        } } };
     </script>
-
     <style>
-        body {
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            background-color: #FAFAFD;
-            color: #0A2B42;
-        }
-        .gradient-text-s {
-            background: linear-gradient(135deg, #00C4D6 0%, #E93C78 50%, #8C206B 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        .gradient-bg-main {
-            background: linear-gradient(135deg, #008B9B 0%, #E93C78 50%, #FFA234 100%);
-        }
-        .blob-1 {
-            background: radial-gradient(circle, rgba(0, 196, 214, 0.15) 0%, rgba(255, 255, 255, 0) 70%);
-        }
-        .blob-2 {
-            background: radial-gradient(circle, rgba(233, 60, 120, 0.12) 0%, rgba(255, 255, 255, 0) 70%);
-        }
-        .blob-3 {
-            background: radial-gradient(circle, rgba(255, 162, 52, 0.15) 0%, rgba(255, 255, 255, 0) 70%);
-        }
+        :root{--ink:#2c201a;--cream:#f3e7cf;--paper:#fffaf0;--tomato:#d95336;--mustard:#e4aa3a;--teal:#28766f;--blush:#e8a594}
+        *{box-sizing:border-box}html{scroll-padding-top:84px}body{margin:0;color:var(--ink);background:var(--cream);font-family:'DM Sans',sans-serif;overflow-x:hidden}
+        body:before{content:'';position:fixed;inset:0;z-index:100;pointer-events:none;opacity:.14;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.92' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.28'/%3E%3C/svg%3E");mix-blend-mode:multiply}
+        ::selection{color:var(--paper);background:var(--tomato)}.display{font-family:'Shrikhand',serif;font-weight:400}.retro-shadow{box-shadow:7px 8px 0 var(--ink)}
+        .label{display:inline-flex;align-items:center;gap:.45rem;padding:.45rem .85rem;border:2px solid var(--ink);border-radius:999px;background:var(--mustard);box-shadow:3px 3px 0 var(--ink);font-size:.7rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
+        .sunburst{background:radial-gradient(circle at 72% 51%,transparent 0 20%,rgba(255,250,240,.34) 20.5% 22%,transparent 22.5%),repeating-conic-gradient(from -5deg at 72% 51%,rgba(255,250,240,.25) 0 8deg,transparent 8deg 17deg),var(--tomato)}
+        .hero-stage{perspective:1200px}.machine-wrap{transform-style:preserve-3d;transition:transform .18s ease-out;will-change:transform}
+        .machine{position:relative;width:min(360px,76vw);height:480px;margin:auto;border:3px solid var(--ink);border-radius:38px 38px 22px 22px;background:var(--teal);box-shadow:18px 22px 0 var(--ink),28px 34px 0 rgba(44,32,26,.13);overflow:hidden}
+        .machine-head{height:63px;display:flex;align-items:center;justify-content:center;border-bottom:3px solid var(--ink);color:var(--paper);background:var(--tomato);font-size:.85rem;letter-spacing:.12em;font-weight:900}
+        .lens{position:absolute;top:70px;left:50%;width:13px;height:13px;border:3px solid var(--ink);border-radius:50%;background:var(--mustard);transform:translateX(-50%)}
+        .screen{position:absolute;inset:88px 33px 120px;border:3px solid var(--ink);border-radius:18px;background:var(--paper);padding:8px;box-shadow:inset 0 0 0 6px #d7c6a4}
+        .screen-inner{position:relative;width:100%;height:100%;display:grid;place-items:center;border-radius:9px;color:var(--paper);background:linear-gradient(160deg,var(--blush),var(--tomato));overflow:hidden}
+        .face{position:relative;width:112px;height:112px;border:3px solid var(--ink);border-radius:50%;background:var(--mustard)}.face:before,.face:after{content:'';position:absolute;top:43px;width:9px;height:12px;border-radius:50%;background:var(--ink)}.face:before{left:30px}.face:after{right:30px}.smile{position:absolute;left:50%;bottom:25px;width:42px;height:20px;border-bottom:4px solid var(--ink);border-radius:0 0 50% 50%;transform:translateX(-50%)}
+        .slot{position:absolute;left:50%;bottom:79px;width:150px;height:18px;border:3px solid var(--ink);border-radius:99px;background:var(--ink);transform:translateX(-50%)}
+        .controls{position:absolute;bottom:27px;left:28px;right:28px;display:flex;align-items:center;justify-content:space-between}.button{width:35px;height:35px;border:3px solid var(--ink);border-radius:50%;background:var(--mustard);box-shadow:3px 3px 0 var(--ink)}.dots{letter-spacing:4px;font-size:16px}
+        .strip{position:absolute;z-index:5;width:112px;padding:8px 8px 16px;border:2px solid var(--ink);background:var(--paper);box-shadow:6px 7px 0 var(--ink);transform-origin:top center}.hero-strip{left:50%;bottom:-183px;transform:translateX(-50%) rotate(4deg);animation:printing 4.8s ease-in-out infinite}.frame{height:74px;margin-bottom:6px;border:2px solid var(--ink);background:radial-gradient(circle at 50% 43%,var(--mustard) 0 13%,transparent 13.5%),radial-gradient(ellipse at 50% 90%,var(--teal) 0 32%,transparent 32.5%),var(--blush)}.frame:nth-child(2){background:radial-gradient(circle at 50% 43%,var(--blush) 0 13%,transparent 13.5%),radial-gradient(ellipse at 50% 90%,var(--tomato) 0 32%,transparent 32.5%),var(--mustard)}
+        @keyframes printing{0%,13%{bottom:-183px}45%,78%{bottom:-84px}100%{bottom:-183px}}
+        .sticker{position:absolute;display:grid;place-items:center;border:2px solid var(--ink);box-shadow:4px 4px 0 var(--ink);font-weight:900;transform:translate3d(0,var(--parallax,0),0) rotate(var(--r,0))}.star{top:5%;right:0;width:108px;height:108px;border-radius:42% 58% 44% 56%;color:var(--paper);background:var(--tomato);--r:10deg}.ticket{left:0;bottom:7%;padding:.75rem 1rem;background:var(--mustard);--r:-9deg}.flash{top:18%;left:4%;width:70px;height:70px;border-radius:50%;background:var(--paper);font-size:1.8rem;--r:-12deg}
+        .marquee{overflow:hidden;border-block:3px solid var(--ink);background:var(--mustard)}.track{display:flex;width:max-content;padding:.8rem 0;animation:marquee 25s linear infinite}.track span{padding-inline:1.1rem;font-weight:900;letter-spacing:.08em;white-space:nowrap}.track b{color:var(--tomato)}@keyframes marquee{to{transform:translateX(-50%)}}
+        .reveal{opacity:0;transform:translateY(28px);transition:opacity .7s ease,transform .7s cubic-bezier(.2,.8,.2,1)}.reveal.visible{opacity:1;transform:none}
+        .step{cursor:pointer;opacity:.52;transition:.3s}.step.active{opacity:1;transform:translateX(8px);background:var(--paper)}.step.active .number{color:var(--paper);background:var(--tomato)}
+        .process-display{position:sticky;top:110px;min-height:520px;overflow:hidden;border:3px solid var(--ink);border-radius:34px;background:var(--teal);box-shadow:12px 14px 0 var(--ink)}.demo-screen{position:absolute;inset:54px 46px 78px;display:grid;place-items:center;overflow:hidden;border:3px solid var(--ink);border-radius:20px;background:var(--paper)}.panel{display:none;width:100%;height:100%;padding:2rem;animation:panel .4s ease}.panel.active{display:grid;place-items:center}@keyframes panel{from{opacity:0;transform:translateY(16px) scale(.96)}}
+        .frame-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem;width:100%}.mini-frame{height:150px;border:2px solid var(--ink);border-radius:8px;background:var(--blush)}.mini-frame:nth-child(2){background:var(--mustard);transform:translateY(-8px);box-shadow:4px 5px 0 var(--ink)}.mini-frame:nth-child(3){background:var(--tomato)}
+        .qr{width:160px;height:160px;border:10px solid var(--paper);outline:3px solid var(--ink);background:repeating-conic-gradient(var(--ink) 0 25%,var(--paper) 0 50%) 0 0/24px 24px;box-shadow:8px 8px 0 var(--mustard)}.count{display:grid;place-items:center;width:180px;height:180px;border:4px solid var(--ink);border-radius:50%;color:var(--paper);background:var(--tomato);font:7rem 'Shrikhand';box-shadow:9px 9px 0 var(--ink)}
+        .printer{position:relative;width:245px;height:150px;border:3px solid var(--ink);border-radius:18px;background:var(--mustard);box-shadow:9px 9px 0 var(--ink)}.printer:before{content:'';position:absolute;left:35px;right:35px;top:24px;height:18px;border:3px solid var(--ink);border-radius:20px;background:var(--ink)}.paper-out{position:absolute;top:45px;left:50%;width:94px;height:150px;border:2px solid var(--ink);background:var(--paper);transform:translateX(-50%);animation:paper 2.5s ease-in-out infinite alternate}@keyframes paper{from{transform:translate(-50%,-35px)}to{transform:translate(-50%,12px)}}
+        .phone{width:200px;height:320px;padding:16px;border:3px solid var(--ink);border-radius:30px;background:var(--paper);box-shadow:10px 10px 0 var(--ink)}.phone:before{content:'';display:block;width:65px;height:8px;margin:0 auto 14px;border-radius:99px;background:var(--ink)}.phone-inner{height:245px;display:grid;place-items:center;border:2px solid var(--ink);border-radius:13px;background:var(--mustard)}
+        .gallery{position:relative;min-height:510px}.polaroid{position:absolute;width:min(260px,62vw);padding:12px 12px 26px;border:2px solid var(--ink);background:var(--paper);box-shadow:8px 9px 0 var(--ink);transition:.25s}.polaroid:hover{z-index:10;transform:translateY(-10px) rotate(0)!important}.polaroid:nth-child(1){left:3%;top:80px;transform:rotate(-9deg)}.polaroid:nth-child(2){left:31%;top:12px;transform:rotate(4deg)}.polaroid:nth-child(3){right:2%;top:105px;transform:rotate(9deg)}.photo{position:relative;height:300px;border:2px solid var(--ink);overflow:hidden;background:linear-gradient(145deg,var(--blush),var(--tomato))}.polaroid:nth-child(2) .photo{background:linear-gradient(145deg,var(--mustard),#f4cc6d)}.polaroid:nth-child(3) .photo{background:linear-gradient(145deg,var(--teal),#70aba3)}.person{position:absolute;bottom:-8%;width:46%;height:72%;border:2px solid var(--ink);border-radius:50% 50% 18% 18%;background:var(--paper)}.person:before{content:'';position:absolute;top:-25%;left:20%;width:60%;aspect-ratio:1;border:2px solid var(--ink);border-radius:50%;background:var(--mustard)}.person:first-child{left:8%;transform:rotate(-5deg)}.person:last-child{right:8%;background:var(--tomato);transform:rotate(5deg)}
+        .card{position:relative;border:2px solid var(--ink);background:var(--paper);box-shadow:6px 7px 0 var(--ink);transition:.25s}.card:hover{transform:translate(-3px,-4px) rotate(-.4deg);box-shadow:10px 12px 0 var(--ink)}.icon{display:grid;place-items:center;width:56px;height:56px;border:2px solid var(--ink);border-radius:50%;color:var(--paper);background:var(--tomato);font-size:1.5rem;box-shadow:3px 4px 0 var(--ink)}.audience{height:220px;display:grid;place-items:center;border-bottom:2px solid var(--ink);font-size:5.6rem}.featured{color:var(--paper);background:var(--tomato);transform:translateY(-10px)}.featured:hover{transform:translate(-3px,-15px)}.badge{position:absolute;top:-17px;right:18px;padding:.45rem .85rem;border:2px solid var(--ink);background:var(--mustard);color:var(--ink);font-size:.68rem;font-weight:900;letter-spacing:.1em;transform:rotate(3deg)}
+        details summary{list-style:none;cursor:pointer}details summary::-webkit-details-marker{display:none}details[open] .plus{transform:rotate(45deg);background:var(--tomato);color:var(--paper)}.plus{transition:.25s}.cta{background:repeating-conic-gradient(from 0deg at 75% 50%,rgba(255,250,240,.2) 0 7deg,transparent 7deg 15deg),var(--teal)}
+        @media(max-width:767px){.machine{height:410px}.screen{inset:82px 28px 104px}.slot{bottom:65px}.controls{bottom:18px}.star{width:82px;height:82px;right:-4%;font-size:.7rem}.ticket{left:1%;bottom:2%;font-size:.65rem}.flash{left:0;width:58px;height:58px}.process-display{position:relative;top:auto;min-height:430px}.demo-screen{inset:42px 24px 62px}.gallery{min-height:760px}.polaroid:nth-child(1){left:2%;top:70px}.polaroid:nth-child(2){left:auto;right:2%;top:245px}.polaroid:nth-child(3){left:8%;right:auto;top:420px}.photo{height:250px}.featured{transform:none}}
+        @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}.reveal{opacity:1;transform:none}}
     </style>
 </head>
-<body class="antialiased selection:bg-[#E93C78] selection:text-white relative overflow-x-hidden">
+<body>
+<header class="sticky top-0 z-50 border-b-2 border-ink bg-cream/95 backdrop-blur-md">
+    <div class="mx-auto flex h-[74px] max-w-7xl items-center justify-between px-5 lg:px-8">
+        <a href="#top" class="flex items-center gap-3" aria-label="Kembali ke atas">
+            <span class="grid h-11 w-11 -rotate-3 place-items-center overflow-hidden rounded-xl border-2 border-ink bg-paper shadow-[3px_3px_0_#2c201a]"><img src="/logo/logo-snaptech.jpg" alt="" class="h-full w-full object-cover" onerror="this.style.display='none';this.parentElement.textContent='ST';"></span>
+            <span><b class="display block text-xl leading-none">SnapTechBooth</b><small class="text-[9px] font-black uppercase tracking-[.22em] text-teal">Self-photo studio</small></span>
+        </a>
+        <nav class="hidden items-center gap-7 text-sm font-bold md:flex" aria-label="Navigasi utama"><a href="#cara-kerja" class="hover:text-tomato">Cara Kerja</a><a href="#hasil" class="hover:text-tomato">Hasil Foto</a><a href="#fitur" class="hover:text-tomato">Fitur</a><a href="#harga" class="hover:text-tomato">Paket</a></nav>
+        <div class="flex items-center gap-2"><a href="https://wa.me/6287877946981?text=Halo%20SnapTechBooth,%20saya%20ingin%20konsultasi%20dan%20demo" target="_blank" rel="noopener" class="hidden rounded-full border-2 border-ink bg-tomato px-5 py-2.5 text-xs font-black text-paper shadow-[3px_3px_0_#2c201a] transition hover:-translate-y-0.5 sm:inline-flex">Mulai Ngebooth</a><button id="menu-button" class="grid h-10 w-10 place-items-center rounded-full border-2 border-ink bg-paper md:hidden" aria-label="Buka menu" aria-expanded="false">☰</button></div>
+    </div>
+    <nav id="mobile-menu" class="hidden border-t-2 border-ink bg-paper px-5 py-4 md:hidden"><div class="flex flex-col gap-4 text-sm font-bold"><a href="#cara-kerja">Cara Kerja</a><a href="#hasil">Hasil Foto</a><a href="#fitur">Fitur</a><a href="#harga">Paket</a><a href="https://wa.me/6287877946981" target="_blank" class="rounded-full border-2 border-ink bg-tomato px-4 py-3 text-center text-paper">Mulai Ngebooth</a></div></nav>
+</header>
 
-    <!-- Ambient Soft Blobs (No Grid Lines) -->
-    <div class="fixed top-0 left-0 w-[550px] h-[550px] blob-1 pointer-events-none z-0 -translate-x-1/3 -translate-y-1/3"></div>
-    <div class="fixed top-1/4 right-0 w-[600px] h-[600px] blob-2 pointer-events-none z-0 translate-x-1/4"></div>
-    <div class="fixed bottom-10 left-1/3 w-[500px] h-[500px] blob-3 pointer-events-none z-0"></div>
-
-    <!-- Navigation Header -->
-    <header class="sticky top-0 z-50 backdrop-blur-lg bg-white/90 border-b border-slate-100 shadow-sm">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between gap-2">
-            <!-- Brand Logo -->
-            <a href="/" class="flex items-center gap-2 sm:gap-3 group shrink-0">
-                <img 
-                    src="/logo/logo-snaptech.jpg" 
-                    alt="SnapTechBooth Logo" 
-                    class="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl object-cover shadow-md shadow-[#008B9B]/20 border-2 border-white group-hover:scale-105 transition duration-300"
-                    onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
-                />
-                <div class="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl gradient-bg-main items-center justify-center text-white hidden shadow-md">
-                    <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z"/>
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z"/>
-                    </svg>
-                </div>
-                <div class="flex flex-col">
-                    <span class="text-base sm:text-xl font-black tracking-tight text-[#0A2B42]">SnapTech<span class="gradient-text-s">Booth</span></span>
-                    <span class="text-[9px] sm:text-[10px] text-slate-500 font-bold -mt-0.5 sm:-mt-1 tracking-wider uppercase">Self-Photo Kiosk</span>
-                </div>
-            </a>
-
-            <!-- Nav Links (Desktop) -->
-            <nav class="hidden md:flex items-center gap-8 text-sm font-bold text-slate-600">
-                <a href="#fitur" class="hover:text-[#008B9B] transition">Fitur</a>
-                <a href="#cara-kerja" class="hover:text-[#E93C78] transition">Cara Kerja</a>
-                <a href="#harga" class="hover:text-[#FF5841] transition">Pilihan Paket</a>
-                <a href="#faq" class="hover:text-[#008B9B] transition">FAQ</a>
-            </nav>
-
-            <!-- Actions (Mobile & Desktop Friendly) -->
-            <div class="flex items-center gap-2 sm:gap-4 shrink-0">
-                <a href="https://wa.me/6287877946981?text=Halo%20SnapTechBooth,%20saya%20tertarik%20dengan%20software%20photobooth%20untuk%20bisnis%20saya" target="_blank" class="inline-flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-6 py-2 sm:py-2.5 rounded-full bg-gradient-to-r from-[#008B9B] via-[#E93C78] to-[#FFA234] hover:opacity-95 text-white text-xs sm:text-sm font-extrabold shadow-md sm:shadow-lg shadow-[#E93C78]/25 hover:shadow-xl hover:scale-[1.02] transition duration-200 whitespace-nowrap">
-                    <span class="hidden sm:inline">Konsultasi WhatsApp</span>
-                    <span class="inline sm:hidden">Chat WA</span>
-                    <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/>
-                    </svg>
-                </a>
+<main id="top">
+    <section class="sunburst relative overflow-hidden border-b-2 border-ink py-16 sm:py-20 lg:min-h-[760px] lg:py-24">
+        <div class="mx-auto grid max-w-7xl items-center gap-14 px-5 lg:grid-cols-[1.02fr_.98fr] lg:px-8">
+            <div class="relative z-10 text-center lg:text-left">
+                <span class="label mb-7 -rotate-2">● Studio aktif 24/7</span>
+                <h1 class="display max-w-3xl text-5xl leading-[1.03] text-paper drop-shadow-[3px_4px_0_#2c201a] sm:text-6xl lg:text-[78px]">Jepret. Cetak.<br><span class="text-mustard">Simpan Momennya.</span></h1>
+                <p class="mx-auto mt-7 max-w-xl text-base font-semibold leading-relaxed text-paper/95 lg:mx-0 lg:text-lg">Photobooth self-service untuk cafe dan event. Pengunjung bisa bayar, foto, cetak, lalu download langsung ke HP semuanya otomatis.</p>
+                <div class="mt-9 flex flex-col justify-center gap-3 sm:flex-row lg:justify-start"><a href="https://wa.me/6287877946981?text=Halo%20SnapTechBooth,%20saya%20ingin%20konsultasi%20setup%20photobooth" target="_blank" rel="noopener" class="retro-shadow rounded-full border-2 border-ink bg-mustard px-7 py-4 text-sm font-black transition hover:-translate-y-1">Konsultasi Gratis ↗</a><a href="#cara-kerja" class="rounded-full border-2 border-ink bg-paper px-7 py-4 text-sm font-black transition hover:-translate-y-1">Lihat Cara Kerja ↓</a></div>
+                <div class="mt-9 flex flex-wrap justify-center gap-x-6 gap-y-2 text-xs font-bold text-paper lg:justify-start"><span>✓ Tanpa operator</span><span>✓ QRIS otomatis</span><span>✓ Siap cetak</span></div>
             </div>
-        </div>
-    </header>
-
-    <!-- Hero Section -->
-    <section class="relative pt-16 pb-20 z-10">
-        <div class="max-w-7xl mx-auto px-6">
-            <div class="max-w-3xl mx-auto text-center">
-                <!-- Clean Badge -->
-                <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-slate-200/80 text-xs font-bold text-[#008B9B] shadow-sm mb-6">
-                    <span class="w-2 h-2 rounded-full bg-[#E93C78] animate-ping"></span>
-                    Software Photobooth Self-Service untuk Cafe & Event
-                </div>
-
-                <!-- Main Headline -->
-                <h1 class="text-4xl sm:text-5xl lg:text-6xl font-black text-[#0A2B42] tracking-tight leading-[1.18] mb-6">
-                    Bikin Cafe & Event Kamu Makin Ramai dengan <span class="gradient-text-s">SnapTechBooth</span>
-                </h1>
-
-                <!-- Subheadline -->
-                <p class="text-base sm:text-lg text-slate-600 leading-relaxed mb-10 max-w-2xl mx-auto font-medium">
-                    Software photobooth otomatis yang mudah dipakai: pengunjung foto mandiri, cetak foto strip instan, unduh video & GIF ke HP via QR, serta bayar praktis lewat QRIS.
-                </p>
-
-                <!-- CTA Buttons -->
-                <div class="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
-                    <a href="https://wa.me/6287877946981?text=Halo%20SnapTechBooth,%20saya%20ingin%20tanya%20detail%20setup%20photobooth" target="_blank" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-gradient-to-r from-[#008B9B] via-[#E93C78] to-[#FF5841] hover:opacity-95 text-white font-extrabold text-sm shadow-xl shadow-[#E93C78]/30 hover:scale-[1.02] transition duration-200">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z"/>
-                        </svg>
-                        <span>Konsultasi & Demo Gratis</span>
-                    </a>
-                    <a href="#harga" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-white hover:bg-slate-50 text-[#0A2B42] border-2 border-slate-200 font-extrabold text-sm shadow-sm transition duration-200">
-                        <span>Lihat Pilihan Paket</span>
-                        <svg class="w-4 h-4 text-[#FFA234]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
-                        </svg>
-                    </a>
-                </div>
-            </div>
-
-            <!-- Showcase Preview Cards -->
-            <div class="relative max-w-5xl mx-auto">
-                <div class="rounded-3xl border-2 border-white bg-white/90 p-5 sm:p-7 shadow-2xl shadow-slate-200/80 backdrop-blur-xl">
-                    <div class="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
-                        <div class="flex items-center gap-2">
-                            <div class="w-3.5 h-3.5 rounded-full bg-[#E93C78]"></div>
-                            <div class="w-3.5 h-3.5 rounded-full bg-[#FFA234]"></div>
-                            <div class="w-3.5 h-3.5 rounded-full bg-[#00C4D6]"></div>
-                        </div>
-                        <div class="text-xs font-bold text-slate-500 flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
-                            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-                            Kiosk Android Mode • Siap Dipasang di Tablet
-                        </div>
-                        <div class="text-xs font-bold text-[#008B9B] hidden sm:block">SnapTech Experience</div>
-                    </div>
-
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
-                        
-                        <!-- Card 1: Foto Mandiri -->
-                        <div class="bg-gradient-to-b from-[#00C4D6]/10 to-[#008B9B]/5 border-2 border-[#00C4D6]/30 rounded-2xl p-6 flex flex-col justify-between">
-                            <div>
-                                <div class="w-10 h-10 rounded-xl bg-[#00C4D6]/20 flex items-center justify-center text-[#008B9B] mb-4">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/>
-                                    </svg>
-                                </div>
-                                <span class="text-[11px] font-extrabold uppercase tracking-wider text-[#008B9B]">Langkah 01</span>
-                                <h3 class="text-base font-extrabold text-[#0A2B42] mt-1 mb-2">Foto Mandiri & Pilihan Frame</h3>
-                                <p class="text-xs text-slate-600 leading-relaxed">Pengunjung memilih desain frame, berpose dengan aba-aba hitungan otomatis, dan bebas retake foto jika belum pas.</p>
-                            </div>
-                            <div class="mt-4 pt-3 border-t border-[#00C4D6]/20 flex items-center justify-between text-xs font-bold text-[#008B9B]">
-                                <span>Multi-Pose Capture</span>
-                                <span class="px-2 py-0.5 rounded-full bg-[#00C4D6]/20 text-[10px]">Cepat & Praktis</span>
-                            </div>
-                        </div>
-
-                        <!-- Card 2: Cetak Strip & Media -->
-                        <div class="bg-gradient-to-b from-[#E93C78]/10 to-[#8C206B]/5 border-2 border-[#E93C78]/30 rounded-2xl p-6 flex flex-col justify-between shadow-lg shadow-[#E93C78]/10">
-                            <div>
-                                <div class="w-10 h-10 rounded-xl bg-[#E93C78]/20 flex items-center justify-center text-[#E93C78] mb-4">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.829c-.24-1.656-.613-3.195-1.12-4.577m0 0a15.82 15.82 0 016.4-1.252c1.786 0 3.498.286 5.093.816m-11.493.436C6.72 9.08 7.5 7.6 7.5 6a7.5 7.5 0 0115 0c0 1.6-.78 3.08-2.107 4.252"/>
-                                    </svg>
-                                </div>
-                                <span class="text-[11px] font-extrabold uppercase tracking-wider text-[#E93C78]">Langkah 02</span>
-                                <h3 class="text-base font-extrabold text-[#0A2B42] mt-1 mb-2">Cetak Cepat 300 DPI + GIF & Video</h3>
-                                <p class="text-xs text-slate-600 leading-relaxed">Satu kali sesi foto langsung menghasilkan cetak fisik tajam, animasi GIF bergerak, dan file video MP4.</p>
-                            </div>
-                            <div class="mt-4 pt-3 border-t border-[#E93C78]/20 flex items-center justify-between text-xs font-bold text-[#E93C78]">
-                                <span>Auto-Print Support</span>
-                                <span class="px-2 py-0.5 rounded-full bg-[#E93C78]/20 text-[10px]">Kualitas Tinggi</span>
-                            </div>
-                        </div>
-
-                        <!-- Card 3: Scan QR Download -->
-                        <div class="bg-gradient-to-b from-[#FFA234]/15 to-[#FF5841]/5 border-2 border-[#FFA234]/40 rounded-2xl p-6 flex flex-col justify-between">
-                            <div>
-                                <div class="w-10 h-10 rounded-xl bg-[#FFA234]/20 flex items-center justify-center text-[#FF5841] mb-4">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z"/>
-                                    </svg>
-                                </div>
-                                <span class="text-[11px] font-extrabold uppercase tracking-wider text-[#FF5841]">Langkah 03</span>
-                                <h3 class="text-base font-extrabold text-[#0A2B42] mt-1 mb-2">Scan QR Langsung ke HP</h3>
-                                <p class="text-xs text-slate-600 leading-relaxed">Pengunjung scan QR code di layar booth untuk simpan semua foto dan video tanpa harus download aplikasi.</p>
-                            </div>
-                            <div class="mt-4 pt-3 border-t border-[#FFA234]/20 flex items-center justify-between text-xs font-bold text-[#FF5841]">
-                                <span>Instant Cloud Download</span>
-                                <span class="px-2 py-0.5 rounded-full bg-[#FFA234]/20 text-[10px]">Tanpa Aplikasi</span>
-                            </div>
-                        </div>
-
-                    </div>
-                </div>
+            <div id="hero-stage" class="hero-stage relative min-h-[540px] lg:min-h-[590px]">
+                <div class="sticker star" data-speed="-.08">GOOD<br>MEMORIES</div><div class="sticker ticket" data-speed=".09">ADMIT ONE • PHOTO TIME</div><div class="sticker flash" data-speed="-.12">✦</div>
+                <div id="machine-wrap" class="machine-wrap absolute inset-0 flex items-center justify-center"><div class="machine"><div class="machine-head">SNAPTECH PHOTO CLUB</div><div class="lens"></div><div class="screen"><div class="screen-inner"><span class="absolute left-4 top-4 rounded-full border-2 border-ink bg-paper px-3 py-1 text-[10px] font-black text-ink">READY!</span><div class="face"><i class="smile"></i></div><b class="absolute bottom-4 text-xs tracking-widest">SMILE, PLEASE!</b></div></div><div class="slot"></div><div class="strip hero-strip"><div class="frame"></div><div class="frame"></div><div class="text-center text-[9px] font-black tracking-widest">SNAPTECH '26</div></div><div class="controls"><span class="dots">••••</span><span class="button"></span><span class="dots">••••</span></div></div></div>
             </div>
         </div>
     </section>
 
-    <!-- Core Features Grid -->
-    <section id="fitur" class="py-24 z-10 relative bg-white border-t border-b border-slate-100">
-        <div class="max-w-7xl mx-auto px-6">
-            <div class="max-w-2xl mx-auto text-center mb-16">
-                <span class="px-3.5 py-1.5 rounded-full bg-[#008B9B]/10 text-xs font-extrabold text-[#008B9B] uppercase tracking-wider">Fitur Utama</span>
-                <h2 class="text-3xl sm:text-4xl font-black text-[#0A2B42] tracking-tight mt-3">Semua Kebutuhan Photobooth dalam Satu Aplikasi</h2>
-            </div>
+    <div class="marquee"><div class="track"><span>SELF-SERVICE <b>✦</b> QRIS PAYMENT <b>✦</b> INSTANT PRINT <b>✦</b> GIF & VIDEO <b>✦</b> CUSTOM FRAME <b>✦</b> DOWNLOAD QR <b>✦</b></span><span aria-hidden="true">SELF-SERVICE <b>✦</b> QRIS PAYMENT <b>✦</b> INSTANT PRINT <b>✦</b> GIF & VIDEO <b>✦</b> CUSTOM FRAME <b>✦</b> DOWNLOAD QR <b>✦</b></span></div></div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                <!-- Feature 1: Kiosk Android -->
-                <div class="p-8 rounded-3xl bg-[#FAFAFD] border-2 border-slate-100 hover:border-[#00C4D6] hover:shadow-xl hover:shadow-[#00C4D6]/10 transition duration-300">
-                    <div class="w-12 h-12 rounded-2xl bg-[#00C4D6]/15 flex items-center justify-center text-[#008B9B] mb-6">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3"/>
-                        </svg>
-                    </div>
-                    <h3 class="text-lg font-extrabold text-[#0A2B42] mb-2">Aplikasi Kiosk Android</h3>
-                    <p class="text-sm text-slate-600 leading-relaxed">Cukup pasang di tablet atau layar Android. Tampilan full-screen yang simpel dan siap melayani pengunjung seharian.</p>
-                </div>
-
-                <!-- Feature 2: Frame Editor & Green Eraser -->
-                <div class="p-8 rounded-3xl bg-[#FAFAFD] border-2 border-slate-100 hover:border-[#E93C78] hover:shadow-xl hover:shadow-[#E93C78]/10 transition duration-300">
-                    <div class="w-12 h-12 rounded-2xl bg-[#E93C78]/15 flex items-center justify-center text-[#E93C78] mb-6">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0l2.77-2.77m-2.77 2.77l-1.5 1.5m6.77-6.77l2.77-2.77a2.25 2.25 0 000-3.182l-1.364-1.364a2.25 2.25 0 00-3.182 0l-2.77 2.77m4.546 4.546l-4.546-4.546m0 0L3.75 14.25v3.75h3.75l9.25-9.25z"/>
-                        </svg>
-                    </div>
-                    <h3 class="text-lg font-extrabold text-[#0A2B42] mb-2">Frame Builder & Hapus Warna Hijau</h3>
-                    <p class="text-sm text-slate-600 leading-relaxed">Bebas upload template frame PNG atau gunakan alat pensil sekali klik untuk melubangi area foto secara otomatis.</p>
-                </div>
-
-                <!-- Feature 3: Auto-Print -->
-                <div class="p-8 rounded-3xl bg-[#FAFAFD] border-2 border-slate-100 hover:border-[#FFA234] hover:shadow-xl hover:shadow-[#FFA234]/10 transition duration-300">
-                    <div class="w-12 h-12 rounded-2xl bg-[#FFA234]/20 flex items-center justify-center text-[#FF5841] mb-6">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.829c-.24-1.656-.613-3.195-1.12-4.577m0 0a15.82 15.82 0 016.4-1.252c1.786 0 3.498.286 5.093.816m-11.493.436C6.72 9.08 7.5 7.6 7.5 6a7.5 7.5 0 0115 0c0 1.6-.78 3.08-2.107 4.252"/>
-                        </svg>
-                    </div>
-                    <h3 class="text-lg font-extrabold text-[#0A2B42] mb-2">Cetak Otomatis (Auto-Print)</h3>
-                    <p class="text-sm text-slate-600 leading-relaxed">Mendukung berbagai printer foto (DNP, Canon Selphy, Epson). Begitu sesi selesai, foto langsung dicetak otomatis.</p>
-                </div>
-
-                <!-- Feature 4: QRIS Self-Payment -->
-                <div class="p-8 rounded-3xl bg-[#FAFAFD] border-2 border-slate-100 hover:border-[#FF5841] hover:shadow-xl hover:shadow-[#FF5841]/10 transition duration-300">
-                    <div class="w-12 h-12 rounded-2xl bg-[#FF5841]/15 flex items-center justify-center text-[#FF5841] mb-6">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z"/>
-                        </svg>
-                    </div>
-                    <h3 class="text-lg font-extrabold text-[#0A2B42] mb-2">Pembayaran QRIS Mandiri</h3>
-                    <p class="text-sm text-slate-600 leading-relaxed">Terhubung langsung dengan QRIS (Gopay, OVO, Dana, BCA, dll). Sesi foto otomatis terbuka begitu pembayaran diterima.</p>
-                </div>
-
-                <!-- Feature 5: Cloud Dashboard -->
-                <div class="p-8 rounded-3xl bg-[#FAFAFD] border-2 border-slate-100 hover:border-[#008B9B] hover:shadow-xl hover:shadow-[#008B9B]/10 transition duration-300">
-                    <div class="w-12 h-12 rounded-2xl bg-[#008B9B]/15 flex items-center justify-center text-[#008B9B] mb-6">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/>
-                        </svg>
-                    </div>
-                    <h3 class="text-lg font-extrabold text-[#0A2B42] mb-2">Dashboard Penjualan Real-Time</h3>
-                    <p class="text-sm text-slate-600 leading-relaxed">Pantau laporan transaksi, jumlah sesi per hari, dan atur katalog frame langsung dari HP atau laptop Anda.</p>
-                </div>
-
-                <!-- Feature 6: Filter Preset Estetik -->
-                <div class="p-8 rounded-3xl bg-[#FAFAFD] border-2 border-slate-100 hover:border-[#8C206B] hover:shadow-xl hover:shadow-[#8C206B]/10 transition duration-300">
-                    <div class="w-12 h-12 rounded-2xl bg-[#8C206B]/15 flex items-center justify-center text-[#8C206B] mb-6">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M4.098 19.902a3.75 3.75 0 005.304 0l6.401-6.402M6.75 21A3.75 3.75 0 013 17.25V4.125C3 3.504 3.504 3 4.125 3h5.25c.621 0 1.125.504 1.125 1.125v4.072M6.75 21a3.75 3.75 0 003.75-3.75V8.197M6.75 21h13.125c.621 0 1.125-.504 1.125-1.125v-5.25c0-.621-.504-1.125-1.125-1.125h-4.072M10.5 8.197l9.402 9.402"/>
-                        </svg>
-                    </div>
-                    <h3 class="text-lg font-extrabold text-[#0A2B42] mb-2">Pilihan Filter Foto</h3>
-                    <p class="text-sm text-slate-600 leading-relaxed">Dilengkapi filter warna populer seperti Black & White, Warm Vintage, dan Soft Tone untuk hasil foto yang menarik.</p>
-                </div>
-            </div>
+    <section id="cara-kerja" class="py-24 sm:py-32"><div class="mx-auto max-w-7xl px-5 lg:px-8">
+        <div class="reveal mx-auto mb-16 max-w-3xl text-center"><h2 class="display text-4xl leading-tight sm:text-6xl">Dari pilih frame sampai foto tersimpan.</h2><p class="mx-auto mt-5 max-w-2xl font-medium leading-relaxed text-ink/70">Lima langkah sederhana. Tidak perlu operator, tidak perlu aplikasi tambahan, dan tidak bikin antrean panjang.</p></div>
+        <div class="grid gap-12 lg:grid-cols-[.85fr_1.15fr] lg:items-start"><div class="space-y-5">
+            <article class="step active rounded-2xl border-2 border-ink p-5" data-step="0" tabindex="0"><div class="flex gap-4"><span class="number grid h-11 w-11 shrink-0 place-items-center rounded-full border-2 border-ink bg-mustard font-black">01</span><div><h3 class="display text-2xl">Pilih frame</h3><p class="mt-1 text-sm font-medium text-ink/65">Pilih desain sesuai tema cafe atau event.</p></div></div></article>
+            <article class="step rounded-2xl border-2 border-ink p-5" data-step="1" tabindex="0"><div class="flex gap-4"><span class="number grid h-11 w-11 shrink-0 place-items-center rounded-full border-2 border-ink bg-mustard font-black">02</span><div><h3 class="display text-2xl">Bayar QRIS</h3><p class="mt-1 text-sm font-medium text-ink/65">Sesi otomatis terbuka setelah pembayaran diterima.</p></div></div></article>
+            <article class="step rounded-2xl border-2 border-ink p-5" data-step="2" tabindex="0"><div class="flex gap-4"><span class="number grid h-11 w-11 shrink-0 place-items-center rounded-full border-2 border-ink bg-mustard font-black">03</span><div><h3 class="display text-2xl">Pose & jepret</h3><p class="mt-1 text-sm font-medium text-ink/65">Ikuti hitungan mundur dan ambil beberapa pose.</p></div></div></article>
+            <article class="step rounded-2xl border-2 border-ink p-5" data-step="3" tabindex="0"><div class="flex gap-4"><span class="number grid h-11 w-11 shrink-0 place-items-center rounded-full border-2 border-ink bg-mustard font-black">04</span><div><h3 class="display text-2xl">Cetak otomatis</h3><p class="mt-1 text-sm font-medium text-ink/65">Photo strip 300 DPI langsung masuk antrean printer.</p></div></div></article>
+            <article class="step rounded-2xl border-2 border-ink p-5" data-step="4" tabindex="0"><div class="flex gap-4"><span class="number grid h-11 w-11 shrink-0 place-items-center rounded-full border-2 border-ink bg-mustard font-black">05</span><div><h3 class="display text-2xl">Scan & simpan</h3><p class="mt-1 text-sm font-medium text-ink/65">Unduh foto, GIF, dan video langsung ke HP.</p></div></div></article>
         </div>
-    </section>
+        <div class="process-display reveal"><b class="absolute left-6 top-5 text-xs tracking-[.18em] text-paper">LIVE BOOTH PREVIEW</b><div class="demo-screen">
+            <div class="panel active" data-panel="0"><div class="w-full"><p class="mb-5 text-center text-xs font-black uppercase tracking-widest">Choose your frame</p><div class="frame-grid"><i class="mini-frame"></i><i class="mini-frame"></i><i class="mini-frame"></i></div></div></div>
+            <div class="panel" data-panel="1"><div class="text-center"><div class="qr mx-auto"></div><p class="mt-6 text-sm font-black uppercase tracking-widest">Scan untuk bayar</p></div></div>
+            <div class="panel" data-panel="2"><div class="text-center"><div class="count">3</div><p class="mt-7 text-sm font-black uppercase tracking-widest">Get ready!</p></div></div>
+            <div class="panel" data-panel="3"><div class="text-center"><div class="printer mx-auto"><div class="paper-out"><div class="m-2 h-16 border-2 border-ink bg-blush"></div></div></div><p class="mt-20 text-sm font-black uppercase tracking-widest">Printing...</p></div></div>
+            <div class="panel" data-panel="4"><div class="phone"><div class="phone-inner"><div class="text-center"><div class="mx-auto h-24 w-20 border-2 border-ink bg-paper p-1"><div class="h-full border-2 border-ink bg-tomato"></div></div><b class="mt-4 block rounded-full border-2 border-ink bg-teal px-4 py-2 text-xs text-paper">DOWNLOAD</b></div></div></div></div>
+        </div><i class="absolute bottom-5 left-1/2 h-3 w-24 -translate-x-1/2 rounded-full bg-ink"></i></div></div>
+    </div></section>
 
-    <!-- Pricing Section -->
-    <section id="harga" class="py-24 z-10 relative">
-        <div class="max-w-7xl mx-auto px-6">
-            <div class="max-w-2xl mx-auto text-center mb-16">
-                <span class="px-3.5 py-1.5 rounded-full bg-[#E93C78]/10 text-xs font-extrabold text-[#E93C78] uppercase tracking-wider">Paket & Harga</span>
-                <h2 class="text-3xl sm:text-4xl font-black text-[#0A2B42] tracking-tight mt-3">Investasi Terjangkau, Hasil Maksimal</h2>
-                <p class="text-sm text-slate-600 mt-3 font-medium">Pilih paket langganan software yang paling pas untuk cafe atau bisnis photobooth Anda.</p>
-            </div>
+    <section id="hasil" class="overflow-hidden border-y-2 border-ink bg-mustard py-24 sm:py-28"><div class="mx-auto max-w-7xl px-5 lg:px-8"><div class="reveal grid gap-8 lg:grid-cols-[.75fr_1.25fr] lg:items-center">
+        <div><h2 class="display text-4xl leading-tight sm:text-6xl">Satu sesi, banyak kenangan.</h2><p class="mt-5 max-w-lg font-medium leading-relaxed text-ink/75">Bukan cuma hasil cetak. Setiap sesi dapat menghasilkan photo strip digital, GIF animasi, dan video pendek yang siap dibagikan.</p><div class="mt-8 flex flex-wrap gap-2 text-xs font-black uppercase"><span class="rounded-full border-2 border-ink bg-paper px-4 py-2">Photo Strip</span><span class="rounded-full border-2 border-ink bg-tomato px-4 py-2 text-paper">GIF</span><span class="rounded-full border-2 border-ink bg-teal px-4 py-2 text-paper">Video MP4</span></div></div>
+        <div class="gallery"><figure class="polaroid"><div class="photo"><i class="person"></i><i class="person"></i></div><figcaption class="display mt-3 text-center text-xl">Cafe date!</figcaption></figure><figure class="polaroid"><div class="photo"><i class="person"></i><i class="person"></i></div><figcaption class="display mt-3 text-center text-xl">Best day ever.</figcaption></figure><figure class="polaroid"><div class="photo"><i class="person"></i><i class="person"></i></div><figcaption class="display mt-3 text-center text-xl">Keep smiling!</figcaption></figure></div>
+    </div></div></section>
 
-            <!-- Pricing Cards Grid -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
-                
-                <!-- Plan 1: Starter Pro (800k) -->
-                <div class="rounded-3xl bg-white border-2 border-slate-200/80 p-8 flex flex-col justify-between hover:border-[#008B9B] hover:shadow-xl hover:shadow-[#008B9B]/10 transition duration-300">
-                    <div>
-                        <div class="text-xs font-extrabold text-[#008B9B] uppercase tracking-wider mb-2">Starter Cafe</div>
-                        <div class="flex items-baseline gap-1 mb-4">
-                            <span class="text-3xl sm:text-4xl font-black text-[#0A2B42] tracking-tight">Rp 800.000</span>
-                            <span class="text-xs text-slate-500 font-bold">/ bulan</span>
-                        </div>
-                        <p class="text-xs text-slate-600 leading-relaxed mb-6 font-medium">Pilihan mandiri untuk 1 outlet cafe atau booth tetap yang ingin sistem photobooth stabil.</p>
-
-                        <div class="border-t border-slate-100 pt-6 space-y-3.5 mb-8">
-                            <div class="flex items-start gap-3 text-xs font-semibold text-slate-700">
-                                <svg class="w-4 h-4 text-[#008B9B] shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
-                                <span>1 Lisensi Kiosk Android</span>
-                            </div>
-                            <div class="flex items-start gap-3 text-xs font-semibold text-slate-700">
-                                <svg class="w-4 h-4 text-[#008B9B] shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
-                                <span>Unlimited Sesi Foto & QR Cloud</span>
-                            </div>
-                            <div class="flex items-start gap-3 text-xs font-semibold text-slate-700">
-                                <svg class="w-4 h-4 text-[#008B9B] shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
-                                <span>Output Photo Strip HD 300 DPI</span>
-                            </div>
-                            <div class="flex items-start gap-3 text-xs font-semibold text-slate-700">
-                                <svg class="w-4 h-4 text-[#008B9B] shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
-                                <span>Hingga 20 Frame Kustom Aktif</span>
-                            </div>
-                            <div class="flex items-start gap-3 text-xs font-semibold text-slate-700">
-                                <svg class="w-4 h-4 text-[#008B9B] shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
-                                <span>Laporan Omset & Grafik Penjualan</span>
-                            </div>
-                            <div class="flex items-start gap-3 text-xs font-semibold text-slate-700">
-                                <svg class="w-4 h-4 text-[#008B9B] shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
-                                <span>Masa Simpan Unduhan Cloud 14 Hari</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <a href="https://wa.me/6287877946981?text=Halo%20SnapTechBooth,%20saya%20tertarik%20dengan%20Paket%20Starter%20Cafe%20(800k/bulan)" target="_blank" class="w-full py-3.5 px-4 rounded-full bg-slate-100 hover:bg-[#008B9B] hover:text-white text-[#0A2B42] text-xs font-extrabold text-center transition duration-200">
-                        Pilih Paket Starter Cafe
-                    </a>
-                </div>
-
-                <!-- Plan 2: Pro Cafe (Paling Favorit - Tengah - 550k) -->
-                <div class="rounded-3xl bg-white border-2 border-[#E93C78] p-8 flex flex-col justify-between relative shadow-2xl shadow-[#E93C78]/20 scale-105 z-20">
-                    <div class="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-[#E93C78] to-[#FF5841] rounded-full text-[10px] font-black uppercase tracking-wider text-white shadow-md">
-                        Paling Favorit
-                    </div>
-
-                    <div>
-                        <div class="text-xs font-extrabold text-[#E93C78] uppercase tracking-wider mb-2">Pro Cafe</div>
-                        <div class="flex items-baseline gap-1 mb-4">
-                            <span class="text-3xl sm:text-4xl font-black text-[#0A2B42] tracking-tight">Rp 550.000</span>
-                            <span class="text-xs text-slate-500 font-bold">/ bulan</span>
-                        </div>
-                        <p class="text-xs text-slate-600 leading-relaxed mb-6 font-medium">Solusi lengkap untuk cafe ramai dengan fitur pembayaran QRIS otomatis dan video motion.</p>
-
-                        <div class="border-t border-slate-100 pt-6 space-y-3.5 mb-8">
-                            <div class="flex items-start gap-3 text-xs font-bold text-[#0A2B42]">
-                                <svg class="w-4 h-4 text-[#E93C78] shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
-                                <span>Hingga 2 Device Kiosk (1 Lokasi Cafe)</span>
-                            </div>
-                            <div class="flex items-start gap-3 text-xs font-bold text-[#0A2B42]">
-                                <svg class="w-4 h-4 text-[#E93C78] shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
-                                <span>Semua Aset: Photo Strip + GIF + Video MP4</span>
-                            </div>
-                            <div class="flex items-start gap-3 text-xs font-bold text-[#0A2B42]">
-                                <svg class="w-4 h-4 text-[#E93C78] shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
-                                <span>Integrasi QRIS Otomatis (Pakasir)</span>
-                            </div>
-                            <div class="flex items-start gap-3 text-xs font-bold text-[#0A2B42]">
-                                <svg class="w-4 h-4 text-[#E93C78] shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
-                                <span>Layanan Auto-Print Presisi 300 DPI</span>
-                            </div>
-                            <div class="flex items-start gap-3 text-xs font-bold text-[#0A2B42]">
-                                <svg class="w-4 h-4 text-[#E93C78] shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
-                                <span>Unlimited Frame Kustom + Frame Pencil Editor</span>
-                            </div>
-                            <div class="flex items-start gap-3 text-xs font-bold text-[#0A2B42]">
-                                <svg class="w-4 h-4 text-[#E93C78] shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
-                                <span>Custom Logo & Watermark Cafe</span>
-                            </div>
-                            <div class="flex items-start gap-3 text-xs font-bold text-[#0A2B42]">
-                                <svg class="w-4 h-4 text-[#E93C78] shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
-                                <span>Dukungan Prioritas WhatsApp 24/7</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <a href="https://wa.me/6287877946981?text=Halo%20SnapTechBooth,%20saya%20tertarik%20dengan%20Paket%20Pro%20Cafe%20(550k/bulan)" target="_blank" class="w-full py-4 px-4 rounded-full bg-gradient-to-r from-[#E93C78] via-[#FF5841] to-[#FFA234] hover:opacity-95 text-white text-xs font-black text-center shadow-lg shadow-[#E93C78]/25 transition duration-200">
-                        Pilih Paket Pro Cafe
-                    </a>
-                </div>
-
-                <!-- Plan 3: Bisnis & Event Enterprise (Samping Kanan - 1.3jt) -->
-                <div class="rounded-3xl bg-white border-2 border-slate-200/80 p-8 flex flex-col justify-between hover:border-[#FFA234] hover:shadow-xl hover:shadow-[#FFA234]/10 transition duration-300">
-                    <div>
-                        <div class="text-xs font-extrabold text-[#FFA234] uppercase tracking-wider mb-2">Bisnis & Event Enterprise</div>
-                        <div class="flex items-baseline gap-1 mb-4">
-                            <span class="text-3xl sm:text-4xl font-black text-[#0A2B42] tracking-tight">Rp 1.300.000</span>
-                            <span class="text-xs text-slate-500 font-bold">/ bulan</span>
-                        </div>
-                        <p class="text-xs text-slate-600 leading-relaxed mb-6 font-medium">Fitur terlengkap untuk multi-booth, rental event pernikahan/expo, atau jaringan cafe multi-cabang.</p>
-
-                        <div class="border-t border-slate-100 pt-6 space-y-3.5 mb-8">
-                            <div class="flex items-start gap-3 text-xs font-semibold text-slate-700">
-                                <svg class="w-4 h-4 text-[#FFA234] shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
-                                <span><strong>Hingga 6 Device Kiosk Aktif</strong></span>
-                            </div>
-                            <div class="flex items-start gap-3 text-xs font-semibold text-slate-700">
-                                <svg class="w-4 h-4 text-[#FFA234] shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
-                                <span><strong>Multi-Branch & Sinkronisasi Master Frame</strong></span>
-                            </div>
-                            <div class="flex items-start gap-3 text-xs font-semibold text-slate-700">
-                                <svg class="w-4 h-4 text-[#FFA234] shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
-                                <span><strong>Mode Multi-Event & Custom Branding Per Event</strong></span>
-                            </div>
-                            <div class="flex items-start gap-3 text-xs font-semibold text-slate-700">
-                                <svg class="w-4 h-4 text-[#FFA234] shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
-                                <span>Semua Aset: Photo Strip HD + GIF Animasi + Video MP4</span>
-                            </div>
-                            <div class="flex items-start gap-3 text-xs font-semibold text-slate-700">
-                                <svg class="w-4 h-4 text-[#FFA234] shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
-                                <span>Integrasi QRIS Otomatis Multi-Payment</span>
-                            </div>
-                            <div class="flex items-start gap-3 text-xs font-semibold text-slate-700">
-                                <svg class="w-4 h-4 text-[#FFA234] shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
-                                <span>Dual-Printer Support & Antrean Cetak Otomatis</span>
-                            </div>
-                            <div class="flex items-start gap-3 text-xs font-semibold text-slate-700">
-                                <svg class="w-4 h-4 text-[#FFA234] shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
-                                <span>Masa Simpan Unduhan Cloud 30 Hari</span>
-                            </div>
-                            <div class="flex items-start gap-3 text-xs font-semibold text-slate-700">
-                                <svg class="w-4 h-4 text-[#FFA234] shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
-                                <span>Dedicated Setup Support & Pendampingan Hardware</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <a href="https://wa.me/6287877946981?text=Halo%20SnapTechBooth,%20saya%20tertarik%20dengan%20Paket%20Enterprise%20(1.3jt/bulan)" target="_blank" class="w-full py-3.5 px-4 rounded-full bg-slate-100 hover:bg-[#FFA234] hover:text-white text-[#0A2B42] text-xs font-extrabold text-center transition duration-200">
-                        Pilih Paket Enterprise
-                    </a>
-                </div>
-            </div>
+    <section id="fitur" class="bg-paper py-24 sm:py-32"><div class="mx-auto max-w-7xl px-5 lg:px-8"><div class="reveal mx-auto mb-14 max-w-3xl text-center"><h2 class="display text-4xl sm:text-6xl">Retro di luar. Pintar di dalam.</h2><p class="mx-auto mt-5 max-w-2xl font-medium text-ink/70">Semua alat untuk menjalankan photobooth mandiri, dari layar kiosk sampai laporan penjualan.</p></div>
+        <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <article class="card reveal rounded-3xl p-7"><div class="icon">▣</div><h3 class="display mt-6 text-2xl">Kiosk Android</h3><p class="mt-3 text-sm font-medium leading-relaxed text-ink/65">Layar full-screen yang sederhana dan siap melayani sepanjang hari.</p></article>
+            <article class="card reveal rounded-3xl p-7"><div class="icon !bg-teal">⌁</div><h3 class="display mt-6 text-2xl">Pembayaran QRIS</h3><p class="mt-3 text-sm font-medium leading-relaxed text-ink/65">Sesi terbuka otomatis setelah pembayaran berhasil.</p></article>
+            <article class="card reveal rounded-3xl p-7"><div class="icon !bg-mustard !text-ink">▤</div><h3 class="display mt-6 text-2xl">Auto-print 300 DPI</h3><p class="mt-3 text-sm font-medium leading-relaxed text-ink/65">Terhubung ke printer foto untuk hasil otomatis dan tajam.</p></article>
+            <article class="card reveal rounded-3xl p-7"><div class="icon !bg-mustard !text-ink">✎</div><h3 class="display mt-6 text-2xl">Frame Builder</h3><p class="mt-3 text-sm font-medium leading-relaxed text-ink/65">Upload dan kelola desain frame sesuai event atau brand.</p></article>
+            <article class="card reveal rounded-3xl p-7"><div class="icon !bg-teal">▶</div><h3 class="display mt-6 text-2xl">GIF & Video</h3><p class="mt-3 text-sm font-medium leading-relaxed text-ink/65">Hasil bergerak yang siap diunduh dan dibagikan.</p></article>
+            <article class="card reveal rounded-3xl p-7"><div class="icon">↗</div><h3 class="display mt-6 text-2xl">Dashboard Bisnis</h3><p class="mt-3 text-sm font-medium leading-relaxed text-ink/65">Pantau transaksi dan kelola konten dari laptop atau HP.</p></article>
         </div>
-    </section>
+    </div></section>
 
-    <!-- FAQ Section -->
-    <section id="faq" class="py-24 z-10 relative bg-white border-t border-slate-100">
-        <div class="max-w-4xl mx-auto px-6">
-            <div class="text-center mb-16">
-                <span class="px-3.5 py-1.5 rounded-full bg-[#008B9B]/10 text-xs font-extrabold text-[#008B9B] uppercase tracking-wider">Tanya Jawab</span>
-                <h2 class="text-3xl font-black text-[#0A2B42] tracking-tight mt-3">Pertanyaan yang Sering Diajukan</h2>
-            </div>
+    <section class="border-y-2 border-ink py-24"><div class="mx-auto max-w-7xl px-5 lg:px-8"><div class="reveal mb-14"><span class="label bg-teal text-paper">Made for your space</span><h2 class="display mt-7 text-4xl sm:text-6xl">Masuk ke berbagai suasana.</h2></div><div class="grid gap-7 md:grid-cols-3">
+        <article class="card reveal overflow-hidden rounded-3xl"><div class="audience bg-blush">☕</div><div class="p-7"><b class="text-xs uppercase tracking-[.18em] text-tomato">01 • Daily traffic</b><h3 class="display mt-2 text-3xl">Cafe & Coffee Shop</h3><p class="mt-3 text-sm font-medium text-ink/65">Membuat pengunjung betah dan ingin kembali.</p></div></article>
+        <article class="card reveal overflow-hidden rounded-3xl"><div class="audience bg-mustard">♡</div><div class="p-7"><b class="text-xs uppercase tracking-[.18em] text-tomato">02 • Special moments</b><h3 class="display mt-2 text-3xl">Wedding & Event</h3><p class="mt-3 text-sm font-medium text-ink/65">Frame personal dan hasil instan untuk para tamu.</p></div></article>
+        <article class="card reveal overflow-hidden rounded-3xl"><div class="audience bg-teal text-paper">✦</div><div class="p-7"><b class="text-xs uppercase tracking-[.18em] text-tomato">03 • Scale the fun</b><h3 class="display mt-2 text-3xl">Rental & Brand</h3><p class="mt-3 text-sm font-medium text-ink/65">Kelola beberapa booth dan branding event.</p></div></article>
+    </div></div></section>
 
-            <div class="space-y-4">
-                <div class="p-6 rounded-2xl bg-[#FAFAFD] border-2 border-slate-100">
-                    <h3 class="text-sm font-extrabold text-[#0A2B42] mb-2">Hardware apa saja yang dibutuhkan untuk mulai?</h3>
-                    <p class="text-xs text-slate-600 leading-relaxed">Cukup 1 unit tablet/display Android (bisa tablet biasa atau stand kiosk Android) dan 1 unit printer foto (seperti DNP RX1HS, Canon Selphy, atau Epson L-series). Tim kami siap membantu panduan setup!</p>
-                </div>
-                <div class="p-6 rounded-2xl bg-[#FAFAFD] border-2 border-slate-100">
-                    <h3 class="text-sm font-extrabold text-[#0A2B42] mb-2">Bagaimana cara kerja pembayaran QRIS di booth?</h3>
-                    <p class="text-xs text-slate-600 leading-relaxed">Sistem terhubung langsung dengan QRIS dinamis di layar kiosk. Begitu tamu scan dan bayar, sesi foto otomatis terbuka tanpa perlu konfirmasi kasir.</p>
-                </div>
-                <div class="p-6 rounded-2xl bg-[#FAFAFD] border-2 border-slate-100">
-                    <h3 class="text-sm font-extrabold text-[#0A2B42] mb-2">Apakah saya bisa ganti desain frame foto sendiri?</h3>
-                    <p class="text-xs text-slate-600 leading-relaxed">Bisa banget! Anda bisa upload desain PNG dari Canva/Photoshop kapan saja. Sistem juga punya fitur alat pensil untuk melubangi kotak warna penanda foto secara otomatis.</p>
-                </div>
-                <div class="p-6 rounded-2xl bg-[#FAFAFD] border-2 border-slate-100">
-                    <h3 class="text-sm font-extrabold text-[#0A2B42] mb-2">Apakah ada batasan jumlah sesi foto per bulan?</h3>
-                    <p class="text-xs text-slate-600 leading-relaxed">Tidak ada batasan (Unlimited)! Berapapun jumlah foto dan unduhan QR yang dilakukan tamu di booth Anda, tidak ada biaya tambahan per sesi.</p>
-                </div>
-            </div>
-        </div>
-    </section>
+    <section id="harga" class="bg-paper py-24 sm:py-32"><div class="mx-auto max-w-7xl px-5 lg:px-8"><div class="reveal mx-auto mb-16 max-w-3xl text-center"><h2 class="display text-4xl sm:text-6xl">Pilih paket yang paling pas.</h2><p class="mt-5 font-medium text-ink/70">Konsultasikan kebutuhan perangkat dan jumlah booth untuk mendapatkan setup yang tepat.</p></div><div class="grid gap-8 lg:grid-cols-3">
+        <article class="card reveal flex flex-col rounded-3xl p-8"><b class="text-xs uppercase tracking-[.18em] text-teal">Starter Cafe</b><h3 class="display mt-3 text-3xl">Starter Roll</h3><div class="mt-6"><span class="display text-4xl">Rp800rb</span><small class="font-bold text-ink/55"> / bulan</small></div><p class="mt-4 text-sm font-medium text-ink/65">Untuk satu outlet cafe atau booth tetap.</p><ul class="my-7 space-y-3 border-t-2 border-dashed border-ink/35 pt-6 text-sm font-bold"><li>✓ 1 lisensi kiosk Android</li><li>✓ Unlimited sesi foto</li><li>✓ Photo strip HD 300 DPI</li><li>✓ Hingga 20 frame aktif</li><li>✓ Laporan penjualan</li></ul><a href="https://wa.me/6287877946981?text=Halo%20SnapTechBooth,%20saya%20tertarik%20dengan%20Paket%20Starter%20Cafe%20(800k/bulan)" target="_blank" class="mt-auto rounded-full border-2 border-ink bg-cream px-5 py-3.5 text-center text-sm font-black">Pilih Starter</a></article>
+        <article class="card featured reveal flex flex-col rounded-3xl p-8"><span class="badge">PALING FAVORIT</span><b class="text-xs uppercase tracking-[.18em] text-mustard">Pro Cafe</b><h3 class="display mt-3 text-3xl">Pro Film</h3><div class="mt-6"><span class="display text-4xl">Rp550rb</span><small class="font-bold text-paper/70"> / bulan</small></div><p class="mt-4 text-sm font-medium text-paper/80">Untuk cafe ramai dengan QRIS dan video motion.</p><ul class="my-7 space-y-3 border-t-2 border-dashed border-paper/40 pt-6 text-sm font-bold"><li>✓ Hingga 2 device kiosk</li><li>✓ Photo strip, GIF & video</li><li>✓ Integrasi QRIS otomatis</li><li>✓ Unlimited frame kustom</li><li>✓ Dukungan prioritas</li></ul><a href="https://wa.me/6287877946981?text=Halo%20SnapTechBooth,%20saya%20tertarik%20dengan%20Paket%20Pro%20Cafe%20(550k/bulan)" target="_blank" class="mt-auto rounded-full border-2 border-ink bg-mustard px-5 py-3.5 text-center text-sm font-black text-ink">Pilih Pro</a></article>
+        <article class="card reveal flex flex-col rounded-3xl p-8"><b class="text-xs uppercase tracking-[.18em] text-teal">Bisnis & Event</b><h3 class="display mt-3 text-3xl">Studio Pack</h3><div class="mt-6"><span class="display text-4xl">Rp1,3jt</span><small class="font-bold text-ink/55"> / bulan</small></div><p class="mt-4 text-sm font-medium text-ink/65">Untuk multi-booth, rental event, dan jaringan cafe.</p><ul class="my-7 space-y-3 border-t-2 border-dashed border-ink/35 pt-6 text-sm font-bold"><li>✓ Hingga 6 device kiosk</li><li>✓ Multi-branch & multi-event</li><li>✓ Custom branding event</li><li>✓ Dual-printer support</li><li>✓ Dedicated setup support</li></ul><a href="https://wa.me/6287877946981?text=Halo%20SnapTechBooth,%20saya%20tertarik%20dengan%20Paket%20Enterprise%20(1.3jt/bulan)" target="_blank" class="mt-auto rounded-full border-2 border-ink bg-cream px-5 py-3.5 text-center text-sm font-black">Pilih Studio</a></article>
+    </div><p class="mt-9 text-center text-xs font-semibold text-ink/55">Hubungi tim kami untuk konfirmasi fitur dan penawaran terbaru.</p></div></section>
 
-    <!-- Bottom CTA Banner -->
-    <section class="py-20 z-10 relative bg-gradient-to-r from-[#008B9B] via-[#E93C78] to-[#FFA234] text-white">
-        <div class="max-w-4xl mx-auto px-6 text-center">
-            <h2 class="text-3xl sm:text-4xl font-black tracking-tight mb-4">Siap Bikin Photobooth Sendiri di Cafe Kamu?</h2>
-            <p class="text-sm text-white/90 mb-8 max-w-xl mx-auto font-medium">Konsultasikan kebutuhan tempat dan konsep bisnismu bersama tim kami. Dapatkan panduan setup hardware dan uji coba sistem secara gratis!</p>
-            <div class="flex items-center justify-center">
-                <a href="https://wa.me/6287877946981?text=Halo%20SnapTechBooth,%20saya%20mau%20konsultasi%20paket%20photobooth" target="_blank" class="inline-flex items-center justify-center gap-2 px-9 py-4 rounded-full bg-white hover:bg-slate-50 text-[#0A2B42] font-black text-sm shadow-2xl hover:scale-105 transition duration-200">
-                    <span>Chat WhatsApp Sekarang</span>
-                    <svg class="w-4 h-4 text-[#E93C78]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/>
-                    </svg>
-                </a>
-            </div>
-        </div>
-    </section>
+    <section id="faq" class="border-t-2 border-ink py-24"><div class="mx-auto max-w-4xl px-5 lg:px-8"><div class="reveal mb-12 text-center"><span class="label bg-paper">FAQ • Quick Notes</span><h2 class="display mt-7 text-4xl sm:text-6xl">Yang sering ditanyakan.</h2></div><div class="space-y-4">
+        <details class="reveal rounded-2xl border-2 border-ink bg-paper p-5 shadow-[4px_5px_0_#2c201a]"><summary class="flex items-center justify-between gap-4 font-black"><span>Hardware apa saja yang dibutuhkan?</span><span class="plus grid h-9 w-9 shrink-0 place-items-center rounded-full border-2 border-ink bg-mustard text-xl">+</span></summary><p class="mt-4 pr-10 text-sm font-medium leading-relaxed text-ink/65">Tablet atau display Android dan printer foto. Tim kami dapat membantu memilih setup sesuai lokasi.</p></details>
+        <details class="reveal rounded-2xl border-2 border-ink bg-paper p-5 shadow-[4px_5px_0_#2c201a]"><summary class="flex items-center justify-between gap-4 font-black"><span>Bagaimana pembayaran QRIS bekerja?</span><span class="plus grid h-9 w-9 shrink-0 place-items-center rounded-full border-2 border-ink bg-mustard text-xl">+</span></summary><p class="mt-4 pr-10 text-sm font-medium leading-relaxed text-ink/65">QRIS dinamis tampil di kiosk. Setelah pembayaran terkonfirmasi, sesi foto terbuka otomatis.</p></details>
+        <details class="reveal rounded-2xl border-2 border-ink bg-paper p-5 shadow-[4px_5px_0_#2c201a]"><summary class="flex items-center justify-between gap-4 font-black"><span>Bisa memakai desain frame sendiri?</span><span class="plus grid h-9 w-9 shrink-0 place-items-center rounded-full border-2 border-ink bg-mustard text-xl">+</span></summary><p class="mt-4 pr-10 text-sm font-medium leading-relaxed text-ink/65">Bisa. Upload desain PNG, lalu atur area foto melalui frame editor.</p></details>
+        <details class="reveal rounded-2xl border-2 border-ink bg-paper p-5 shadow-[4px_5px_0_#2c201a]"><summary class="flex items-center justify-between gap-4 font-black"><span>Apakah jumlah sesi foto dibatasi?</span><span class="plus grid h-9 w-9 shrink-0 place-items-center rounded-full border-2 border-ink bg-mustard text-xl">+</span></summary><p class="mt-4 pr-10 text-sm font-medium leading-relaxed text-ink/65">Paket saat ini mendukung sesi foto tanpa batas. Penyimpanan cloud menyesuaikan paket.</p></details>
+    </div></div></section>
 
-    <!-- Footer (Public, No Admin Links) -->
-    <footer class="py-12 z-10 relative bg-[#FAFAFD] border-t border-slate-200">
-        <div class="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6">
-            <div class="flex items-center gap-3">
-                <img src="/logo/logo-snaptech.jpg" alt="Logo" class="w-8 h-8 rounded-xl object-cover border border-slate-200 shadow-sm" onerror="this.style.display='none';">
-                <span class="text-sm font-black text-[#0A2B42]">SnapTech<span class="gradient-text-s">Booth</span> <span class="text-slate-400 font-normal text-xs ml-1">© 2026</span></span>
-            </div>
+    <section class="cta border-y-2 border-ink py-20 text-paper"><div class="mx-auto max-w-7xl px-5 lg:px-8"><div class="reveal max-w-4xl"><span class="label bg-mustard text-ink">Your next best memory</span><h2 class="display mt-7 text-4xl leading-tight drop-shadow-[3px_3px_0_#2c201a] sm:text-6xl">Booth-nya siap. Sekarang giliran bisnismu tampil beda.</h2><p class="mt-5 max-w-2xl font-medium text-paper/80">Ceritakan lokasi, konsep, dan target pengunjungmu. Tim kami akan membantu menyusun kebutuhan software dan hardware.</p><a href="https://wa.me/6287877946981?text=Halo%20SnapTechBooth,%20saya%20mau%20konsultasi%20setup%20photobooth" target="_blank" class="retro-shadow mt-8 inline-flex rounded-full border-2 border-ink bg-mustard px-7 py-4 text-sm font-black text-ink transition hover:-translate-y-1">Konsultasi via WhatsApp ↗</a></div></div></section>
+</main>
 
-            <div class="flex items-center gap-8 text-xs font-bold text-slate-500">
-                <a href="#fitur" class="hover:text-[#008B9B] transition">Fitur</a>
-                <a href="#cara-kerja" class="hover:text-[#E93C78] transition">Cara Kerja</a>
-                <a href="#harga" class="hover:text-[#FFA234] transition">Pilihan Paket</a>
-                <a href="#faq" class="hover:text-[#008B9B] transition">FAQ</a>
-                <a href="https://wa.me/6287877946981" target="_blank" class="text-[#E93C78] hover:underline">Kontak Tim Sales</a>
-            </div>
-        </div>
-    </footer>
+<footer class="bg-ink py-10 text-paper"><div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-6 px-5 text-center md:flex-row md:text-left lg:px-8"><div><b class="display text-2xl">SnapTechBooth</b><p class="text-xs font-bold uppercase tracking-[.18em] text-paper/50">Make memories tangible.</p></div><nav class="flex gap-5 text-xs font-bold"><a href="#cara-kerja">Cara Kerja</a><a href="#fitur">Fitur</a><a href="#harga">Paket</a><a href="#faq">FAQ</a></nav><p class="text-xs text-paper/50">© <span id="year">2026</span> SnapTechBooth</p></div></footer>
 
+<script>
+(() => {
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const button = document.getElementById('menu-button'), menu = document.getElementById('mobile-menu');
+    button?.addEventListener('click',()=>{const open=button.getAttribute('aria-expanded')==='true';button.setAttribute('aria-expanded',String(!open));menu.classList.toggle('hidden')});
+    menu?.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>{menu.classList.add('hidden');button.setAttribute('aria-expanded','false')}));
+    document.getElementById('year').textContent=new Date().getFullYear();
+    if(!reduce){
+        const reveal=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('visible');reveal.unobserve(e.target)}}),{threshold:.12});document.querySelectorAll('.reveal').forEach(el=>reveal.observe(el));
+        const stage=document.getElementById('hero-stage'),machine=document.getElementById('machine-wrap');stage?.addEventListener('pointermove',e=>{if(innerWidth<768)return;const r=stage.getBoundingClientRect(),x=(e.clientX-r.left)/r.width-.5,y=(e.clientY-r.top)/r.height-.5;machine.style.transform=`rotateY(${x*10}deg) rotateX(${-y*8}deg)`});stage?.addEventListener('pointerleave',()=>machine.style.transform='');
+        let ticking=false;addEventListener('scroll',()=>{if(ticking)return;ticking=true;requestAnimationFrame(()=>{document.querySelectorAll('[data-speed]').forEach(el=>el.style.setProperty('--parallax',`${scrollY*Number(el.dataset.speed)}px`));ticking=false})},{passive:true});
+    } else document.querySelectorAll('.reveal').forEach(el=>el.classList.add('visible'));
+    const steps=[...document.querySelectorAll('.step')],panels=[...document.querySelectorAll('.panel')];const activate=i=>{steps.forEach((s,n)=>s.classList.toggle('active',n===i));panels.forEach((p,n)=>p.classList.toggle('active',n===i))};steps.forEach((s,i)=>{s.addEventListener('click',()=>activate(i));s.addEventListener('focus',()=>activate(i))});
+    if('IntersectionObserver'in window){const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting)activate(Number(e.target.dataset.step))}),{rootMargin:'-35% 0px -45% 0px'});steps.forEach(s=>io.observe(s))}
+})();
+</script>
 </body>
 </html>
