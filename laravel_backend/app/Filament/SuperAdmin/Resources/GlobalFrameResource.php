@@ -4,7 +4,12 @@ namespace App\Filament\SuperAdmin\Resources;
 
 use App\Filament\Forms\Components\FramePencilEditor;
 use App\Filament\SuperAdmin\Resources\GlobalFrameResource\Pages;
+use App\Models\Cafe;
+use App\Models\Event;
 use App\Models\Frame;
+use App\Services\FrameSharingService;
+use Filament\Actions\Action;
+use Filament\Actions\BulkAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
@@ -14,14 +19,18 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Infolists\Components\ImageEntry;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Support\Collection;
+use RuntimeException;
 
 class GlobalFrameResource extends Resource
 {
@@ -176,8 +185,89 @@ class GlobalFrameResource extends Resource
             ->actions([
                 ViewAction::make(),
                 EditAction::make(),
+                Action::make('shareToCafe')
+                    ->label('Bagikan ke Cafe')
+                    ->icon('heroicon-o-share')
+                    ->color('info')
+                    ->form(self::shareForm())
+                    ->requiresConfirmation()
+                    ->action(fn (Frame $record, array $data) => self::shareFrames(collect([$record]), $data)),
                 DeleteAction::make(),
+            ])
+            ->bulkActions([
+                BulkAction::make('shareToCafe')
+                    ->label('Bagikan Frame Terpilih')
+                    ->icon('heroicon-o-share')
+                    ->color('info')
+                    ->form(self::shareForm())
+                    ->requiresConfirmation()
+                    ->action(fn (Collection $records, array $data) => self::shareFrames($records, $data))
+                    ->deselectRecordsAfterCompletion(),
             ]);
+    }
+
+    private static function shareForm(): array
+    {
+        return [
+            Select::make('cafe_id')
+                ->label('Cafe Tujuan')
+                ->options(fn () => Cafe::query()->where('status', 'active')->orderBy('name')->pluck('name', 'id')->all())
+                ->searchable()
+                ->required()
+                ->live()
+                ->afterStateUpdated(fn (callable $set) => $set('event_id', null)),
+            Select::make('event_id')
+                ->label('Event Tujuan')
+                ->options(fn (Get $get) => Event::query()
+                    ->where('cafe_id', $get('cafe_id'))
+                    ->where('active', true)
+                    ->orderBy('name')
+                    ->pluck('name', 'id')
+                    ->all())
+                ->searchable()
+                ->required()
+                ->helperText('Pilih event yang dipakai perangkat cafe tujuan agar frame langsung muncul di aplikasi.'),
+        ];
+    }
+
+    private static function shareFrames(Collection $frames, array $data): void
+    {
+        $destination = Event::query()
+            ->where('cafe_id', (int) $data['cafe_id'])
+            ->where('active', true)
+            ->find((int) $data['event_id']);
+
+        if (! $destination) {
+            Notification::make()->title('Event tujuan tidak valid')->danger()->send();
+
+            return;
+        }
+
+        $copied = 0;
+        $skipped = 0;
+        $errors = [];
+
+        foreach ($frames as $frame) {
+            try {
+                FrameSharingService::copyToEvent($frame, $destination) ? $copied++ : $skipped++;
+            } catch (RuntimeException $exception) {
+                $errors[] = $exception->getMessage();
+            }
+        }
+
+        $message = "{$copied} frame berhasil dibagikan ke {$destination->cafe->name}.";
+        if ($skipped) {
+            $message .= " {$skipped} sudah pernah dibagikan ke event ini.";
+        }
+        if ($errors) {
+            $message .= ' '.count($errors).' gagal: '.implode(' ', array_unique($errors));
+        }
+
+        Notification::make()
+            ->title($copied ? 'Frame berhasil dibagikan' : 'Tidak ada frame yang dibagikan')
+            ->body($message)
+            ->color($errors ? 'warning' : ($copied ? 'success' : 'warning'))
+            ->send();
     }
 
     public static function getPages(): array

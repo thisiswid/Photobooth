@@ -51,7 +51,17 @@ class ExampleTest extends TestCase
 
     public function test_claude_sonnet_4_6_full_pipeline(): void
     {
+        // Live API checks are opt-in so the regular test suite stays offline.
+        $apiKey = env('OPENAGENTIC_API_KEY');
+        if (! env('RUN_LIVE_AI_FRAME_TEST') || ! $apiKey) {
+            $this->markTestSkipped('Set RUN_LIVE_AI_FRAME_TEST and OPENAGENTIC_API_KEY to run the live AI check.');
+        }
+
         $path = storage_path('app/public/frames/strip_coffee.png');
+        if (! file_exists($path)) {
+            $this->markTestSkipped('Sample frame not found');
+        }
+
         $base64 = base64_encode(file_get_contents($path));
         $prompt = <<<PROMPT
 Analyze this photobooth frame template.
@@ -73,7 +83,7 @@ Return ONLY raw JSON (no markdown backticks, no text before or after):
 }
 PROMPT;
 
-        $response = \Illuminate\Support\Facades\Http::withToken('sk-8aad946832adbdbe09ea924a1fdea6aab197b3f39d3f7b31c631c43c2101b6a4')
+        $response = \Illuminate\Support\Facades\Http::withToken($apiKey)
             ->timeout(25)
             ->post('https://openagentic.id/api/v1/chat/completions', [
                 'model' => 'claude-sonnet-4.6',
