@@ -86,7 +86,7 @@ class SeoPageController extends Controller
             : "Photobooth {$page['name']}: Sewa untuk Wedding, Event & Cafe | SnapTechBooth";
         $description = $isRemote
             ? "Software photobooth self-service untuk cafe dan vendor di {$fullName}: QRIS otomatis, cetak 300 DPI, GIF & video, dashboard multi-device. Dipasang dan dikonfigurasi dari jarak jauh."
-            : "Photobooth di {$fullName} untuk wedding, event, wisuda, dan cafe. Frame custom, cetak instan 300 DPI, GIF & video via QR. Berangkat dari Magetan, {$page['drive']} perjalanan.";
+            : "Photobooth di {$fullName} untuk wedding, event, wisuda, dan cafe. Frame custom, cetak instan 300 DPI, GIF & video via QR. Berangkat dari Magetan, melayani {$page['province']}.";
         if ($page['tier'] === 'base') {
             $description = 'Photobooth di Magetan untuk wedding, event, wisuda, dan cafe. Base SnapTechBooth ada di Magetan: frame custom, cetak instan 300 DPI, GIF & video via QR, dan jadwal paling fleksibel.';
         }
@@ -199,7 +199,7 @@ class SeoPageController extends Controller
             $faq[] = ['Jenis acara apa saja yang bisa dilayani?', 'Pernikahan, lamaran, wisuda, perpisahan sekolah, ulang tahun, gathering, bazar, sampai photobooth self-service permanen untuk cafe.'];
             $faq[] = ['Apakah tamu dapat file digital?', 'Ya. Setiap sesi punya QR code untuk mengunduh foto, GIF, dan video ke HP tanpa aplikasi tambahan.'];
         } else {
-            $faq[] = ["Berapa lama perjalanan dari Magetan ke {$page['name']}?", "Perkiraannya {$page['drive']} ({$page['distance']}), tergantung rute dan lokasi acara. {$tier['note']}"];
+            $faq[] = ["Apakah {$page['name']} masuk area layanan?", "Ya, {$page['name']} termasuk {$tier['label']}. {$tier['note']}"];
             $faq[] = ["Apakah ada biaya transport ke {$page['name']}?", 'Biaya perjalanan menyesuaikan jarak dari Magetan dan dikonfirmasi di awal saat konsultasi, sehingga tidak ada biaya tambahan mendadak.'];
         }
 

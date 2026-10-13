@@ -61,13 +61,10 @@
                     <img src="/images/seo/area-layanan.webp" width="960" height="720" alt="Ilustrasi photobooth berangkat dari Magetan menuju {{ $page['name'] }}" fetchpriority="high">
                 </figure>
                 <dl class="card mx-auto grid max-w-[460px] grid-cols-2 gap-4 rounded-3xl p-6 text-ink">
-                    <div><dt class="text-[10px] font-black uppercase tracking-[.18em] text-ink/55">Dari Magetan</dt><dd class="mt-1 text-lg font-black">{{ $page['distance'] }}</dd></div>
-                    <div><dt class="text-[10px] font-black uppercase tracking-[.18em] text-ink/55">Waktu tempuh</dt><dd class="mt-1 text-lg font-black">{{ $page['drive'] }}</dd></div>
+                    <div><dt class="text-[10px] font-black uppercase tracking-[.18em] text-ink/55">Base</dt><dd class="mt-1 text-lg font-black">Magetan</dd></div>
+                    <div><dt class="text-[10px] font-black uppercase tracking-[.18em] text-ink/55">Provinsi</dt><dd class="mt-1 text-lg font-black">{{ $page['province'] }}</dd></div>
                     <div class="col-span-2 border-t-2 border-dashed border-ink/25 pt-4"><dt class="text-[10px] font-black uppercase tracking-[.18em] text-ink/55">Status jangkauan</dt><dd class="mt-1 text-sm font-semibold leading-relaxed">{{ $tier['note'] }}</dd></div>
                 </dl>
-                @if ($page['tier'] !== 'base')
-                    <p class="text-center text-xs font-semibold text-paper/80">Jarak & waktu tempuh adalah perkiraan, tergantung rute dan lokasi acara.</p>
-                @endif
             </div>
         </div>
     </section>
@@ -143,7 +140,7 @@
             <h2 class="display text-2xl sm:text-3xl">Kota terdekat</h2>
             <ul class="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-4">
                 @foreach ($nearby as $s => $c)
-                    <li><a href="/{{ $s }}" class="card block h-full rounded-2xl px-4 py-3"><b class="text-sm">Photobooth {{ $c['name'] }}</b><small class="block text-xs font-semibold text-ink/55">{{ $c['tier'] === 'base' ? 'Base kami' : $c['drive'].' dari Magetan' }}</small></a></li>
+                    <li><a href="/{{ $s }}" class="card block h-full rounded-2xl px-4 py-3"><b class="text-sm">Photobooth {{ $c['name'] }}</b><small class="block text-xs font-semibold text-ink/55">{{ $c['tier'] === 'base' ? 'Base kami' : $c['province'] }}</small></a></li>
                 @endforeach
             </ul>
             <p class="mt-6 text-sm font-semibold text-ink/65">

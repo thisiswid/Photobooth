@@ -105,7 +105,7 @@
             </div>
             <ul class="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                 @foreach ($areaCities as $citySlug => $city)
-                    <li><a href="/{{ $citySlug }}" class="card flex h-full flex-col rounded-2xl px-4 py-3"><b class="text-sm">Photobooth {{ $city['name'] }}</b><small class="text-xs font-semibold text-ink/55">{{ $city['tier'] === 'base' ? 'Base kami' : $city['drive'] }}</small></a></li>
+                    <li><a href="/{{ $citySlug }}" class="card flex h-full flex-col rounded-2xl px-4 py-3"><b class="text-sm">Photobooth {{ $city['name'] }}</b><small class="text-xs font-semibold text-ink/55">{{ $city['tier'] === 'base' ? 'Base kami' : $city['province'] }}</small></a></li>
                 @endforeach
             </ul>
             <p class="mt-6 text-sm font-semibold text-ink/65">Luar kota & jarak jauh:

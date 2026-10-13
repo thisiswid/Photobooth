@@ -35,7 +35,7 @@
     <section class="bg-paper py-20 sm:py-24">
         <div class="mx-auto max-w-7xl px-5 lg:px-8">
             <h2 class="display mb-4 text-3xl leading-tight sm:text-5xl">Semua kota yang kami layani</h2>
-            <p class="mb-12 max-w-3xl font-medium text-ink/65">Jarak dan waktu tempuh adalah perkiraan dari pusat Magetan, tergantung rute dan lokasi acara.</p>
+            <p class="mb-12 max-w-3xl font-medium text-ink/65">Dikelompokkan berdasarkan jangkauan dari base kami di Magetan.</p>
             @include('seo.partials.city-tiers', ['cities' => $cities])
         </div>
     </section>

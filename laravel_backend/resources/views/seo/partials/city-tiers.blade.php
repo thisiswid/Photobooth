@@ -15,7 +15,7 @@
                         <a href="/{{ $s }}" class="card flex h-full flex-col rounded-2xl p-5">
                             <b class="display text-xl">Photobooth {{ $c['name'] }}</b>
                             <small class="mt-1 text-xs font-bold uppercase tracking-[.14em] text-teal">{{ $c['province'] }}</small>
-                            <span class="mt-3 text-sm font-semibold text-ink/65">{{ $c['tier'] === 'base' ? 'Base SnapTechBooth' : $c['distance'].' · '.$c['drive'] }}</span>
+                            <span class="mt-3 text-sm font-semibold text-ink/65">{{ $c['tier'] === 'base' ? 'Base SnapTechBooth' : $tier['label'] }}</span>
                         </a>
                     </li>
                 @endforeach
