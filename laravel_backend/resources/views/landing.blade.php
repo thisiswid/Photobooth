@@ -4,8 +4,91 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#f3e7cf">
-    <title>SnapTechBooth — Photobooth Self-Service untuk Cafe & Event</title>
-    <meta name="description" content="Software photobooth self-service dengan QRIS, cetak otomatis, GIF, video, dan download langsung ke HP.">
+    @php
+        $siteUrl = 'https://snaptechbooth.my.id';
+        $seoTitle = 'Software Photobooth Self-Service untuk Cafe & Event | SnapTechBooth';
+        $seoDesc = 'Photobooth self-service untuk cafe, wedding, dan event dari Magetan: bayar QRIS otomatis, cetak 300 DPI, GIF & video, download lewat QR. Melayani Jawa Timur & Jawa Tengah.';
+    @endphp
+    <title>{{ $seoTitle }}</title>
+    <meta name="description" content="{{ $seoDesc }}">
+    <meta name="robots" content="index, follow, max-image-preview:large">
+    <link rel="canonical" href="{{ $siteUrl }}/">
+
+    {{-- Favicon & ikon aplikasi --}}
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+
+    {{-- Open Graph & Twitter: tampilan saat link dibagikan ke WhatsApp, IG, X, FB --}}
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="id_ID">
+    <meta property="og:site_name" content="SnapTechBooth">
+    <meta property="og:url" content="{{ $siteUrl }}/">
+    <meta property="og:title" content="{{ $seoTitle }}">
+    <meta property="og:description" content="{{ $seoDesc }}">
+    <meta property="og:image" content="{{ $siteUrl }}/og-image.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Logo SnapTechBooth">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ $seoTitle }}">
+    <meta name="twitter:description" content="{{ $seoDesc }}">
+    <meta name="twitter:image" content="{{ $siteUrl }}/og-image.jpg">
+
+    {{-- Structured data (schema.org) supaya Google paham ini bisnis apa --}}
+    @verbatim
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@graph": [
+            {
+                "@type": "LocalBusiness",
+                "@id": "https://snaptechbooth.my.id/#organization",
+                "name": "SnapTechBooth",
+                "url": "https://snaptechbooth.my.id/",
+                "logo": "https://snaptechbooth.my.id/icon-512.png",
+                "image": "https://snaptechbooth.my.id/og-image.jpg",
+                "telephone": "+62-878-7794-6981",
+                "address": { "@type": "PostalAddress", "addressLocality": "Magetan", "addressRegion": "Jawa Timur", "addressCountry": "ID" },
+                "geo": { "@type": "GeoCoordinates", "latitude": -7.6493, "longitude": 111.3381 },
+                "areaServed": [ { "@type": "State", "name": "Jawa Timur" }, { "@type": "State", "name": "Jawa Tengah" }, { "@type": "City", "name": "Jakarta" }, { "@type": "City", "name": "Bekasi" } ],
+                "contactPoint": {
+                    "@type": "ContactPoint",
+                    "telephone": "+62-878-7794-6981",
+                    "contactType": "sales",
+                    "areaServed": "ID",
+                    "availableLanguage": ["Indonesian"]
+                }
+            },
+            {
+                "@type": "WebSite",
+                "@id": "https://snaptechbooth.my.id/#website",
+                "url": "https://snaptechbooth.my.id/",
+                "name": "SnapTechBooth",
+                "inLanguage": "id-ID",
+                "publisher": { "@id": "https://snaptechbooth.my.id/#organization" }
+            },
+            {
+                "@type": "SoftwareApplication",
+                "name": "SnapTechBooth Photobooth Self-Service",
+                "applicationCategory": "MultimediaApplication",
+                "operatingSystem": "Android",
+                "description": "Software photobooth self-service dengan pembayaran QRIS, cetak otomatis 300 DPI, GIF dan video, serta download hasil foto lewat QR code.",
+                "publisher": { "@id": "https://snaptechbooth.my.id/#organization" }
+            },
+            {
+                "@type": "FAQPage",
+                "mainEntity": [
+                    { "@type": "Question", "name": "Hardware apa saja yang dibutuhkan?", "acceptedAnswer": { "@type": "Answer", "text": "Tablet atau display Android dan printer foto. Tim kami dapat membantu memilih setup sesuai lokasi." } },
+                    { "@type": "Question", "name": "Bagaimana pembayaran QRIS bekerja?", "acceptedAnswer": { "@type": "Answer", "text": "QRIS dinamis tampil di kiosk. Setelah pembayaran terkonfirmasi, sesi foto terbuka otomatis." } },
+                    { "@type": "Question", "name": "Bisa memakai desain frame sendiri?", "acceptedAnswer": { "@type": "Answer", "text": "Bisa. Upload desain PNG, lalu atur area foto melalui frame editor." } },
+                    { "@type": "Question", "name": "Apakah jumlah sesi foto dibatasi?", "acceptedAnswer": { "@type": "Answer", "text": "Paket saat ini mendukung sesi foto tanpa batas. Penyimpanan cloud menyesuaikan paket." } }
+                ]
+            }
+        ]
+    }
+    </script>
+    @endverbatim
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Shrikhand&display=swap" rel="stylesheet">
@@ -54,7 +137,7 @@
 <header class="sticky top-0 z-50 border-b-2 border-ink bg-cream/95 backdrop-blur-md">
     <div class="mx-auto flex h-[74px] max-w-7xl items-center justify-between px-5 lg:px-8">
         <a href="#top" class="flex items-center gap-3" aria-label="Kembali ke atas">
-            <span class="grid h-11 w-11 -rotate-3 place-items-center overflow-hidden rounded-xl border-2 border-ink bg-paper shadow-[3px_3px_0_#2c201a]"><img src="/logo/logo-snaptech.jpg" alt="" class="h-full w-full object-cover" onerror="this.style.display='none';this.parentElement.textContent='ST';"></span>
+            <span class="grid h-11 w-11 -rotate-3 place-items-center overflow-hidden rounded-xl border-2 border-ink bg-paper shadow-[3px_3px_0_#2c201a]"><img src="/logo/logo-snaptech-512.jpg" width="44" height="44" alt="" class="h-full w-full object-cover" onerror="this.style.display='none';this.parentElement.textContent='ST';"></span>
             <span><b class="display block text-xl leading-none">SnapTechBooth</b><small class="text-[9px] font-black uppercase tracking-[.22em] text-teal">Self-photo studio</small></span>
         </a>
         <nav class="hidden items-center gap-7 text-sm font-bold md:flex" aria-label="Navigasi utama"><a href="#cara-kerja" class="hover:text-tomato">Cara Kerja</a><a href="#hasil" class="hover:text-tomato">Hasil Foto</a><a href="#fitur" class="hover:text-tomato">Fitur</a><a href="#harga" class="hover:text-tomato">Paket</a></nav>
@@ -128,6 +211,23 @@
         <article class="card reveal flex flex-col rounded-3xl p-8"><b class="text-xs uppercase tracking-[.18em] text-teal">Bisnis & Event</b><h3 class="display mt-3 text-3xl">Studio Pack</h3><div class="mt-6"><span class="display text-4xl">Rp1,3jt</span><small class="font-bold text-ink/55"> / bulan</small></div><p class="mt-4 text-sm font-medium text-ink/65">Untuk multi-booth, rental event, dan jaringan cafe.</p><ul class="my-7 space-y-3 border-t-2 border-dashed border-ink/35 pt-6 text-sm font-bold"><li>✓ Hingga 6 device kiosk</li><li>✓ Multi-branch & multi-event</li><li>✓ Custom branding event</li><li>✓ Dual-printer support</li><li>✓ Dedicated setup support</li></ul><a href="https://wa.me/6287877946981?text=Halo%20SnapTechBooth,%20saya%20tertarik%20dengan%20Paket%20Enterprise%20(1.3jt/bulan)" target="_blank" class="mt-auto rounded-full border-2 border-ink bg-cream px-5 py-3.5 text-center text-sm font-black">Pilih Studio</a></article>
     </div><p class="mt-9 text-center text-xs font-semibold text-ink/55">Hubungi tim kami untuk konfirmasi fitur dan penawaran terbaru.</p></div></section>
 
+    {{-- Layanan & area (internal link ke halaman SEO) --}}
+    @php $seoPages = config('seo_pages'); @endphp
+    <section id="layanan" class="bg-paper py-24 sm:py-28"><div class="mx-auto max-w-7xl px-5 lg:px-8">
+        <div class="reveal mb-12 max-w-3xl"><span class="label bg-teal text-paper">Base di Magetan</span><h2 class="display mt-7 text-4xl leading-tight sm:text-6xl">Layanan & area kami.</h2><p class="mt-5 font-medium leading-relaxed text-ink/70">Berangkat dari Magetan, kami melayani acara di Jawa Timur dan Jawa Tengah. Untuk Jakarta, Bekasi, dan kota lain, software photobooth dipasang dari jarak jauh.</p></div>
+        <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            @foreach ($seoPages['services'] as $s => $svc)
+                <a href="/{{ $s }}" class="card reveal flex items-center gap-4 rounded-3xl p-4"><img src="/images/seo/{{ $svc['image'] }}.webp" width="120" height="90" loading="lazy" alt="" class="w-24 shrink-0 rounded-xl border-2 border-ink"><span><b class="display block text-xl leading-tight">{{ $svc['name'] }}</b><small class="mt-1 block text-xs font-semibold text-ink/60">{{ $svc['eyebrow'] }}</small></span></a>
+            @endforeach
+        </div>
+        <div class="reveal mt-12 flex flex-wrap items-center gap-3">
+            @foreach ($seoPages['cities'] as $s => $city)
+                <a href="/{{ $s }}" class="rounded-full border-2 border-ink bg-cream px-4 py-2 text-xs font-black shadow-[3px_3px_0_#2c201a] transition hover:-translate-y-0.5 hover:bg-mustard">Photobooth {{ $city['name'] }}</a>
+            @endforeach
+            <a href="/area-layanan" class="px-2 text-sm font-black text-tomato">Semua area →</a>
+        </div>
+    </div></section>
+
     <section id="faq" class="border-t-2 border-ink py-24"><div class="mx-auto max-w-4xl px-5 lg:px-8"><div class="reveal mb-12 text-center"><span class="label bg-paper">FAQ • Quick Notes</span><h2 class="display mt-7 text-4xl sm:text-6xl">Yang sering ditanyakan.</h2></div><div class="space-y-4">
         <details class="reveal rounded-2xl border-2 border-ink bg-paper p-5 shadow-[4px_5px_0_#2c201a]"><summary class="flex items-center justify-between gap-4 font-black"><span>Hardware apa saja yang dibutuhkan?</span><span class="plus grid h-9 w-9 shrink-0 place-items-center rounded-full border-2 border-ink bg-mustard text-xl">+</span></summary><p class="mt-4 pr-10 text-sm font-medium leading-relaxed text-ink/65">Tablet atau display Android dan printer foto. Tim kami dapat membantu memilih setup sesuai lokasi.</p></details>
         <details class="reveal rounded-2xl border-2 border-ink bg-paper p-5 shadow-[4px_5px_0_#2c201a]"><summary class="flex items-center justify-between gap-4 font-black"><span>Bagaimana pembayaran QRIS bekerja?</span><span class="plus grid h-9 w-9 shrink-0 place-items-center rounded-full border-2 border-ink bg-mustard text-xl">+</span></summary><p class="mt-4 pr-10 text-sm font-medium leading-relaxed text-ink/65">QRIS dinamis tampil di kiosk. Setelah pembayaran terkonfirmasi, sesi foto terbuka otomatis.</p></details>
@@ -138,7 +238,7 @@
     <section class="cta border-y-2 border-ink py-20 text-paper"><div class="mx-auto max-w-7xl px-5 lg:px-8"><div class="reveal max-w-4xl"><span class="label bg-mustard text-ink">Your next best memory</span><h2 class="display mt-7 text-4xl leading-tight drop-shadow-[3px_3px_0_#2c201a] sm:text-6xl">Booth-nya siap. Sekarang giliran bisnismu tampil beda.</h2><p class="mt-5 max-w-2xl font-medium text-paper/80">Ceritakan lokasi, konsep, dan target pengunjungmu. Tim kami akan membantu menyusun kebutuhan software dan hardware.</p><a href="https://wa.me/6287877946981?text=Halo%20SnapTechBooth,%20saya%20mau%20konsultasi%20setup%20photobooth" target="_blank" class="retro-shadow mt-8 inline-flex rounded-full border-2 border-ink bg-mustard px-7 py-4 text-sm font-black text-ink transition hover:-translate-y-1">Konsultasi via WhatsApp ↗</a></div></div></section>
 </main>
 
-<footer class="bg-ink py-10 text-paper"><div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-6 px-5 text-center md:flex-row md:text-left lg:px-8"><div><b class="display text-2xl">SnapTechBooth</b><p class="text-xs font-bold uppercase tracking-[.18em] text-paper/50">Make memories tangible.</p></div><nav class="flex gap-5 text-xs font-bold"><a href="#cara-kerja">Cara Kerja</a><a href="#fitur">Fitur</a><a href="#harga">Paket</a><a href="#faq">FAQ</a></nav><p class="text-xs text-paper/50">© <span id="year">2026</span> SnapTechBooth</p></div></footer>
+<footer class="bg-ink py-10 text-paper"><div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-6 px-5 text-center md:flex-row md:text-left lg:px-8"><div><b class="display text-2xl">SnapTechBooth</b><p class="text-xs font-bold uppercase tracking-[.18em] text-paper/50">Make memories tangible · Magetan, Jawa Timur</p></div><nav class="flex flex-wrap justify-center gap-5 text-xs font-bold"><a href="#cara-kerja">Cara Kerja</a><a href="#fitur">Fitur</a><a href="#harga">Paket</a><a href="/photobooth-wedding">Wedding</a><a href="/photobooth-cafe">Cafe</a><a href="/aplikasi-photobooth">Aplikasi</a><a href="/area-layanan">Area Layanan</a><a href="#faq">FAQ</a></nav><p class="text-xs text-paper/50">© <span id="year">2026</span> SnapTechBooth</p></div></footer>
 
 <script>
 (() => {
